@@ -1,4 +1,3 @@
-
 // 根据毫秒数格式化出分钟及其秒数 msec: 275573 = 04:35
 export function formattingTime(msec: number, isMsec = true) {
   let result = ''
@@ -6,8 +5,9 @@ export function formattingTime(msec: number, isMsec = true) {
   const sec = Math.floor(s % 60)
   const minute = Math.floor((s - sec) / 60)
 
-  result = `${minute.toString().length <= 1
-    ? '0'+minute : minute}:${sec.toString().length <= 1 ? '0'+sec : sec}`
+  result = `${
+    minute.toString().length <= 1 ? '0' + minute : minute
+  }:${sec.toString().length <= 1 ? '0' + sec : sec}`
 
   return result
 }
@@ -25,13 +25,12 @@ export type Yrc = {
 }
 
 // 随机产生指定范围数
-export function randomNum(minNum: number,maxNum: number, decimals = false){
-  if(decimals) {
-    return Math.random() * (maxNum - minNum) + minNum;
+export function randomNum(minNum: number, maxNum: number, decimals = false) {
+  if (decimals) {
+    return Math.random() * (maxNum - minNum) + minNum
   }
-  return Math.floor(Math.random()*(maxNum-minNum+1)+minNum)
+  return Math.floor(Math.random() * (maxNum - minNum + 1) + minNum)
 }
-
 
 /*
 * 首先Array(1,2,3,4)，你知道的吧,生成一个数组[1,2,3,4]
@@ -53,14 +52,15 @@ export function formatDate(timestamp: number, format: string = 'YY-MM-DD hh:mm:s
     min = date.getMinutes(),
     sec = date.getSeconds()
   const preArr = Array.apply(null, Array(10)).map((item, index) => {
-    return '0'+index
+    return '0' + index
   })
-  const result = format.replace(/YY/g, ''+year)
-                       .replace(/MM/g, preArr[month] || ''+month)
-                       .replace(/DD/g, preArr[day] || ''+day)
-                       .replace(/hh/g, preArr[hour] || ''+hour)
-                       .replace(/mm/g, preArr[min] || ''+min)
-                       .replace(/ss/g, preArr[sec] || ''+sec)
+  const result = format
+    .replace(/YY/g, '' + year)
+    .replace(/MM/g, preArr[month] || '' + month)
+    .replace(/DD/g, preArr[day] || '' + day)
+    .replace(/hh/g, preArr[hour] || '' + hour)
+    .replace(/mm/g, preArr[min] || '' + min)
+    .replace(/ss/g, preArr[sec] || '' + sec)
   return result
 }
 
@@ -71,15 +71,15 @@ export function varDayim() {
 
 // 嵌套取值
 export function lookup(obj: object, key: string | undefined): any {
-  if(!key) {
+  if (!key) {
     return ''
   }
-  if(!key.includes('.')) {
+  if (!key.includes('.')) {
     return obj[key as keyof typeof obj]
   }
   let temp = obj
-  key.split('.').forEach(item => {
-    if(!temp) {
+  key.split('.').forEach((item) => {
+    if (!temp) {
       return {}
     }
     temp = temp[item as keyof typeof obj]
@@ -89,26 +89,25 @@ export function lookup(obj: object, key: string | undefined): any {
 
 // 切换图片过渡 (防止图片闪烁
 export function toggleImg(src: string, size?: string): Promise<HTMLImageElement> {
-  if(!src) {
+  if (!src) {
     return Promise.reject(`toggleImg：传递的src为空: ${src}`)
   }
-  const img = new Image();
-  img.src = size ? src + `?param=${size}` : src;
-  img.crossOrigin = 'Anonymous';
-  img.width = document.body.clientWidth;
-  img.height = document.body.clientHeight;
+  const img = new Image()
+  img.src = size ? src + `?param=${size}` : src
+  img.crossOrigin = 'Anonymous'
+  img.width = document.body.clientWidth
+  img.height = document.body.clientHeight
 
   return new Promise((resolve) => {
     img.onload = () => {
-      resolve(img);
-    };
+      resolve(img)
+    }
     img.onerror = () => {
       // 在实际应用中，您可能还想处理加载失败的情况
-      console.error(`Failed to load image: ${src}`);
-    };
-  });
+      console.error(`Failed to load image: ${src}`)
+    }
+  })
 }
-
 
 // 计算出合适的间隙
 export function suitableSpace(el: Element, itemEl: Element, count: number): number {
@@ -123,8 +122,8 @@ export function suitableSpace(el: Element, itemEl: Element, count: number): numb
 // 是否处于今天
 export function calculateIsToday(timestamp: number): boolean {
   // 把今天的日期时分秒设置为00:00:00, 返回一个时间戳
-  const todayDate = new Date().setHours(0,0,0,0)
-  const paramsDate = new Date(timestamp).setHours(0,0,0,0)
+  const todayDate = new Date().setHours(0, 0, 0, 0)
+  const paramsDate = new Date(timestamp).setHours(0, 0, 0, 0)
 
   return todayDate === paramsDate
 }
@@ -133,17 +132,15 @@ export function calculateIsToday(timestamp: number): boolean {
 export function parsePathQuery(path: string) {
   const result = {
     path: path,
-    query: {
-
-    } as {[key:string]: any}
+    query: {} as { [key: string]: any }
   }
   const index = path.indexOf('?')
-  if(index === -1) {
+  if (index === -1) {
     return result
   }
-  result.path = path.slice(0,index)
-  const queryArr = path.slice(index+1).split('&')
-  queryArr.forEach(item => {
+  result.path = path.slice(0, index)
+  const queryArr = path.slice(index + 1).split('&')
+  queryArr.forEach((item) => {
     const index = item.indexOf('=')
     const key = item.slice(0, index)
     const value = item.slice(index + 1)
@@ -153,110 +150,124 @@ export function parsePathQuery(path: string) {
 }
 
 // 根据时间执行总时长    !!!! 请注意，当done为true时，必须调用pause来中断函数执行
-export function animation(time: number, cb: (elapsed: number, done: boolean) => void): (isPause: boolean) => void {
-  let start: number | undefined;
-  let intervalId: number | undefined;
-  let elapsed = 0;
-  let paused = false;
+export function animation(
+  time: number,
+  cb: (elapsed: number, done: boolean) => void
+): (isPause: boolean) => void {
+  let start: number | undefined
+  let intervalId: number | undefined
+  let elapsed = 0
+  let paused = false
 
   function step() {
     if (!paused) {
-      elapsed = Date.now() - (start ?? Date.now());
-      const done = elapsed >= time;
+      elapsed = Date.now() - (start ?? Date.now())
+      const done = elapsed >= time
       if (done) {
-        cb(time, true);
-        clearInterval(intervalId);
+        cb(time, true)
+        clearInterval(intervalId)
       } else {
-        cb(elapsed, false);
+        cb(elapsed, false)
       }
     }
   }
 
-  start = Date.now();
-  intervalId = setInterval(step, 0); // 模拟 requestAnimationFrame 的频率
+  start = Date.now()
+  intervalId = setInterval(step, 0) // 模拟 requestAnimationFrame 的频率
 
   return (isPause: boolean) => {
     if (isPause) {
-      paused = true;
+      paused = true
     } else {
       if (paused) {
-        paused = false;
-        start = Date.now() - elapsed; // 重置开始时间
+        paused = false
+        start = Date.now() - elapsed // 重置开始时间
       }
     }
-  };
+  }
 }
 
 export function rgbToHsl(r: number, g: number, b: number) {
-  r /= 255, g /= 255, b /= 255;
-  let max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h, s, l = (max + min) / 2;
+  ;(r /= 255), (g /= 255), (b /= 255)
+  let max = Math.max(r, g, b),
+    min = Math.min(r, g, b)
+  let h,
+    s,
+    l = (max + min) / 2
 
-  if(max == min){
-    h = s = 0; // achromatic
-  }else{
-    let d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch(max){
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
+  if (max == min) {
+    h = s = 0 // achromatic
+  } else {
+    let d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case r:
+        h = (g - b) / d + (g < b ? 6 : 0)
+        break
+      case g:
+        h = (b - r) / d + 2
+        break
+      case b:
+        h = (r - g) / d + 4
+        break
     }
-    h /= 6;
+    h /= 6
   }
 
-  return [h, s, l];
+  return [h, s, l]
 }
 
 export function isGoodColor(r: number, g: number, b: number) {
-  let hsl = rgbToHsl(r, g, b);
-  let h = hsl[0], s = hsl[1], l = hsl[2];
+  let hsl = rgbToHsl(r, g, b)
+  let h = hsl[0],
+    s = hsl[1],
+    l = hsl[2]
   // 过滤掉过亮或过暗，过饱和或过淡的颜色
   if (l < 0.2 || l > 0.8 || s < 0.2 || s > 0.8) {
-    return false;
+    return false
   }
-  return true;
+  return true
 }
 export function findBestColors(colors: Array<Array<string>>, num: number): Array<Array<string>> {
-  let goodColors = colors.filter(color => isGoodColor(...color));
+  let goodColors = colors.filter((color) => isGoodColor(...color))
   if (goodColors.length < num) {
-    let badColors = colors.filter(color => !isGoodColor(...color));
-    goodColors = [...goodColors, ...badColors.slice(0, num - goodColors.length)];
+    let badColors = colors.filter((color) => !isGoodColor(...color))
+    goodColors = [...goodColors, ...badColors.slice(0, num - goodColors.length)]
   }
 
-  let bestColors = [];
+  let bestColors = []
   for (let i = 0; i < num; i++) {
-    let bestColor;
-    let maxDifference = 0;
+    let bestColor
+    let maxDifference = 0
     for (let j = 0; j < goodColors.length; j++) {
-      let color = goodColors[j];
+      let color = goodColors[j]
       let minDifference = bestColors.reduce((min, bestColor) => {
-        let hsl1 = rgbToHsl(...bestColor);
-        let hsl2 = rgbToHsl(...color);
-        let difference = Math.abs(hsl1[1] - hsl2[1]) + Math.abs(hsl1[2] - hsl2[2]);
-        return Math.min(min, difference);
-      }, Infinity);
+        let hsl1 = rgbToHsl(...bestColor)
+        let hsl2 = rgbToHsl(...color)
+        let difference = Math.abs(hsl1[1] - hsl2[1]) + Math.abs(hsl1[2] - hsl2[2])
+        return Math.min(min, difference)
+      }, Infinity)
       if (minDifference > maxDifference) {
-        maxDifference = minDifference;
-        bestColor = color;
+        maxDifference = minDifference
+        bestColor = color
       }
     }
-    bestColors.push(bestColor);
-    let index = goodColors.indexOf(bestColor);
-    goodColors.splice(index, 1);
+    bestColors.push(bestColor)
+    let index = goodColors.indexOf(bestColor)
+    goodColors.splice(index, 1)
   }
 
-  return bestColors;
+  return bestColors
 }
 
 // 获取屏幕刷新率
 export const getScreenFps = (() => {
   // 先做一下兼容性处理
-  const nextFrame = ([
+  const nextFrame = [
     window.requestAnimationFrame,
     window.webkitRequestAnimationFrame,
     window.mozRequestAnimationFrame
-  ]).find(fn => fn)
+  ].find((fn) => fn)
   if (!nextFrame) {
     console.error('requestAnimationFrame is not supported!')
     return
@@ -266,8 +277,8 @@ export const getScreenFps = (() => {
     if (targetCount < 1) throw new Error('targetCount cannot be less than 1.')
     const beginDate = Date.now()
     let count = 0
-    return new Promise(resolve => {
-      (function log() {
+    return new Promise((resolve) => {
+      ;(function log() {
         nextFrame(() => {
           if (++count >= targetCount) {
             const diffDate = Date.now() - beginDate
@@ -285,13 +296,12 @@ export const isElectron = () => {
   // darwin: macOS 操作系统
   // linux: Linux 操作系统
   // win32: Windows 操作系统（即使在 64 位系统上也是返回这个值）
-  return ['darwin', 'linux', 'win32'].includes(window.electron?.platform || '')
+  return ['linux', 'win32'].includes(window.electron?.process.platform || '')
 }
 
 export const isString = (value: any): value is string => {
   return typeof value === 'string'
 }
-
 
 /*
 * // 测试
@@ -301,22 +311,24 @@ console.log(formatNumberToMillion(9876543));  // 输出 "987.7万"
 console.log(formatNumberToMillion(5000));     // 输出 "5000"
 * */
 export function formatNumberToMillion(number: number) {
-  if (number >= 100000000) { // 如果数字大于等于 1 亿
-    const billionNumber = Math.floor(number / 10000000) / 10; // 强制截取一位小数
-    return `${billionNumber}亿`;
-  } else if (number >= 10000) { // 如果数字大于等于 1 万
-    const millionNumber = Math.floor(number / 1000) / 10; // 强制截取一位小数
-    return `${millionNumber}万`;
+  if (number >= 100000000) {
+    // 如果数字大于等于 1 亿
+    const billionNumber = Math.floor(number / 10000000) / 10 // 强制截取一位小数
+    return `${billionNumber}亿`
+  } else if (number >= 10000) {
+    // 如果数字大于等于 1 万
+    const millionNumber = Math.floor(number / 1000) / 10 // 强制截取一位小数
+    return `${millionNumber}万`
   } else {
-    return number.toString(); // 数字小于 1 万，不需要处理
+    return number.toString() // 数字小于 1 万，不需要处理
   }
 }
 
 export const debounce = (func: (...args: any[]) => void, delay: number) => {
   let timerId: ReturnType<typeof setTimeout> | null = null
 
-  return function(this: any,...args: any[]) {
-    if(timerId) {
+  return function (this: any, ...args: any[]) {
+    if (timerId) {
       clearTimeout(timerId)
     }
 

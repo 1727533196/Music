@@ -1,32 +1,22 @@
-import {MusicPlayerInstanceType} from "@/components/MusicPlayer/index.vue";
-import os from "os";
-import {ipcRenderer} from "../../electron";
-
-declare global {
-    interface Window{
-        $audio: MusicPlayerInstanceType
-        $login: any
-        electron?: {
-            platform: string,
-            maximize: () => void,
-            unmaximize: () => void,
-            minimize: () => void,
-            restore: () => void,
-            close: () => void,
-            reset: () => void,
-        }
-    }
-    const $audio: Window['$audio'];
-    const electron: Window['electron'];
-    interface ImportMetaEnv {
-        VITE_APP_WEB_URL: string
-    }
-}
+import { MusicPlayerInstanceType } from '@/components/MusicPlayer/index.vue'
+import { ElectronAPI } from '@electron-toolkit/preload'
 
 type Channel = 'maximize' | 'unmaximize' | 'minimize' | 'restore' | 'close'
-declare module 'electron' {
-    const ipcRenderer: {
-        send: (channel: Channel) => void
-    }
+
+declare global {
+  interface Window {
+    $audio: MusicPlayerInstanceType
+    $login: any
+    electron: ElectronAPI
+  }
+
+  interface ImportMetaEnv {
+    VITE_APP_WEB_URL: string
+  }
 }
 
+declare module '@electron-toolkit/preload' {
+  interface IpcRenderer {
+    send(channel: Channel, ...args: any[]): void
+  }
+}

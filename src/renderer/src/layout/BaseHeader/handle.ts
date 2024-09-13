@@ -1,8 +1,8 @@
-import {useFlags} from "@/store/flags";
-import {isElectron} from '@/utils';
+import { useFlags } from '@/store/flags'
+import { isElectron } from '@/utils'
 
 // 定义 ipcRenderer 变量
-let ipcRenderer = null;
+let ipcRenderer = null
 
 // 使用异步函数来处理 ipcRenderer 的动态导入
 // const loadIpcRenderer = async () => {
@@ -15,25 +15,25 @@ let ipcRenderer = null;
 // loadIpcRenderer();
 
 export const handle = () => {
-  const flags = useFlags();
+  const flags = useFlags()
   const maximize = () => {
-    window.electron?.maximize()
-    flags.isMaximize = true;
+    flags.isMaximize = true
+    window.electron?.ipcRenderer.send('maximize')
   }
   const unmaximize = () => {
-    window.electron?.unmaximize()
-    flags.isMaximize = false;
+    flags.isMaximize = false
+    window.electron?.ipcRenderer.send('unmaximize')
   }
   const minimize = () => {
-    window.electron?.minimize()
-    flags.isMinimize = true;
+    flags.isMinimize = true
+    window.electron?.ipcRenderer.send('minimize')
   }
   const restore = () => {
-    window.electron?.restore()
-    flags.isMinimize = false;
+    flags.isMinimize = false
+    window.electron?.ipcRenderer.send('restore')
   }
   const close = () => {
-    window.electron?.close()
+    window.electron?.ipcRenderer.send('close')
   }
 
   return {
@@ -41,6 +41,6 @@ export const handle = () => {
     unmaximize,
     minimize,
     restore,
-    close,
+    close
   }
 }
