@@ -1,0 +1,16 @@
+@import 'variable';
+
+.bg_color(){
+  background: @background-color-theme;
+  [data-theme=theme] & {
+    background: @background-color-theme;
+    .aside {
+      background-color: rgba(0,0,0,0.04);
+    }
+  }
+  [data-theme=theme1] & {
+    background: @background-color-theme1;
+
+  }
+}
+
