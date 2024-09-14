@@ -1,28 +1,35 @@
 <script setup lang="ts">
-import {formatDate, formatNumberToMillion, toggleImg} from "@/utils";
-import {useMusicAction} from "@/store/music";
-import {useUserInfo} from "@/store";
-import {ref, watch} from "vue";
-import {useTheme} from "@/store/theme";
-import {useRouter} from "vue-router";
+import { formatDate, formatNumberToMillion, toggleImg } from '@/utils'
+import { useMusicAction } from '@/store/music'
+import { useUserInfo } from '@/store'
+import { ref, watch } from 'vue'
+import { useTheme } from '@/store/theme'
+import { useRoute, useRouter } from 'vue-router'
 
 const music = useMusicAction()
 const store = useUserInfo()
 const left = ref<HTMLDivElement>()
 const theme = useTheme()
 const router = useRouter()
+const route = useRoute()
 
-watch(() => music.state.currentItem?.coverImgUrl, (val) => {
-  if(val) {
-    toggleImg(val, '350y350').then(img => {
-      if(left.value) {
-        left.value!.style.backgroundImage = `url(${img.src})`
-      }
-    })
-    const src = music.state.currentItem.specialType === 5 ? '' : val
-    theme.change(src)
+watch(
+  () => music.state.currentItem?.coverImgUrl,
+  (val) => {
+    if (val) {
+      toggleImg(val, '350y350').then((img) => {
+        if (left.value) {
+          left.value!.style.backgroundImage = `url(${img.src})`
+        }
+      })
+      const src = music.state.currentItem.specialType === 5 ? '' : val
+      theme.change(src)
+    }
+  },
+  {
+    immediate: true
   }
-})
+)
 
 const gotoUserDetail = () => {
   router.push({
@@ -38,17 +45,24 @@ const gotoUserDetail = () => {
 <template>
   <div v-if="music.state.currentItem?.coverImgUrl" class="list-info">
     <div ref="left" class="left">
-      <span class="count">{{formatNumberToMillion(music.state.currentItem?.playCount)}}</span>
+      <span class="count">{{ formatNumberToMillion(music.state.currentItem?.playCount) }}</span>
     </div>
     <div class="right">
       <div class="song-name">
         <div class="tag">歌单</div>
-        <div class="name">{{music.state.currentItem?.name}}</div>
+        <div class="name">{{ music.state.currentItem?.name }}</div>
       </div>
       <div style="margin-top: 5px" class="song-info">
-        <div :style="{backgroundImage: `url(${music.state.currentItem.creator.avatarUrl})`}" class="avatar"></div>
-        <div @click="gotoUserDetail" class="nickname">{{music.state.currentItem?.creator.nickname}}</div>
-        <div class="create-timer">{{formatDate(music.state.currentItem?.createTime, 'YY-MM-DD hh:mm:ss')}}创建</div>
+        <div
+          :style="{ backgroundImage: `url(${music.state.currentItem.creator.avatarUrl})` }"
+          class="avatar"
+        ></div>
+        <div @click="gotoUserDetail" class="nickname">
+          {{ music.state.currentItem?.creator.nickname }}
+        </div>
+        <div class="create-timer">
+          {{ formatDate(music.state.currentItem?.createTime, 'YY-MM-DD hh:mm:ss') }}创建
+        </div>
       </div>
       <div class="song-handle">
         <BaseButton type="subject">播放全部</BaseButton>
@@ -56,16 +70,16 @@ const gotoUserDetail = () => {
         <BaseButton>分享</BaseButton>
         <BaseButton>下载全部</BaseButton>
       </div>
-<!--      <div class="song-count">-->
-<!--        <div class="p1">-->
-<!--          <span>歌曲 : </span>-->
-<!--          <span class="total">{{ music.currentItem.trackCount }}</span>-->
-<!--        </div>-->
-<!--        <div class="p2">-->
-<!--          <span>播放 : </span>-->
-<!--          <span class="count">{{ music.currentItem.playCount }}</span>-->
-<!--        </div>-->
-<!--      </div>-->
+      <!--      <div class="song-count">-->
+      <!--        <div class="p1">-->
+      <!--          <span>歌曲 : </span>-->
+      <!--          <span class="total">{{ music.currentItem.trackCount }}</span>-->
+      <!--        </div>-->
+      <!--        <div class="p2">-->
+      <!--          <span>播放 : </span>-->
+      <!--          <span class="count">{{ music.currentItem.playCount }}</span>-->
+      <!--        </div>-->
+      <!--      </div>-->
     </div>
   </div>
 </template>
@@ -93,12 +107,12 @@ const gotoUserDetail = () => {
   }
   .right {
     margin-left: 20px;
-    >div {
+    > div {
       display: flex;
       align-items: center;
       color: @text;
     }
-    >div + div {
+    > div + div {
       margin-top: 10px;
     }
 
@@ -114,14 +128,14 @@ const gotoUserDetail = () => {
         padding: 0 5px;
         color: @subject;
         border: 1px solid @subject;
-        &+& {
+        & + & {
           margin-left: 5px;
         }
       }
     }
     .song-info {
       font-size: 12px;
-      *+*{
+      * + * {
         margin-left: 8px;
       }
       .avatar {
@@ -132,10 +146,10 @@ const gotoUserDetail = () => {
         cursor: pointer;
       }
       .nickname {
-        color: rgb(133,185,230);
+        color: rgb(133, 185, 230);
         cursor: pointer;
         &:hover {
-          color: rgb(150,200,230);
+          color: rgb(150, 200, 230);
         }
       }
       .create-timer {
@@ -150,11 +164,11 @@ const gotoUserDetail = () => {
       .p1 {
         margin-right: 13px;
       }
-      >div {
-        >span {
+      > div {
+        > span {
           color: @darkText;
         }
-        >:first-child {
+        > :first-child {
           color: @text;
         }
       }

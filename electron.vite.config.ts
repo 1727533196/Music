@@ -1,7 +1,6 @@
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
-import path from 'path'
 
 export default defineConfig({
   main: {
@@ -21,7 +20,7 @@ export default defineConfig({
       preprocessorOptions: {
         less: {
           javascriptEnabled: true,
-          additionalData: `@import "${path.resolve(__dirname, 'src/renderer/src/assets/base.less')}";`
+          additionalData: `@import "${resolve(__dirname, 'src/renderer/src/assets/base.less')}";`
         }
       }
     }
