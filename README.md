@@ -20,17 +20,18 @@ npm/yarn start
 
 ### 2. 启动 cloud
 ```
-1. node版本至少大于15
+1. 需要 Node.js 版本至少 20+
 
 2. 安装依赖
-yarn install
+pnpm install
 
 3. 启动服务
-yarn dev
+pnpm dev
 
 4. 打包应用
-electron: yarn build-electron
-web: yarn build
+electron-win: pnpm build:win
+electron-mac: pnpm build:mac
+electron-linux: pnpm build:linux
 
 
 默认请求端口号为3006, 可以在.env 文件中更改VITE_APP_WEB_URL
@@ -57,7 +58,7 @@ console.log(import.meta.env.VITE_APP_WEB_URL)
   <R extends unknown, D>(url: string, method?: Method, config?: AxiosRequestConfig & {data: R, params: R}): Promise<D>;
   <R extends unknown, D>(url: string, data: R, method?: Method): Promise<D>;
   <R extends unknown, D>(url: string, data: R, config?: AxiosRequestConfig): Promise<D>;
-  
+
 重写了audio的play和pause，让他们具有音量过渡效果
     开始播放的过渡时间比暂停长一点，这样效果感觉会更好些
 ````
