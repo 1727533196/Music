@@ -56,9 +56,10 @@ http.interceptors.response.use(
     return response.data
   },
   (error) => {
-    ElMessage.error(error.response.data.message || error.message)
+    const data = error.response.data
+    ElMessage.error(data.message || data.msg || error.message)
 
-    return Promise.reject(error.response.data)
+    return Promise.reject(data)
   }
 )
 

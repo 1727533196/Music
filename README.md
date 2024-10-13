@@ -20,17 +20,18 @@ npm/yarn start
 
 ### 2. 启动 cloud
 ```
-1. node版本至少大于15
+1. 需要 Node.js 版本至少 20+
 
 2. 安装依赖
-yarn install
+pnpm install
 
 3. 启动服务
-yarn dev
+pnpm dev
 
 4. 打包应用
-electron: yarn build-electron
-web: yarn build
+electron-win: pnpm build:win
+electron-mac: pnpm build:mac
+electron-linux: pnpm build:linux
 
 
 默认请求端口号为3006, 可以在.env 文件中更改VITE_APP_WEB_URL
