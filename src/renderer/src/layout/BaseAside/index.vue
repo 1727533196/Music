@@ -20,10 +20,10 @@ const route = useRoute()
 const init = () => {
   // 这里需要特殊处理的有 【创建的歌单】 和 【收藏的歌单】两个列表
   if (route.query.id && route.path === '/play-list') {
-    // current.value = {
-    //   id: +route.query.id,
-    //   path: '/play-list'
-    // } as ListItem
+    current.value = {
+      id: +route.query.id,
+      path: '/play-list'
+    } as ListItem
     // console.log('current-->', current)
   }
 }
@@ -150,20 +150,20 @@ const collapsedHandler = (item) => {
                   }
                 ]"
               >
-                <div
-                  @click="itemClick(item)"
-                  v-for="item in menuItem.list"
-                  :style="{ fontSize: item.asideFontSize + 'px' || '' }"
-                  :class="['play-list-item', { current: isCurrent(item.path, item.id) }]"
-                >
-                  <i v-if="item.icon" :class="['iconfont', item.icon || '']"></i>
-                  <img
-                    v-else-if="item.coverImgUrl"
-                    :src="item.coverImgUrl + '?param=150y150'"
-                    alt=""
-                  />
-                  <span class="name">{{ item.name }}</span>
-                </div>
+                  <div
+                    v-for="item in menuItem.list"
+                    @click="itemClick(item)"
+                    :style="{ fontSize: item.asideFontSize + 'px' || '' }"
+                    :class="['play-list-item', { current: isCurrent(item.path, item.id) }]"
+                  >
+                    <i v-if="item.icon" :class="['iconfont', item.icon || '']"></i>
+                    <img
+                      v-else-if="item.coverImgUrl"
+                      :src="item.coverImgUrl + '?param=150y150'"
+                      alt=""
+                    />
+                    <span class="name">{{ item.name }}</span>
+                  </div>
               </div>
             </transition>
           </template>

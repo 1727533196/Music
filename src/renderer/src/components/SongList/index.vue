@@ -1,11 +1,20 @@
 <script lang="ts">
-import {ref, h, withDirectives, resolveDirective, defineComponent, resolveComponent, PropType, watch} from "vue"
-import {useRouter} from "vue-router"
-import {lookup} from '@/utils'
-import {GetMusicDetailData, PlayList} from "@/api/musicList"
-import {useUserInfo} from "@/store"
-import useMusic from "@/components/MusicPlayer/useMusic"
-import {useMusicAction} from "@/store/music"
+import {
+  ref,
+  h,
+  withDirectives,
+  resolveDirective,
+  defineComponent,
+  resolveComponent,
+  PropType,
+  watch
+} from 'vue'
+import { useRouter } from 'vue-router'
+import { lookup } from '@/utils'
+import { GetMusicDetailData, PlayList } from '@/api/musicList'
+import { useUserInfo } from '@/store'
+import useMusic from '@/components/MusicPlayer/useMusic'
+import { useMusicAction } from '@/store/music'
 import Pagination from '@/components/Pagination/index.vue'
 
 export interface Columns {
@@ -33,67 +42,77 @@ interface Props {
   lazy?: boolean // 图片懒加载
 }
 
-export const indiviEl = (config: Columns, type: 1 | 2,value: any) => {
+export const indiviEl = (config: Columns, type: 1 | 2, value: any) => {
   const ClsasNames = {
     1: 'title-item',
-    2: 'item',
+    2: 'item'
   }
-  return h('div', {
-    style: {...config.style, width: config.width},
-    class: [ClsasNames[type], config.class],
-    ...config.on,
-  }, value)
+  return h(
+    'div',
+    {
+      style: { ...config.style, width: config.width },
+      class: [ClsasNames[type], config.class],
+      ...config.on
+    },
+    value
+  )
 }
 
 export default defineComponent({
   props: {
     list: {
       type: Array as () => GetMusicDetailData[],
-      required: true,
+      required: true
     },
     songs: {
       type: Object as PropType<GetMusicDetailData>,
-      required: true,
+      required: true
     },
     columns: {
       type: Array as PropType<Columns[]>,
-      required: true,
+      required: true
     },
     loading: Boolean,
     ids: Array as PropType<number[]>,
     listInfo: Object as PropType<PlayList>,
     scroll: Boolean, // 是否显示滚动条
-    isPaging: { // 是否需要分页
+    isPaging: {
+      // 是否需要分页
       type: Boolean,
-      default: false,
+      default: false
     },
     total: Number, // 总数
-    pageSize: { // 每页显示的最大数量
+    pageSize: {
+      // 每页显示的最大数量
       type: Number,
-      default: 50,
+      default: 50
     },
-    currentPage: { // 当前页数
+    currentPage: {
+      // 当前页数
       type: Number,
-      default: 1,
+      default: 1
     },
-    isLoadingEndflyback: { // 等待loading开始移至滚动条为最上方
+    isLoadingEndflyback: {
+      // 等待loading开始移至滚动条为最上方
       type: Boolean,
-      default: false,
+      default: false
     },
-    lazy: { // 是否启用图片懒加载
+    lazy: {
+      // 是否启用图片懒加载
       type: Boolean,
-      default: true,
+      default: true
     },
-    isNeedTitle: { // 是否需要标题
+    isNeedTitle: {
+      // 是否需要标题
       type: Boolean,
-      default: true,
+      default: true
     }
   },
   emits: ['play', 'current-change', 'update:modelValue'], // 播放歌曲
-  setup(props, {emit, attrs}) {
+  setup(props, { emit, attrs }) {
     const store = useUserInfo()
     const music = useMusicAction()
-    const {likeMusic} = useMusic()
+    const { likeMusic } = useMusic()
     const id = ref(0)
 
     const formatCount = (index: number) => {
@@ -101,13 +120,13 @@ export default defineComponent({
     }
     const playHandler = (item: GetMusicDetailData, index: number) => {
       // 歌曲相同的情况下, 如果当前双击的歌曲不是当前正在播放的歌单歌曲,那应该播放
-      if(music.state.runtimeList?.id === music.state.currentItem?.id) {
+      if (music.state.runtimeList?.id === music.state.currentItem?.id) {
         // 没暂停，双击当前应该什么都不做
-        if($audio.isPlay && props.songs.id === item.id) {
+        if ($audio.isPlay && props.songs.id === item.id) {
           return
         }
         // 暂停，双击应该继续播放。
-        if(!$audio.isPlay && props.songs.id === item.id) {
+        if (!$audio.isPlay && props.songs.id === item.id) {
           return $audio.play()
         }
       }
@@ -115,9 +134,13 @@ export default defineComponent({
       emit('play', item, index)
 
       // 确保顺序是先更新store songs，然后在更新runPlayList。判断与当前歌单是否相同
-      if(music.state.runtimeList?.id !== music.state.currentItem?.id && props.ids && props.listInfo) {
+      if (
+        music.state.runtimeList?.id !== music.state.currentItem?.id &&
+        props.ids &&
+        props.listInfo
+      ) {
         // 如果不相同就更新 当前歌单
-        music.updateRuntimeList({tracks:props.list, ...props.listInfo}, props.ids)
+        music.updateRuntimeList({ tracks: props.list, ...props.listInfo }, props.ids)
       }
     }
     const mousedownHandler = (item: GetMusicDetailData) => {
@@ -127,10 +150,10 @@ export default defineComponent({
       return store.userLikeIds.includes(item.id)
     }
     const activeText = (item: GetMusicDetailData) => {
-      if(item.id === undefined) {
+      if (item.id === undefined) {
         return false
-      } else if(props.listInfo) {
-        return item.id === props.songs.id && (props.listInfo.id === music.state.runtimeList?.id)
+      } else if (props.listInfo) {
+        return item.id === props.songs.id && props.listInfo.id === music.state.runtimeList?.id
       } else {
         return item.id === props.songs.id
       }
@@ -141,40 +164,63 @@ export default defineComponent({
       router.push(`/singer-page?id=${id}`)
     }
     const renderPagination = () => {
-      return props.isPaging && props.total ? h(Pagination, {
-        background: true,
-        total: props.total,
-        pageSize: props.pageSize,
-        currentPage: props.currentPage,
-        onCurrentChange: (page: number) => emit('current-change', page),
-      }) : ''
+      return props.isPaging && props.total
+        ? h(Pagination, {
+            background: true,
+            total: props.total,
+            pageSize: props.pageSize,
+            currentPage: props.currentPage,
+            onCurrentChange: (page: number) => emit('current-change', page)
+          })
+        : ''
     }
     const renderSinger = (data: GetMusicDetailData, config: Columns) => {
-      if(!data.ar) {
+      if (!data.ar) {
         return indiviEl(config, 2, data.artist)
       }
       const len = data.ar.length - 1
-      return h('div', {class: ['name-container']} ,data.ar.map((ar, index) => {
-        return [h('span', {
-          onClick: () => ar.id && singerDetail(ar.id),
-          class: [ar.id && 'name'],
-          style: {cursor: ar.id ? 'pointer' : 'default', color: ar.id ? '' : 'rgba(150, 150, 150, 0.60)'}
-        }, ar.name || data.artist || '未知艺人'), (index < len ? h('span', {style: {color: '#969696'}}, ` / `) : '')]
-      }))
+      return h(
+        'div',
+        { class: ['name-container'] },
+        data.ar.map((ar, index) => {
+          return [
+            h(
+              'span',
+              {
+                onClick: () => ar.id && singerDetail(ar.id),
+                class: [ar.id && 'name'],
+                style: {
+                  cursor: ar.id ? 'pointer' : 'default',
+                  color: ar.id ? '' : 'rgba(150, 150, 150, 0.60)'
+                }
+              },
+              ar.name || data.artist || '未知艺人'
+            ),
+            index < len ? h('span', { style: { color: '#969696' } }, ` / `) : ''
+          ]
+        })
+      )
     }
 
-    watch(() => props.loading, (val) => {
-      if(props.isLoadingEndflyback && val) {
-        document.querySelector('.main')!.scrollTop = 0
+    watch(
+      () => props.loading,
+      (val) => {
+        if (props.isLoadingEndflyback && val) {
+          document.querySelector('.main')!.scrollTop = 0
+        }
       }
-    })
+    )
     const renderTitle = () => {
-      if(!props.isNeedTitle) {
+      if (!props.isNeedTitle) {
         return ''
       }
-      return h('div', {class:'title-container', style: {display: props.loading ? 'none' : '',}}, props.columns.map(config => {
-        return indiviEl(config, 1, config.title)
-      }))
+      return h(
+        'div',
+        { class: 'title-container', style: { display: props.loading ? 'none' : '' } },
+        props.columns.map((config) => {
+          return indiviEl(config, 1, config.title)
+        })
+      )
     }
 
     const loadingDiretive = resolveDirective('loading')!
@@ -183,11 +229,13 @@ export default defineComponent({
     const val = ref('')
 
     return () => {
-      return h('div', {
+      return h(
+        'div',
+        {
           style: {
-            overflowY: props.scroll ? 'auto' : 'visible',
+            overflowY: props.scroll ? 'auto' : 'visible'
           },
-          class: 'song-list-container',
+          class: 'song-list-container'
         },
         [
           // h(input, {
@@ -195,83 +243,107 @@ export default defineComponent({
           //   'onUpdate:modelValue': (value: string) => emit('update:modelValue', value)
           // }),
           renderTitle(),
-          h('div', {class:'list-container', style: {display: props.loading ? 'none' : '',}},
+          h(
+            'div',
+            { class: 'list-container', style: { display: props.loading ? 'none' : '' } },
             props.list.map((data, i) => {
-              return h('div', {
-                ondblclick: () => playHandler(data, i),
-                onMousedown: () => mousedownHandler(data),
-                key: data.id,
-                class: 'list',
-                // style: {background: data.id === id.value ? 'rgba(255, 255, 255, 0.08)'
-                //     : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'none'}
-              }, props.columns.map(config => {
-                if(config.processEl) {
-                  return indiviEl(config, 2, config.processEl(h, data, i))
-                }
-                else if(config.icon) {
-                  return indiviEl(config, 2, config.icon.map(val => {
-                    const result = isLike(data)
-                    if(val === 'love') {
-                      return h('i', {
-                        onClick: () => likeMusic(data.id, !result),
-                        class: ['iconfont', result ? 'icon-xihuan1' : 'icon-xihuan'],
+              return h(
+                'div',
+                {
+                  ondblclick: () => playHandler(data, i),
+                  onMousedown: () => mousedownHandler(data),
+                  key: data.id,
+                  class: 'list'
+                  // style: {background: data.id === id.value ? 'rgba(255, 255, 255, 0.08)'
+                  //     : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'none'}
+                },
+                props.columns.map((config) => {
+                  if (config.processEl) {
+                    return indiviEl(config, 2, config.processEl(h, data, i))
+                  } else if (config.icon) {
+                    return indiviEl(
+                      config,
+                      2,
+                      config.icon.map((val) => {
+                        const result = isLike(data)
+                        if (val === 'love') {
+                          return h('i', {
+                            onClick: () => likeMusic(data.id, !result),
+                            class: ['iconfont', result ? 'icon-xihuan1' : 'icon-xihuan']
+                          })
+                        }
                       })
-                    }
-                  }))
-                }
-                else if(!config.type && config.prop) {
-                  return indiviEl(config, 2, lookup(data, config.prop))
-                }
-                else if(config.type) {
-                  if(config.type === 'index') {
-                    return indiviEl(config, 2, formatCount(props.isPaging
-                      ? props.pageSize * (props.currentPage-1) + (i + 1) :
-                      i + 1)
                     )
-                  } else if(config.type === 'title') {
-                    return [ indiviEl({
-                      ...config,
-                      style: {
-                        ...config.style,
-                        color: activeText(data) ? 'rgb(255,60,60)' : ''
-                      }
-                    }, 2, [h('div',{class: 'title-box'},[
-                        h(elImage, {
-                          src: lookup(data, config.picUrl)+'?param=150y150',
-                          class: 'pic-url',
-                          lazy: config.lazy,
-                        }),
-                        h('div', {class:'name-box'},[
-                          h('div', {
+                  } else if (!config.type && config.prop) {
+                    return indiviEl(config, 2, lookup(data, config.prop))
+                  } else if (config.type) {
+                    if (config.type === 'index') {
+                      return indiviEl(
+                        config,
+                        2,
+                        formatCount(
+                          props.isPaging
+                            ? props.pageSize * (props.currentPage - 1) + (i + 1)
+                            : i + 1
+                        )
+                      )
+                    } else if (config.type === 'title') {
+                      return [
+                        indiviEl(
+                          {
+                            ...config,
                             style: {
+                              ...config.style,
                               color: activeText(data) ? 'rgb(255,60,60)' : ''
                             }
-                          }, lookup(data, config.prop)),
-                          renderSinger(data, config),
-                        ])
-
+                          },
+                          2,
+                          [
+                            h('div', { class: 'title-box' }, [
+                              h(elImage, {
+                                src: lookup(data, config.picUrl) + '?param=150y150',
+                                class: 'pic-url',
+                                lazy: config.lazy
+                              }),
+                              h('div', { class: 'name-box' }, [
+                                h(
+                                  'div',
+                                  {
+                                    style: {
+                                      color: activeText(data) ? 'rgb(255,60,60)' : ''
+                                    }
+                                  },
+                                  lookup(data, config.prop)
+                                ),
+                                renderSinger(data, config)
+                              ])
+                            ])
+                          ]
+                        )
                       ]
-                    )
-                    ])]
-                  } else if(config.type === 'album') {
-                    return indiviEl(config, 2, lookup(data, config.prop) || '未知专辑')
+                    } else if (config.type === 'album') {
+                      return indiviEl(config, 2, lookup(data, config.prop) || '未知专辑')
+                    }
                   }
-                }
-              }))
-            })),
+                })
+              )
+            })
+          ),
           // <el-pagination background layout="prev, pager, next" :total="1000" />
           renderPagination(),
-          withDirectives(h('div', {
-            class:'loading',
-            style: {
-              display: props.loading ? 'block' : 'none',
-            }}), [
-            [loadingDiretive, props.loading]
-          ]),
+          withDirectives(
+            h('div', {
+              class: 'loading',
+              style: {
+                display: props.loading ? 'block' : 'none'
+              }
+            }),
+            [[loadingDiretive, props.loading]]
+          )
         ]
       )
     }
-  },
+  }
 })
 </script>
 
@@ -284,7 +356,6 @@ export default defineComponent({
     position: relative;
     top: 100px;
     :deep(.el-loading-mask) {
-
       .el-loading-spinner {
       }
     }
@@ -358,7 +429,7 @@ export default defineComponent({
         .title {
           color: @text;
         }
-        >div {
+        > div {
           .textOverflow();
         }
         .name {
@@ -366,7 +437,6 @@ export default defineComponent({
           color: @darkText;
         }
       }
-
     }
     .name {
       cursor: pointer;

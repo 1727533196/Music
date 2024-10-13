@@ -7,8 +7,8 @@ import icon from '../../resources/icon.png?asset'
 function createWindow(): void {
   // 创建浏览器窗口
   const mainWindow = new BrowserWindow({
-    minHeight: 750,
-    minWidth: 1150,
+    minHeight: 650,
+    minWidth: 950,
     height: 750,
     width: 1150,
     show: false, // 初始时不显示窗口

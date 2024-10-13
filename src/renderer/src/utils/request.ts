@@ -1,16 +1,26 @@
 import axios, { AxiosRequestConfig, Method } from 'axios'
-import { getCookie } from './cookies.js'
 import { ElMessage } from 'element-plus'
+import { useSettings } from '@/store/settings'
+import { setActivePinia } from 'pinia'
+import pinia from '@/store/sotre'
+
+setActivePinia(pinia)
+
+const settings = useSettings()
 
 const http = axios.create({
   timeout: 30000,
-  baseURL: import.meta.env.VITE_APP_WEB_URL
+  baseURL: settings.state.baseUrl
 })
+
+export function setBaseURL(url: string) {
+  http.defaults.baseURL = url
+}
 
 const ignoreState = ['/login/qr/check']
 http.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token')
+    // const token = localStorage.getItem('token')
     if (!config.params) {
       config.params = {}
     }

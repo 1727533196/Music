@@ -36,6 +36,7 @@ const goIsDisable = computed(() => {
   return +route.query.count! === flags.maxCount
 })
 const gotoSetting = () => {
+  flags.isOpenDetail = false
   router.push('/setting')
 }
 </script>

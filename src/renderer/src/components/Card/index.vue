@@ -35,15 +35,16 @@ const clickHandler = () => {
 <style lang="less" scoped>
 .card-box {
   display: inline-block;
-  width: calc(15vw - 20px);
+  //width: calc(15vw - 20px);
   margin-bottom: 20px;
   box-sizing: content-box;
-  //& + & {
-  //  margin-left: calc(10% - 90px);
-  //}
+  width: 190px;
+
   .card {
-    width: calc(15vw - 20px);
-    height: calc(15vw - 20px);
+    //width: calc(15vw - 20px);
+    //height: calc(15vw - 20px);
+    height: 190px;
+    width: 190px;
     border-radius: 5px;
     background-size: cover;
     background-position: center;
@@ -53,8 +54,8 @@ const clickHandler = () => {
     .start-icon-box {
       position: absolute;
       bottom: 10px;
-      width: calc(5vw - 25px);
-      height: calc(5vw - 25px);
+      width: 50px;
+      height: 50px;
       right: 10px;
       //width: 35px;
       //height: 35px;
@@ -69,7 +70,7 @@ const clickHandler = () => {
 
       .icon-kaishi1 {
         color: @subject;
-        font-size: calc(2vw - 5px);
+        font-size: 30px;
       }
     }
   }

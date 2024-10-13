@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import {reactive} from "vue";
-import {Recommend, recommendSongList} from "@/api/home";
-import CardChunk from '@/components/CardChunk/index.vue'
-import {useRouter} from "vue-router";
+import { reactive } from 'vue'
+import { Recommend, recommendSongList } from '@/api/home'
+import { useRouter } from 'vue-router'
 import recommendImage from '@/assets/recommend.png'
+import AreaBox from '@/components/AreaBox/index.vue'
+import Card from '@/components/Card/index.vue'
 
 const recommendSongs = 'recommendSongs'
 interface State {
@@ -12,12 +13,12 @@ interface State {
 }
 const state = reactive<State>({
   recommend: [],
-  loading: false,
+  loading: false
 })
 const router = useRouter()
 async function init() {
   state.loading = true
-  const {recommend} = await recommendSongList()
+  const { recommend } = await recommendSongList()
   state.loading = false
   state.recommend = recommend
 }
@@ -32,14 +33,26 @@ const playDetailList = (item: Recommend | typeof recommendSongs) => {
 
 <template>
   <div v-loading="state.loading" class="container">
-    <CardChunk @click="playDetailList" :recommend="state.recommend" title="推荐歌单">
-      <Card :is-click="true" @click="playDetailList(recommendSongs)" name="每日歌曲推荐" :pic-url="recommendImage"></Card>
-    </CardChunk>
+    <AreaBox>
+      <template v-slot:title>歌单</template>
+      <Card
+        :is-click="true"
+        @click="playDetailList(recommendSongs)"
+        name="每日歌曲推荐"
+        :pic-url="recommendImage"
+      ></Card>
+      <Card
+        v-for="item in state.recommend"
+        :is-click="true"
+        @click="playDetailList(item)"
+        :name="item.name"
+        :pic-url="item.picUrl"
+      ></Card>
+    </AreaBox>
   </div>
 </template>
 
 <style lang="less" scoped>
 .container {
-
 }
 </style>

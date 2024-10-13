@@ -11,7 +11,7 @@ declare global {
   }
 
   interface ImportMetaEnv {
-    VITE_APP_WEB_URL: string
+    VITE_URL: string
   }
 }
 

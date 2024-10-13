@@ -50,14 +50,14 @@ web: yarn build
 
 vite 提供了两种模式：具有开发服务器的开发模式（development）和生产模式（production）
 组件中使用：
-console.log(import.meta.env.VITE_APP_WEB_URL)
+console.log(import.meta.env.VITE_URL)
 
 请求器一共有四种调用方式   配置型请求默认为get，其余三种默认都为post
   <R extends unknown, D>(config: AxiosRequestConfig & {data: R, params: R}): Promise<D>;
   <R extends unknown, D>(url: string, method?: Method, config?: AxiosRequestConfig & {data: R, params: R}): Promise<D>;
   <R extends unknown, D>(url: string, data: R, method?: Method): Promise<D>;
   <R extends unknown, D>(url: string, data: R, config?: AxiosRequestConfig): Promise<D>;
-  
+
 重写了audio的play和pause，让他们具有音量过渡效果
     开始播放的过渡时间比暂停长一点，这样效果感觉会更好些
 ````

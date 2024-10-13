@@ -1,13 +1,14 @@
 <script setup lang="ts" name="SearchList">
 import SongList from '@/components/SongList/index.vue'
-import {useMusicAction} from "@/store/music";
-import {columns, tabsConfig} from './config'
-import {useRoute, useRouter} from "vue-router";
-import {cloudSearch} from "@/api/search";
-import {reactive, ref, watch} from "vue";
-import {GetMusicDetailData} from "@/api/musicList";
+import { useMusicAction } from '@/store/music'
+import { columns, tabsConfig } from './config'
+import { useRoute, useRouter } from 'vue-router'
+import { cloudSearch } from '@/api/search'
+import { reactive, ref, watch } from 'vue'
+import { GetMusicDetailData } from '@/api/musicList'
 import AreaBox from '@/components/AreaBox/index.vue'
-import {formatNumberToMillion} from "@/utils";
+import { formatNumberToMillion } from '@/utils'
+import Card from '@/components/Card/index.vue'
 
 interface State {
   songs: {
@@ -15,10 +16,9 @@ interface State {
     songCount: number
   }
   songList: {
-    playlists: any[],
-    playlistCount: number,
+    playlists: any[]
+    playlistCount: number
   }
-
 }
 const music = useMusicAction()
 const route = useRoute()
@@ -29,23 +29,23 @@ const loading = ref(false)
 const state = reactive<State>({
   songs: {
     result: [],
-    songCount: 0,
+    songCount: 0
   },
   songList: {
     playlists: [],
-    playlistCount: 0,
+    playlistCount: 0
   }
 })
 const activeName = ref<string>(tabsConfig[0].name)
 
 function init() {
-  const {key} = route.query as {key: string}
-  search(key, (page.value-1) * limit.value, limit.value)
+  const { key } = route.query as { key: string }
+  search(key, (page.value - 1) * limit.value, limit.value)
   getKeySongList(key, 0, 20)
 }
 const search = async (key: string, offset: number, limit: number) => {
   loading.value = true
-  const {result} = await cloudSearch(key, offset, limit).finally(() => {
+  const { result } = await cloudSearch(key, offset, limit).finally(() => {
     loading.value = false
   })
   state.songs.songCount = result.songCount
@@ -58,7 +58,7 @@ const currentChange = (val: number) => {
 }
 
 const getKeySongList = async (key: string, offset: number, limit: number) => {
-  const {result} = await cloudSearch(key, offset, limit, 1000)
+  const { result } = await cloudSearch(key, offset, limit, 1000)
   state.songList.playlistCount = result.playlistCount
   state.songList.playlists = result.playlists
   // console.log('result', result)
@@ -73,33 +73,42 @@ const gotoSongList = (item: any) => {
   })
 }
 
-const titleClick = () => {
+const titleClick = () => {}
 
-}
-
-watch(() => route.fullPath, (val) => {
-  if(route.path === '/search') {
-    init()
+watch(
+  () => route.fullPath,
+  (val) => {
+    if (route.path === '/search') {
+      init()
+    }
+  },
+  {
+    immediate: true
   }
-}, {
-  immediate: true,
-})
+)
 </script>
 
 <template>
   <div class="padding-container">
-    <span class="keyword">{{route.query.key}}<span class="keyword-text">的相关搜索如下</span> </span>
-    <AreaBox
-      @title-click=""
-    >
+    <span class="keyword"
+      >{{ route.query.key }}<span class="keyword-text">的相关搜索如下</span>
+    </span>
+    <AreaBox @title-click="">
       <template v-slot:title>歌单</template>
-      <div @click="gotoSongList(item)" v-for="item in state.songList.playlists" class="card">
-        <div class="img-box">
-          <img :src="item.coverImgUrl" class="img"/>
-          <div class="count">{{ formatNumberToMillion(item.playCount) }}</div>
-        </div>
-        <div class="name">{{ item.name }}</div>
-      </div>
+      <Card
+        v-for="item in state.songList.playlists"
+        :is-click="true"
+        @click="gotoSongList(item)"
+        :name="item.name"
+        :pic-url="item.coverImgUrl"
+      ></Card>
+      <!--      <div @click="gotoSongList(item)" v-for="item in state.songList.playlists" class="card">-->
+      <!--        <div class="img-box">-->
+      <!--          <img :src="item.coverImgUrl" class="img" />-->
+      <!--          <div class="count">{{ formatNumberToMillion(item.playCount) }}</div>-->
+      <!--        </div>-->
+      <!--        <div class="name">{{ item.name }}</div>-->
+      <!--      </div>-->
     </AreaBox>
 
     <AreaBox :is-move="false">
@@ -119,18 +128,17 @@ watch(() => route.fullPath, (val) => {
     :page-size="limit"
     :current-page="page"
   ></SongList>
-<!--  <tabs v-model="activeName">-->
-<!--    <tab-pane-->
-<!--      v-for="item in tabsConfig"-->
-<!--      :name="item.name"-->
-<!--      :label="item.label"-->
-<!--    ></tab-pane>-->
-<!--  </tabs>-->
-
+  <!--  <tabs v-model="activeName">-->
+  <!--    <tab-pane-->
+  <!--      v-for="item in tabsConfig"-->
+  <!--      :name="item.name"-->
+  <!--      :label="item.label"-->
+  <!--    ></tab-pane>-->
+  <!--  </tabs>-->
 </template>
 
 <style lang="less" scoped>
-.song-list-container{
+.song-list-container {
   padding-top: 0;
   padding-left: 15px;
 }
@@ -174,5 +182,4 @@ watch(() => route.fullPath, (val) => {
     margin-left: 20px;
   }
 }
-
 </style>

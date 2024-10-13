@@ -3,6 +3,7 @@ import { colorExtraction, gradualChange, useRhythm } from '@/components/MusicDet
 import { onMounted, ref, watch } from 'vue'
 import { findBestColors, toggleImg } from '@/utils'
 import { useMusicAction } from '@/store/music'
+import { useSettings } from '@/store/settings'
 
 interface Props {
   bg: string
@@ -10,25 +11,28 @@ interface Props {
 
 const props = defineProps<Props>()
 const music = useMusicAction()
+const settings = useSettings()
 const rgb = ref([[], []])
 onMounted(() => {
   const rhythmBox = document.querySelector('#rhythm-box') as HTMLDivElement
   const { splitImg } = useRhythm(rhythmBox)
 
   // 图片切换时，更新流动背景
-  watch(
-    () => props.bg,
-    (val) => {
-      toggleImg(val, '200y200').then((img) => {
-        rgb.value = colorExtraction(img)
-        console.log('rgb', rgb.value)
-        const bestColors = findBestColors(rgb.value, 2)
-        gradualChange(img, bestColors)
-        music.updateBgColor(bestColors)
-        splitImg(img)
-      })
+  watch([() => props.bg, () => settings.state.lyricBg], ([bg, lyricBg]) => {
+    if (!bg) {
+      return
     }
-  )
+    toggleImg(bg, '200y200').then((img) => {
+      rgb.value = colorExtraction(img)
+      console.log('rgb', rgb.value)
+      const bestColors = findBestColors(rgb.value, 2)
+      music.updateBgColor(bestColors)
+      gradualChange(img, bestColors)
+      if (lyricBg === 'rhythm') {
+        splitImg(img)
+      }
+    })
+  })
 })
 </script>
 
@@ -36,7 +40,7 @@ onMounted(() => {
   <div>
     <div id="gradual1" />
     <div id="gradual2" />
-    <div id="rhythm-box" />
+    <div v-show="settings.state.lyricBg === 'rhythm'" id="rhythm-box" />
   </div>
 </template>
 
