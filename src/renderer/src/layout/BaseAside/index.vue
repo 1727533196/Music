@@ -150,20 +150,20 @@ const collapsedHandler = (item) => {
                   }
                 ]"
               >
-                  <div
-                    v-for="item in menuItem.list"
-                    @click="itemClick(item)"
-                    :style="{ fontSize: item.asideFontSize + 'px' || '' }"
-                    :class="['play-list-item', { current: isCurrent(item.path, item.id) }]"
-                  >
-                    <i v-if="item.icon" :class="['iconfont', item.icon || '']"></i>
-                    <img
-                      v-else-if="item.coverImgUrl"
-                      :src="item.coverImgUrl + '?param=150y150'"
-                      alt=""
-                    />
-                    <span class="name">{{ item.name }}</span>
-                  </div>
+                <div
+                  v-for="item in menuItem.list"
+                  @click="itemClick(item)"
+                  :style="{ fontSize: item.asideFontSize + 'px' || '' }"
+                  :class="['play-list-item', { current: isCurrent(item.path, item.id) }]"
+                >
+                  <i v-if="item.icon" :class="['iconfont', item.icon || '']"></i>
+                  <img
+                    v-else-if="item.coverImgUrl"
+                    :src="item.coverImgUrl + '?param=150y150'"
+                    alt=""
+                  />
+                  <span class="name">{{ item.name }}</span>
+                </div>
               </div>
             </transition>
           </template>
@@ -294,10 +294,18 @@ const collapsedHandler = (item) => {
         }
       }
       .play-list-item:hover {
-        background-image: linear-gradient(#ff1168, #fc3d49);
+        background-image: linear-gradient(
+          to right,
+          rgba(255, 17, 104, 0.8),
+          rgba(252, 61, 73, 0.3)
+        );
       }
       .current.play-list-item {
-        background-image: linear-gradient(#ff1168, #fc3d49);
+        background-image: linear-gradient(
+          to right,
+          rgba(255, 17, 104, 0.8),
+          rgba(252, 61, 73, 0.7)
+        );
       }
     }
     .line {

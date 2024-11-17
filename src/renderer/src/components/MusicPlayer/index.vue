@@ -1,21 +1,21 @@
 <script setup lang="ts">
-import {ref, onMounted, reactive, UnwrapRef, watch} from "vue";
-import {useUserInfo} from "@/store";
-import {useMusicAction} from "@/store/music";
-import ProgressBar from "@/components/MusicPlayer/ProgressBar.vue";
-import {GetMusicDetailData} from "@/api/musicList";
-import DetailLeft from "@/components/MusicPlayer/DetailLeft.vue";
-import DetailCenter from "@/components/MusicPlayer/DetailCenter.vue";
-import DetailRight from "@/components/MusicPlayer/DetailRight.vue";
-import {ListenerName, useListener} from '@/components/MusicPlayer/listener';
-import usePlayList, {playListState} from "@/layout/BaseAside/usePlayList";
+import { ref, onMounted, reactive, UnwrapRef, watch } from 'vue'
+import { useUserInfo } from '@/store'
+import { useMusicAction } from '@/store/music'
+import ProgressBar from '@/components/MusicPlayer/ProgressBar.vue'
+import { GetMusicDetailData } from '@/api/musicList'
+import DetailLeft from '@/components/MusicPlayer/DetailLeft.vue'
+import DetailCenter from '@/components/MusicPlayer/DetailCenter.vue'
+import DetailRight from '@/components/MusicPlayer/DetailRight.vue'
+import { ListenerName, useListener } from '@/components/MusicPlayer/listener'
+import usePlayList, { playListState } from '@/layout/BaseAside/usePlayList'
 import '@lrc-player/core/dist/style.css'
 import Player from '@lrc-player/core'
-import {useFlags} from "@/store/flags";
+import { useFlags } from '@/store/flags'
 
 const orderStatus = ['icon-xihuan5', 'icon-xunhuan', 'icon-suijibofang', 'icon-danquxunhuan']
 type userAudio = {
-  play: (lengthen?: boolean) => Promise<undefined>,
+  play: (lengthen?: boolean) => Promise<undefined>
   pause: (isNeed?: boolean, lengthen?: boolean) => Promise<undefined>
 } & Omit<HTMLAudioElement, 'pause' | 'play'>
 
@@ -48,24 +48,23 @@ const music = useMusicAction()
 const flags = useFlags()
 const transitionIsPlay = ref(false)
 const { addListener, executeListener, pauseSomethingListener } = useListener(audio)
-const {getPlayListDetailFn} = usePlayList()
+const { getPlayListDetailFn } = usePlayList()
 const player = new Player({
-  click,
+  click
 })
 function click(time: number, index: number) {
-  console.log(time, index)
   audio.value!.currentTime = time
 }
 function seeked() {
   player.syncIndex()
 }
-let originPlay: HTMLMediaElement["play"]
-let originPause: HTMLMediaElement["pause"]
+let originPlay: HTMLMediaElement['play']
+let originPause: HTMLMediaElement['pause']
 
 onMounted(() => {
   player.mount(document.querySelector('.lyric-container') as HTMLDivElement, audio.value)
-  originPlay = audio.value!.play as HTMLMediaElement["play"]
-  originPause = audio.value!.pause as HTMLMediaElement["pause"]
+  originPlay = audio.value!.play as HTMLMediaElement['play']
+  originPause = audio.value!.pause as HTMLMediaElement['pause']
   // 播放，音量过渡提高
   audio.value!.play = play
   // 音量过渡减少为0，然后暂停
@@ -73,8 +72,7 @@ onMounted(() => {
 
   audio.value?.addEventListener('error', (event: any) => {
     // console.log('event.target.error', event.target.error)
-    if(event.target.error.code === 4) {
-
+    if (event.target.error.code === 4) {
     }
   })
 })
@@ -82,7 +80,7 @@ function play(lengthen: boolean = false) {
   let volume = store.volume
   player.play()
   audio.value!.volume = 0
-  originPlay.call(audio.value).catch(err => {
+  originPlay.call(audio.value).catch((err) => {
     console.error('调用origin.play方法时抛出了错误：', err)
   })
   isPlay.value = true
@@ -90,8 +88,7 @@ function play(lengthen: boolean = false) {
 
   // 开始时直接改变就可以，让逐字歌词跟得上
   transitionIsPlay.value = true
-  return transitionVolume(volume, true,lengthen).then(() => {
-  })
+  return transitionVolume(volume, true, lengthen).then(() => {})
 }
 function pause(isNeed: boolean = true, lengthen: boolean = false) {
   let volume = store.volume
@@ -106,12 +103,16 @@ function pause(isNeed: boolean = true, lengthen: boolean = false) {
 }
 let timer: NodeJS.Timer
 // 当过渡完成时会返回Promise
-function transitionVolume(volume: number, target: boolean = true, lengthen: boolean = false): Promise<undefined> {
+function transitionVolume(
+  volume: number,
+  target: boolean = true,
+  lengthen: boolean = false
+): Promise<undefined> {
   clearInterval(timer)
   const playVolume = lengthen ? 40 : 15
   const pauseVolume = lengthen ? 20 : 10
   return new Promise((resolve) => {
-    if(target) {
+    if (target) {
       timer = setInterval(() => {
         audio.value!.volume = Math.min(audio.value!.volume + volume / playVolume, volume)
         if (audio.value!.volume >= volume) {
@@ -135,15 +136,15 @@ function transitionVolume(volume: number, target: boolean = true, lengthen: bool
 
 const timeState = reactive({
   stop: false,
-  previousTime: 0, // 新增属性来保存旧的 currentTime
+  previousTime: 0 // 新增属性来保存旧的 currentTime
 })
 
 const timeupdate = () => {
-  if(timeState.stop || isNaN($audio.el.duration)){
+  if (timeState.stop || isNaN($audio.el.duration)) {
     return
   }
   // 在更新 currentTime 之前，保存旧的值
-  timeState.previousTime = music.state.currentTime;
+  timeState.previousTime = music.state.currentTime
   music.state.currentTime = $audio.time
 }
 
@@ -153,7 +154,7 @@ const reset = (val: boolean) => {
   transitionIsPlay.value = val
   // 这里需要停止timeupdate的事件监视，因为在暂停音乐时会过渡结束（就相当于还是在播放一段时间），
   //  这样会导致进度条进度重置不及时
-  timeState.stop = true  // 在每次play方法时都会重置stop值
+  timeState.stop = true // 在每次play方法时都会重置stop值
 }
 const end = () => {
   emit('playEnd')
@@ -161,16 +162,20 @@ const end = () => {
 const setOrderHandler = () => {
   const runtimeList = music.state.runtimeList
 
-  let newValue = (orderStatusVal.value + 1) % orderStatus.length;
+  let newValue = (orderStatusVal.value + 1) % orderStatus.length
 
   // 如果上一次是心动模式并且当前播放的列表是”我喜欢的“，这次切换为其他，则重新获取”我喜欢的“列表,并更新进行时列表
-  if(runtimeList?.specialType === 5 && orderStatusVal.value === 0 && newValue !==0) {
+  if (runtimeList?.specialType === 5 && orderStatusVal.value === 0 && newValue !== 0) {
     getPlayListDetailFn(runtimeList.id, '', false)
-    music.updateTracks(playListState.playList, playListState.playList.map(item => item.id))
+    music.updateTracks(
+      playListState.playList,
+      playListState.playList.map((item) => item.id)
+    )
   }
 
   // 如果当前播放歌单不是”我喜欢的“列表，则心动模式不可用
-  orderStatusVal.value = (newValue === 0 && runtimeList?.specialType !== 5) ? 1 : newValue as typeof orderStatusVal.value;
+  orderStatusVal.value =
+    newValue === 0 && runtimeList?.specialType !== 5 ? 1 : (newValue as typeof orderStatusVal.value)
 
   music.getIntelliganceListHandler()
 }
@@ -192,7 +197,7 @@ const exposeObj = {
   pause,
   transitionIsPlay,
   addListener,
-  cutSongHandler,
+  cutSongHandler
 }
 Object.defineProperty(exposeObj, 'time', {
   get(): number {
@@ -202,9 +207,9 @@ Object.defineProperty(exposeObj, 'time', {
     try {
       audio.value!.currentTime = time
     } catch (e) {
-      console.error('设置time时出现了错误: ', e,',time: ',time)
+      console.error('设置time时出现了错误: ', e, ',time: ', time)
     }
-  },
+  }
 })
 Object.defineProperty(exposeObj, 'oldTime', {
   get(): number {
@@ -212,7 +217,6 @@ Object.defineProperty(exposeObj, 'oldTime', {
   }
 })
 defineExpose(exposeObj)
-
 </script>
 
 <template>
@@ -226,26 +230,20 @@ defineExpose(exposeObj)
       :src="props.src"
       preload="auto"
     />
-    <DetailLeft :songs="props.songs"/>
+    <DetailLeft :songs="props.songs" />
     <DetailCenter
-        :orderStatus="orderStatus"
-        :isPlay="isPlay"
-        :orderStatusVal="orderStatusVal"
-        @play="play"
-        @pause="pause"
-        @cutSong="(val) => emit('cutSong', val)"
-        @setOrderHandler="setOrderHandler"
+      :orderStatus="orderStatus"
+      :isPlay="isPlay"
+      :orderStatusVal="orderStatusVal"
+      @play="play"
+      @pause="pause"
+      @cutSong="(val) => emit('cutSong', val)"
+      @setOrderHandler="setOrderHandler"
     />
-    <DetailRight
-        :currentTime="music.state.currentTime"
-        :songs="props.songs"
-        :audio="audio"
-    />
+    <DetailRight :currentTime="music.state.currentTime" :songs="props.songs" :audio="audio" />
   </div>
   <div class="plan-container">
-    <ProgressBar
-      :songs="props.songs"
-    />
+    <ProgressBar :songs="props.songs" />
   </div>
 </template>
 
@@ -260,8 +258,8 @@ defineExpose(exposeObj)
 }
 .el-overlay {
   .music-drawer {
-    background-image: url("../../assets/defaultBg.png");
-    .bgSetting()
+    background-image: url('../../assets/defaultBg.png');
+    .bgSetting();
   }
 }
 </style>
@@ -277,5 +275,4 @@ defineExpose(exposeObj)
   padding: 0 15px;
   backdrop-filter: blur(60px) saturate(210%);
 }
-
 </style>

@@ -22,8 +22,8 @@ watch(
           left.value!.style.backgroundImage = `url(${img.src})`
         }
       })
-      const src = music.state.currentItem.specialType === 5 ? '' : val
-      theme.change(src)
+      // const src = music.state.currentItem.specialType === 5 ? '' : val
+      theme.change(val)
     }
   },
   {
@@ -44,15 +44,18 @@ const gotoUserDetail = () => {
 
 <template>
   <div v-if="music.state.currentItem?.coverImgUrl" class="list-info">
-    <div ref="left" class="left">
-      <span class="count">{{ formatNumberToMillion(music.state.currentItem?.playCount) }}</span>
+    <div>
+      <div ref="left" class="left">
+        <span class="count">{{ formatNumberToMillion(music.state.currentItem?.playCount) }}</span>
+      </div>
     </div>
+
     <div class="right">
       <div class="song-name">
         <div class="tag">歌单</div>
         <div class="name">{{ music.state.currentItem?.name }}</div>
       </div>
-      <div style="margin-top: 5px" class="song-info">
+      <div class="song-info">
         <div
           :style="{ backgroundImage: `url(${music.state.currentItem.creator.avatarUrl})` }"
           class="avatar"
@@ -64,11 +67,18 @@ const gotoUserDetail = () => {
           {{ formatDate(music.state.currentItem?.createTime, 'YY-MM-DD hh:mm:ss') }}创建
         </div>
       </div>
+      <span v-if="music.state.currentItem?.description" class="text-info-desc">
+        {{ music.state.currentItem?.description }}
+      </span>
+
       <div class="song-handle">
-        <BaseButton type="subject">播放全部</BaseButton>
-        <BaseButton>收藏</BaseButton>
-        <BaseButton>分享</BaseButton>
-        <BaseButton>下载全部</BaseButton>
+        <v-btn variant="tonal" rounded="lg">播放全部</v-btn>
+        <v-btn variant="tonal" rounded="lg">收藏</v-btn>
+        <v-btn variant="tonal" rounded="lg">下载全部</v-btn>
+        <!--        <BaseButton type="subject">播放全部</BaseButton>-->
+        <!--        <BaseButton>收藏</BaseButton>-->
+        <!--        <BaseButton>分享</BaseButton>-->
+        <!--        <BaseButton>下载全部</BaseButton>-->
       </div>
       <!--      <div class="song-count">-->
       <!--        <div class="p1">-->
@@ -91,7 +101,6 @@ const gotoUserDetail = () => {
 
   .left {
     //background-image: url("https://p1.music.126.net/9GAbSb_hlXPu66HWInJOww==/109951162846052486.jpg");
-    transition: 0.8s background-image;
     .bgSetting();
     width: 220px;
     height: 220px;
@@ -105,15 +114,20 @@ const gotoUserDetail = () => {
       font-size: 15px;
     }
   }
+  .text-info-desc {
+    font-size: 12px;
+    margin-bottom: 5px;
+    .textOverflow(2);
+  }
   .right {
     margin-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     > div {
       display: flex;
       align-items: center;
       color: @text;
-    }
-    > div + div {
-      margin-top: 10px;
     }
 
     .song-name {
@@ -157,6 +171,8 @@ const gotoUserDetail = () => {
       }
     }
     .song-handle {
+      display: flex;
+      gap: 10px;
       font-size: 14px;
     }
     .song-count {

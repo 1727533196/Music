@@ -388,5 +388,5 @@ export function checkUrlValidity(url: string): UrlValidationResult {
   }
 
   // 如果一切校验通过，URL 是合法的
-  return { isValid: true, message: 'URL 合法' }
+  return { isValid: true, message: '' }
 }

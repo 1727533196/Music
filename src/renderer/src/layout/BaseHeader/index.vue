@@ -129,7 +129,7 @@ const gotoSetting = () => {
       display: flex;
       align-items: center;
       position: relative;
-      z-index: 2006;
+      z-index: 2001;
       .handler {
         display: flex;
         margin-right: 20px;

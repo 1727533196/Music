@@ -13,6 +13,7 @@ import Login from '@/components/Login/index.vue'
 import { useUserInfo } from '@/store'
 import PlayListDrawer from '@/components/PlayListDrawer/index.vue'
 import '@/utils/shortcutKey'
+import { useSettings } from '@/store/settings'
 
 const audioInstance = ref<MusicPlayerInstanceType>()
 const login = ref()
@@ -20,6 +21,7 @@ const music = useMusicAction()
 const flags = useFlags()
 const route = useRoute()
 const store = useUserInfo()
+const settings = useSettings()
 const refresh = ref(0) // 登录完成后强制刷新组件
 // 初始化全局属性
 onMounted(() => {
@@ -31,10 +33,15 @@ onMounted(() => {
   document.addEventListener('click', () => {
     flags.isOpenDrawer = false
   })
+
+  if (settings.state.bold) {
+    document.body.classList.add('bold')
+  }
 })
-getUserAccountFn().then(() => {
+store.addEvent('login', () => {
   refresh.value = refresh.value + 1
 })
+getUserAccountFn()
 </script>
 
 <template>

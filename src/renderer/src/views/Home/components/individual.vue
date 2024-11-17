@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import recommendImage from '@/assets/recommend.png'
 import AreaBox from '@/components/AreaBox/index.vue'
 import Card from '@/components/Card/index.vue'
+import SkeletonCard from '@/components/SkeletonCard/index.vue'
 
 const recommendSongs = 'recommendSongs'
 interface State {
@@ -33,22 +34,24 @@ const playDetailList = (item: Recommend | typeof recommendSongs) => {
 
 <template>
   <div v-loading="state.loading" class="container">
-    <AreaBox>
-      <template v-slot:title>歌单</template>
-      <Card
-        :is-click="true"
-        @click="playDetailList(recommendSongs)"
-        name="每日歌曲推荐"
-        :pic-url="recommendImage"
-      ></Card>
-      <Card
-        v-for="item in state.recommend"
-        :is-click="true"
-        @click="playDetailList(item)"
-        :name="item.name"
-        :pic-url="item.picUrl"
-      ></Card>
-    </AreaBox>
+    <SkeletonCard :loading="state.loading">
+      <AreaBox>
+        <template v-slot:title>歌单</template>
+        <Card
+          :is-click="true"
+          @click="playDetailList(recommendSongs)"
+          name="每日歌曲推荐"
+          :pic-url="recommendImage"
+        ></Card>
+        <Card
+          v-for="item in state.recommend"
+          :is-click="true"
+          @click="playDetailList(item)"
+          :name="item.name"
+          :pic-url="item.picUrl"
+        ></Card>
+      </AreaBox>
+    </SkeletonCard>
   </div>
 </template>
 

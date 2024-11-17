@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import {computed, onMounted, ref, onUnmounted} from "vue";
-import {useMusicAction} from "@/store/music";
-import LyricDisplay from "./LyricDisplay.vue";
+import { computed, onMounted, ref, onUnmounted } from 'vue'
+import { useMusicAction } from '@/store/music'
+import LyricDisplay from './LyricDisplay.vue'
 import FlowBg from './FlowBg.vue'
 
 interface Props {
@@ -40,24 +40,21 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="containerEl" :class="['container', {open: setModelValue}]">
+  <div ref="containerEl" :class="['container', { open: setModelValue }]">
     <el-icon :size="45" @click="closeDetail" class="close np-drag"><ArrowDown /></el-icon>
-    <div class="box" :style="{height: correctHeight +'px'}">
-      <div
-          class="scroll-box"
-          :style="{height: correctHeight * 2 + 'px'}"
-      >
-        <FlowBg :bg="bg"/>
+    <div class="box" :style="{ height: correctHeight + 'px' }">
+      <div class="scroll-box" :style="{ height: correctHeight * 2 + 'px' }">
+        <FlowBg :bg="bg" />
         <div class="music-detail-container">
           <LyricDisplay
-              :lyric="music.state.lyric"
-              :lrcMode="music.state.lrcMode"
-              :bg="bg"
+            :lyric="music.state.lyric"
+            :lrcMode="music.state.lrcMode"
+            :bg="bg"
+            :title="music.state.songs.name"
+            :ar="music.state.songs.ar"
+            :videoPlayUrl="music.state.videoPlayUrl"
           />
-          <div
-              class="test"
-              style="height: 80px; position: absolute;bottom: 0;width: 100%;"
-          ></div>
+          <div class="test" style="height: 80px; position: absolute; bottom: 0; width: 100%"></div>
         </div>
       </div>
     </div>
@@ -73,7 +70,7 @@ onUnmounted(() => {
   bottom: 0;
   left: 0;
   transition: 0.4s;
-  z-index: 2005;
+  z-index: 2000;
   overflow: hidden;
   transform: translateY(100%);
 
@@ -112,5 +109,4 @@ onUnmounted(() => {
     background-color: rgba(255, 255, 255, 0.05);
   }
 }
-
 </style>

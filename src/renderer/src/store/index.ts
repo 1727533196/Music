@@ -18,7 +18,10 @@ export const useUserInfo = defineStore('userInfoId', {
       isLogin: false, // 是否登录
       userPlayListInfo: [] as PlayList[], // 用户歌单列表信息
       userLikeIds: [] as number[], // 用户喜欢列表ids
-      volume: Number(localStorage.getItem('volume')) || 1 // 用户当前播放器音量
+      volume: Number(localStorage.getItem('volume')) || 1, // 用户当前播放器音量
+      events: {
+        login: () => {}
+      }
     }
   },
   actions: {
@@ -36,6 +39,7 @@ export const useUserInfo = defineStore('userInfoId', {
       }
       localStorage.setItem('userId', String(this.profile.userId))
       this.isLogin = true
+      console.log('12312')
     },
     updateUserPlayList(val: PlayList[]) {
       this.userPlayListInfo = val
@@ -79,6 +83,12 @@ export const useUserInfo = defineStore('userInfoId', {
     },
     updateUserLikeIds(ids: number[]) {
       this.userLikeIds = ids
+    },
+    addEvent(key, cb) {
+      this.events[key] = cb
+    },
+    loginCallBack() {
+      this.events.login()
     }
   }
 })

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import SongList from "@/components/SongList/index.vue";
-import {computed} from "vue";
-import {columns} from "@/components/PlayListDrawer/config";
-import {playListState} from "@/layout/BaseAside/usePlayList";
-import {useMusicAction} from "@/store/music";
-import {useTheme} from "@/store/theme";
+import SongList from '@/components/SongList/index.vue'
+import { computed } from 'vue'
+import { columns } from '@/components/PlayListDrawer/config'
+import { playListState } from '@/layout/BaseAside/usePlayList'
+import { useMusicAction } from '@/store/music'
+import { useTheme } from '@/store/theme'
 
 interface Props {
   modelValue: boolean
@@ -22,11 +22,10 @@ const setModelValue = computed({
     emit('update:modelValue', val)
   }
 })
-
 </script>
 
 <template>
-  <div @click.stop :class="['drawer',{'open-drawer': setModelValue}]">
+  <div @click.stop :class="['drawer', { 'open-drawer': setModelValue }]">
     <div class="head">
       <div class="left">
         <span class="text">播放列表</span>
@@ -51,16 +50,16 @@ const setModelValue = computed({
 <style scoped lang="less">
 .drawer {
   position: fixed;
-  z-index: 2006;
+  z-index: 2001;
   height: calc(100% - 200px);
   width: 400px;
   //background: transparent;
   color: #fff;
-  background-color: rgba(40,40,40,.7);
+  background-color: rgba(40, 40, 40, 0.7);
   right: 0;
   top: 90px;
   border-radius: 15px 0 0 15px;
-  box-shadow: 0 5px 15px 5px rgba(0,0,0,0.3);
+  box-shadow: 0 5px 15px 5px rgba(0, 0, 0, 0.3);
   transform: translateX(120%);
   transition: 0.4s;
   overflow: hidden;
@@ -95,11 +94,9 @@ const setModelValue = computed({
       padding: 20px;
     }
   }
-
 }
 .open-drawer.drawer {
   //visibility: visible;
   transform: translateX(0%);
 }
-
 </style>

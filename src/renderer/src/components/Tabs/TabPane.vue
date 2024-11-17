@@ -7,6 +7,9 @@ defineOptions({
 </script>
 
 <template>
+  <!--  <v-tab v-bind="$attrs">-->
+  <!--    <slot></slot>-->
+  <!--  </v-tab>-->
   <el-tab-pane v-bind="$attrs">
     <slot></slot>
   </el-tab-pane>

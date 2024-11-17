@@ -4,6 +4,7 @@ import type { TabsPaneContext } from 'element-plus'
 import { tabsConfig } from './config'
 import List from '@/components/List/index.vue'
 import Individual from './components/individual.vue'
+import SkeletonCard from '@/components/SkeletonCard/index.vue'
 
 const activeName = ref(tabsConfig[0].name)
 
@@ -12,7 +13,7 @@ const handleClick = (tab: TabsPaneContext, event: Event) => {}
 
 <template>
   <div class="padding-container">
-    <Individual></Individual>
+    <Individual />
   </div>
 </template>
 

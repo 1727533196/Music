@@ -1,6 +1,6 @@
-import request from "../utils/request";
+import request from '../utils/request'
 
-export type PlayList = Omit<GetPlayListDetailRes["playlist"],'tracks'>
+export type PlayList = Omit<GetPlayListDetailRes['playlist'], 'tracks'>
 
 export interface GetUserPlayListRes {
   playlist: PlayList[]
@@ -26,7 +26,7 @@ export interface GetPlayListDetailRes {
     userId: number // 创建歌单的用户id
     updateTime: number
     createTime: number // 创建时间
-    specialType: 0 | 5 | 10 | 20| 100 | 200 | 300
+    specialType: 0 | 5 | 10 | 20 | 100 | 200 | 300
     playCount: number // 播放量
     trackCount: number //歌单下歌曲总数
     tags: Array<string>
@@ -35,7 +35,8 @@ export interface GetPlayListDetailRes {
       uid: number
     }[]
     tracks: GetMusicDetailData[]
-    creator: { // 创建这个歌单的用户信息
+    creator: {
+      // 创建这个歌单的用户信息
       nickname: string
       userId: number
       avatarUrl: string
@@ -57,17 +58,20 @@ interface GetMusicUrlRes {
   code: number
   data: getMusicUrlData[]
 }
-export interface CurrentItem extends PlayList{
-  tracks: GetMusicDetailData[]
+export interface CurrentItem extends PlayList {
+  tracks: GetMusicDetailData[] | { id: number }
 }
 export type GetMusicDetailData = {
-  al: { // 名称详情
+  playCount: number
+  al: {
+    // 名称详情
     id: number
     name: number
     pic: number
     picUrl: string
   }
-  ar: { // 歌手列表详情
+  ar: {
+    // 歌手列表详情
     alias: [] // 别名列表
     id: number
     name: string
@@ -86,15 +90,18 @@ interface GetMusicDetailRes {
 }
 interface GetLyricRes {
   code: number
-  klyric: { // 卡拉歌词(逐字)
+  klyric: {
+    // 卡拉歌词(逐字)
     lyric: string // 可能会返回空串
     version: number
   }
-  lrc: { // 逐行歌词
+  lrc: {
+    // 逐行歌词
     lyric: string // 可能会返回空串
     version: number
   }
-  yrc: { // 网易云逐字歌词
+  yrc: {
+    // 网易云逐字歌词
     lyric: string
   } | null
   version: 39
@@ -144,70 +151,98 @@ interface GetIntelliganceListRes {
   code: number
   message: string
   data: {
-    id: number; // 根对象ID
-    alg: string; // 算法
-    recommended: boolean; // 这个字段表示如果为false则表示当前歌曲是“已喜欢”列表里的，false则反之
-    songInfo: GetMusicDetailData | null; // 歌曲信息
+    id: number // 根对象ID
+    alg: string // 算法
+    recommended: boolean // 这个字段表示如果为false则表示当前歌曲是“已喜欢”列表里的，false则反之
+    songInfo: GetMusicDetailData | null // 歌曲信息
   }[]
 }
 
 // 获取喜欢音乐列表ids
 export const getLikeMusicListIds = (uid: number) =>
-    request<{uid: number}, {checkPoint: number, code: number,ids: number[]}>(`/likelist?uid=${uid}`, 'get')
+  request<{ uid: number }, { checkPoint: number; code: number; ids: number[] }>(
+    `/likelist?uid=${uid}`,
+    'get'
+  )
 
 // 获取用户歌单信息
-export const getUserPlayList = (uid: number) => request<{ uid: string }, GetUserPlayListRes>(`/user/playlist?uid=${uid}`, 'get')
+export const getUserPlayList = (uid: number) =>
+  request<{ uid: string }, GetUserPlayListRes>(`/user/playlist?uid=${uid}`, 'get')
 
 // 获取歌单所有歌曲   最多只能获取十首
-export const getUserPlayListMusic = (id: number) => request(`/playlist/track/all?id=${id}&limit=10&offset=0`, 'get')
+export const getUserPlayListMusic = (id: number) =>
+  request(`/playlist/track/all?id=${id}&limit=10&offset=0`, 'get')
 
 // 获取音乐url
 export const getMusicUrl = (id: number) =>
-    request<string, GetMusicUrlRes>(`/song/url/v1?id=${id}&level=lossless`, 'get')
+  request<string, GetMusicUrlRes>(`/song/url/v1?id=${id}&level=lossless`, 'get')
 
 // 获取歌单详情  可以获取歌单全部歌曲
 export const getPlayListDetail = (id: number) =>
-    request<{ id: number }, GetPlayListDetailRes>(`/playlist/detail?id=${id}`, 'get')
+  request<{ id: number }, GetPlayListDetailRes>(`/playlist/detail?id=${id}`, 'get')
 
 // 获取歌曲详情
 export const getMusicDetail = (ids: string) =>
-    request<string, GetMusicDetailRes>(`/song/detail?ids=${ids}`, 'get')
+  request<string, GetMusicDetailRes>(`/song/detail?ids=${ids}`, 'get')
 
 // 对歌单添加或删除歌曲
 export const addOrDelPlaylist = (op: 'add' | 'del', pid: number, tracks: number) =>
-    request('/playlist/tracks', {op, pid, tracks})
+  request('/playlist/tracks', { op, pid, tracks })
 
 // 喜欢音乐
 export const likeMusicApi = (id: number, like: boolean = true) =>
-    request<{id: number, like: boolean}, {code: number
-      playlistId: number
-      songs: GetMusicDetailData[]}>('/like', {id, like} ,'get')
+  request<
+    { id: number; like: boolean },
+    { code: number; playlistId: number; songs: GetMusicDetailData[] }
+  >('/like', { id, like }, 'get')
 
 // 获取歌词
-export const getLyric = (id: number | string) => request<{id: number}, GetLyricRes>(`/lyric/new?id=${id}`, 'get')
+export const getLyric = (id: number | string) =>
+  request<{ id: number }, GetLyricRes>(`/lyric/new?id=${id}`, 'get')
 
 // 获取云盘歌曲
 export const getUserCloud = (limit?: number, offset?: number) =>
-  request <{ limit: number, offset: number }, GetUserCloudRes>
-  ('/user/cloud', 'get', {params: {limit, offset}})
+  request<{ limit: number; offset: number }, GetUserCloudRes>('/user/cloud', 'get', {
+    params: { limit, offset }
+  })
 
 // 获取歌手专辑
 export const getArtistAlbum = (id: number, limit?: number) =>
-    request<{id: number, limit: number}, GetArtistAlbumRes>('/artist/album', 'get', {params: {id, limit}})
+  request<{ id: number; limit: number }, GetArtistAlbumRes>('/artist/album', 'get', {
+    params: { id, limit }
+  })
 
 // 获取专辑内容
 export const getAlbumContent = (id: number) => request(`/album?id=${id}`, 'get')
 
 // 获取歌曲评论
 // 0: 歌曲 1: mv 2: 歌单 3: 专辑 4: 电台节目 5: 视频 6: 动态 7: 电台
-export const getCommentMusic = (id: number, type: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7, pageNo: number, pageSize?: number, sortType?: 1 | 2 | 3, cursor?: number) =>
-    request('/comment/new', 'get', {params: {id, type, pageNo, pageSize, sortType, cursor}})
+export const getCommentMusic = (
+  id: number,
+  type: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7,
+  pageNo: number,
+  pageSize?: number,
+  sortType?: 1 | 2 | 3,
+  cursor?: number
+) => request('/comment/new', 'get', { params: { id, type, pageNo, pageSize, sortType, cursor } })
 
-export const getRecordSong = (limit = 200) => request('/record/recent/song', {
-  limit: limit,
-})
+export const getRecordSong = (limit = 200) =>
+  request('/record/recent/song', {
+    limit: limit
+  })
 
 // 心动模式/智能播放
-export const getIntelliganceList = (pid: number, id: number, sid: number) => request<{pid: number, id: number, sid: number}, GetIntelliganceListRes>(`/playmode/intelligence/list?pid=${pid}&id=${id}&sid=${sid}`, 'get')
+export const getIntelliganceList = (pid: number, id: number, sid: number) =>
+  request<{ pid: number; id: number; sid: number }, GetIntelliganceListRes>(
+    `/playmode/intelligence/list?pid=${pid}&id=${id}&sid=${sid}`,
+    'get'
+  )
 
+export const getDynamicCover = (id: number) => request(`/song/dynamic/cover?id=${id}`, 'get')
 
+export const updateScrobble = (id: number, sourceid?: number) =>
+  request(`/scrobble?id=${id}&sourceid=${sourceid}`)
+
+// 获取用户播放记录
+export const getUserRecord = (uid: number, type: number = 1) =>
+  request(`/user/record?uid=${uid}&type=${type}`)

@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import {withDefaults} from "vue";
-
 interface Props {
   total: number
   pageSize: number
@@ -11,11 +9,9 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   layout: 'prev, pager, next',
-  background: false,
+  background: false
 })
 const emit = defineEmits(['size-change', 'current-change'])
-
-
 </script>
 
 <template>
@@ -40,12 +36,12 @@ const emit = defineEmits(['size-change', 'current-change'])
 }
 .el-pagination {
   :deep(button) {
-    background-color: rgba(255,255,255,0.12) !important;
-    border: 1px solid rgba(255,255,255,0.15) !important;
+    background-color: rgba(255, 255, 255, 0.12) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
     transition: 0.3s;
     color: white !important;
     &:hover:not(button:disabled) {
-      background-color: rgba(255,255,255,0.08) !important;
+      background-color: rgba(255, 255, 255, 0.08) !important;
     }
   }
   :deep(button:disabled) {
@@ -60,19 +56,18 @@ const emit = defineEmits(['size-change', 'current-change'])
   }
   .more {
     background-color: transparent !important;
-    border: 1px solid rgba(255,255,255,0.15);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     color: @text !important;
   }
   .number {
     background-color: transparent !important;
-    border: 1px solid rgba(255,255,255,0.15);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     color: @text !important;
     transition: 0.3s;
     &:hover:not(.is-active) {
-      background-color: rgba(220,55,55, .5) !important;
+      background-color: rgba(220, 55, 55, 0.5) !important;
       color: white;
     }
   }
 }
-
 </style>

@@ -1,38 +1,47 @@
 <script setup lang="ts">
-import {computed, reactive, ref} from "vue";
-import {useRouter} from 'vue-router'
-import useSearch from "@/components/Search/useSearch";
-import {searchDefault, searchHotDetail, searchSuggest} from "@/api/search";
+import { computed, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import useSearch from '@/components/Search/useSearch'
+import { searchDefault, searchHotDetail, searchSuggest } from '@/api/search'
 import List from './List.vue'
-import {useFlags} from "@/store/flags";
-import {useMusicAction} from "@/store/music";
-import {RECORD_KEY, RecordContent} from "@/components/Search/type";
-import {isString} from "@/utils";
+import { useFlags } from '@/store/flags'
+import { useMusicAction } from '@/store/music'
+import { RECORD_KEY, RecordContent } from '@/components/Search/type'
+import { isString } from '@/utils'
 
 const state = reactive({
   scoreList: [],
-  keywordsList: {},
+  keywordsList: {}
 })
 const loading = ref(false)
 const router = useRouter()
-const keywords = ref('');
+const route = useRoute()
+const keywords = ref('')
 const showSuggest = ref(false)
-const {search} = useSearch()
+const { search } = useSearch()
 const flags = useFlags()
-const model = ref<'hot' | 'keywords'>("hot")
+const model = ref<'hot' | 'keywords'>('hot')
 const music = useMusicAction()
 const searchContainerEl = ref<HTMLDivElement>()
 const recordContent = ref<RecordContent[]>([])
 const placeholderInfo = ref({
   realkeyword: '',
-  showKeyword: '',
+  showKeyword: ''
 })
 
+watch(route, (value) => {
+  const { key } = value.query
+  if (key && key !== keywords.value) {
+    keywords.value = key
+  }
+})
 recordContent.value = JSON.parse(localStorage.getItem(RECORD_KEY) || '[]')
-const searchHandler = (item: string | object, key?: 'allMatch' | 'songs' | 'artists' | 'albums' | 'playlists' | 'search' | 'hot') => {
-
+const searchHandler = (
+  item: string | object,
+  key?: 'allMatch' | 'songs' | 'artists' | 'albums' | 'playlists' | 'search' | 'hot'
+) => {
   console.log('item', item, key)
-  if(isString(item) && !item.length) {
+  if (isString(item) && !item.length) {
     return
   }
   let path = ''
@@ -40,36 +49,36 @@ const searchHandler = (item: string | object, key?: 'allMatch' | 'songs' | 'arti
 
   showSuggest.value = false
 
-  if(key === "allMatch") {
+  if (key === 'allMatch') {
     path = `/search?key=${item.keyword}`
     keyword = item.keyword
-  } else if(key === 'songs') {
+  } else if (key === 'songs') {
     music.getMusicUrlHandler(item)
-  } else if(key === 'artists') {
+  } else if (key === 'artists') {
     path = `/singer-page?id=${item.id}`
-  } else if(key === 'albums') {
+  } else if (key === 'albums') {
     path = `/play-list?id=${item.id}&type=album`
-  } else if(key === "playlists") {
+  } else if (key === 'playlists') {
     path = `/play-list?id=${item.id}`
-  } else if(key === 'search') {
+  } else if (key === 'search') {
     path = `/search?key=${item}`
     keyword = item as string
-  } else if(key === 'hot') {
+  } else if (key === 'hot') {
     path = `/search?key=${item.searchWord}`
     keyword = item.searchWord
   }
 
   keywords.value = keyword
 
-  if(key !== 'songs') {
-    const index = recordContent.value.findIndex(item => item.term === keyword)
-    if(index >= 0) {
+  if (key !== 'songs') {
+    const index = recordContent.value.findIndex((item) => item.term === keyword)
+    if (index >= 0) {
       recordContent.value.splice(index, 1)
     }
     recordContent.value.unshift({
       term: keyword,
       time: Date.now(),
-      path,
+      path
     })
     localStorage.setItem(RECORD_KEY, JSON.stringify(recordContent.value))
 
@@ -94,10 +103,10 @@ const deleteTag = (index: number) => {
 const focusHandler = async () => {
   showSuggest.value = true
   flags.isOpenSearch = true
-  if(!state.scoreList.length) {
+  if (!state.scoreList.length) {
     loading.value = true
   }
-  const res =  await searchHotDetail()
+  const res = await searchHotDetail()
   loading.value = false
   state.scoreList = res.data
 }
@@ -105,11 +114,11 @@ const blurHandler = () => {
   setTimeout(() => {
     flags.isOpenSearch = false
     showSuggest.value = false
-  },300)
+  }, 300)
 }
 let timer: NodeJS.Timeout
 const inputHandler = () => {
-  if(keywords.value === '') {
+  if (keywords.value === '') {
     model.value = 'hot'
     focusHandler()
     return
@@ -119,7 +128,7 @@ const inputHandler = () => {
 }
 // 高亮元素
 const hig = (result: object) => {
-  if(!Object.keys(result)) {
+  if (!Object.keys(result)) {
     return
   }
   const regExp = new RegExp(keywords.value, 'i')
@@ -127,13 +136,19 @@ const hig = (result: object) => {
   for (let i = 0; i < len; i++) {
     const key = result.order[i]
     const list = result[key]
-    if(key === 'allMatch') {
-      list.forEach(item => {
-        item.text = item.keyword.replace(regExp, (text) => `<span style="color:lightskyblue">${text}</span>`)
+    if (key === 'allMatch') {
+      list.forEach((item) => {
+        item.text = item.keyword.replace(
+          regExp,
+          (text) => `<span style="color:lightskyblue">${text}</span>`
+        )
       })
     } else {
-      list.forEach(item => {
-        item.text = item.name.replace(regExp, (text) => `<span style="color:lightskyblue">${text}</span>`)
+      list.forEach((item) => {
+        item.text = item.name.replace(
+          regExp,
+          (text) => `<span style="color:lightskyblue">${text}</span>`
+        )
       })
     }
   }
@@ -141,15 +156,18 @@ const hig = (result: object) => {
 const getSearchSuggest = async (keywords: string) => {
   loading.value = true
   state.keywordsList = {}
-  const [suggest, songs] = await Promise.all([searchSuggest(keywords) ,searchSuggest(keywords, 'mobile')])
+  const [suggest, songs] = await Promise.all([
+    searchSuggest(keywords),
+    searchSuggest(keywords, 'mobile')
+  ])
   // 单曲、专辑、歌手、歌单
-  if(Object.keys(suggest)) {
+  if (Object.keys(suggest)) {
     state.keywordsList = suggest.result
   }
   // 猜你想搜
-  if(Object.keys(songs)) {
+  if (Object.keys(songs)) {
     state.keywordsList.allMatch = songs.result.allMatch
-    if(!state.keywordsList.order) {
+    if (!state.keywordsList.order) {
       state.keywordsList.order = []
     }
     state.keywordsList.order.unshift('allMatch')
@@ -159,7 +177,7 @@ const getSearchSuggest = async (keywords: string) => {
 }
 
 const getSearchDefault = async () => {
-  const {data} = await searchDefault()
+  const { data } = await searchDefault()
   placeholderInfo.value.realkeyword = data.realkeyword
   placeholderInfo.value.showKeyword = data.showKeyword
   setTimeout(getSearchDefault, 30000)
@@ -172,7 +190,11 @@ const realkeyword = computed(() => {
 </script>
 
 <template>
-  <div @keyup.enter="searchHandler(realkeyword, 'search')" ref="searchContainerEl" class="search-container">
+  <div
+    @keyup.enter="searchHandler(realkeyword, 'search')"
+    ref="searchContainerEl"
+    class="search-container"
+  >
     <el-icon
       @click="searchHandler(realkeyword, 'search')"
       class="search-icon"
@@ -199,7 +221,8 @@ const realkeyword = computed(() => {
         @deleteTag="deleteTag"
         :recordContent="recordContent"
         :keywordsList="state.keywordsList"
-        :list="state.scoreList"/>
+        :list="state.scoreList"
+      />
     </div>
   </div>
 </template>
@@ -213,7 +236,7 @@ const realkeyword = computed(() => {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   input::-webkit-input-placeholder {
     color: white;
   }
@@ -236,7 +259,7 @@ const realkeyword = computed(() => {
     color: white;
 
     &::-webkit-input-placeholder {
-      color: rgba(255,255,255,0.5);
+      color: rgba(255, 255, 255, 0.5);
     }
   }
   :deep(.suggest) {
@@ -244,7 +267,7 @@ const realkeyword = computed(() => {
     border-radius: 10px;
     width: 400px;
     max-height: 77vh;
-    background-color: rgba(45,45,56, 1);
+    background-color: rgba(45, 45, 56, 1);
     transform: translateX(-50%) translateY(100%);
     left: 50%;
     bottom: -3vh;

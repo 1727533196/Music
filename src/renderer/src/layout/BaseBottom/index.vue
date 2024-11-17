@@ -1,6 +1,4 @@
-<script setup lang="ts" name="Bottom">
-
-</script>
+<script setup lang="ts" name="Bottom"></script>
 
 <template>
   <div class="bottom-container container">
@@ -12,11 +10,11 @@
 .container {
   height: 75px;
   //background-color: rgb(26,26,35);
-  border-top: rgb(59,59,62) 1px solid;
+  border-top: rgb(59, 59, 62) 1px solid;
   position: fixed;
   bottom: 0;
   left: 0;
-  z-index: 2003;
+  z-index: 1999;
   width: 100%;
 }
 .bottom-container {

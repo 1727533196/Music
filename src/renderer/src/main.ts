@@ -1,34 +1,36 @@
 import { createApp } from 'vue'
-import 'element-plus/theme-chalk/dark/css-vars.css'
-import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
-import App from './App.vue'
 import router from './router'
+import pinia from '@/store/sotre'
+// icon
 import './assets/iconfont/iconfont.css'
 import './assets/iconfont/iconfont.js'
+import 'element-plus/theme-chalk/dark/css-vars.css'
+import 'element-plus/dist/index.css'
+import ElementPlus from 'element-plus'
 import ElementIcon from '@/plugins/element-icon'
+// Vuetify
+import '@mdi/font/css/materialdesignicons.css'
+import 'vuetify/styles'
+import { createVuetify } from 'vuetify'
+import * as components from 'vuetify/components'
+import * as directives from 'vuetify/directives'
+// Components
+import App from './App.vue'
 import InitComponent from '@/plugins/component'
-import pinia from '@/store/sotre'
-// import { logWrite } from './utils/errLog'
 
+const vuetify = createVuetify({
+  components,
+  directives,
+  theme: {
+    defaultTheme: 'dark'
+  }
+})
 const app = createApp(App)
   .use(router)
   .use(pinia)
-  .use(ElementPlus, { zIndex: 3000 })
+  .use(vuetify)
+  .use(ElementPlus)
   .use(ElementIcon)
   .use(InitComponent)
-
-// window.onerror = function(message, source, lineno, colno, error) {
-//   console.log('window.onerror捕获到异常：',{message, source, lineno, colno, error});
-//   const fileContent = `window.onerror捕获到异常：${JSON.stringify({message, source, lineno, colno, error})}`;
-//   logWrite(fileContent)
-// }
-
-// // 全局错误处理程序
-// app.config.errorHandler = (err, vm, info) => {
-//   console.error('vue组件全局错误捕获：', err, vm, info);
-//   const fileContent = `Vue组件错误信息：${err}\n附加信息：${info}\n vm：${JSON.stringify(vm)}`;
-//   logWrite(fileContent)
-// };
 
 app.mount('#app')

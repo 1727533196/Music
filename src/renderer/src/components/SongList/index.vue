@@ -226,6 +226,7 @@ export default defineComponent({
     const loadingDiretive = resolveDirective('loading')!
     const input = resolveComponent('ElInput')
     const elImage = resolveComponent('ElImage')
+    const vImg = resolveComponent('VImg')
     const val = ref('')
 
     return () => {
@@ -253,7 +254,7 @@ export default defineComponent({
                   ondblclick: () => playHandler(data, i),
                   onMousedown: () => mousedownHandler(data),
                   key: data.id,
-                  class: 'list'
+                  class: `list ${data.copyright === 0 ? 'disable-list' : ''}`
                   // style: {background: data.id === id.value ? 'rgba(255, 255, 255, 0.08)'
                   //     : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'none'}
                 },
@@ -300,10 +301,16 @@ export default defineComponent({
                           2,
                           [
                             h('div', { class: 'title-box' }, [
-                              h(elImage, {
+                              h(vImg, {
+                                style: {
+                                  maxWidth: '50px'
+                                },
+                                width: '50',
+                                'aspect-ratio': '1/1',
+                                // gradient: 'to top right, rgba(100,115,201,.33), rgba(25,32,72,.7)',
                                 src: lookup(data, config.picUrl) + '?param=150y150',
-                                class: 'pic-url',
-                                lazy: config.lazy
+                                class: 'pic-url'
+                                // lazy: config.lazy
                               }),
                               h('div', { class: 'name-box' }, [
                                 h(
@@ -401,6 +408,9 @@ export default defineComponent({
     .title-item.title {
       color: @darkText;
     }
+  }
+  .list.disable-list {
+    //background-color: rgba(0, 0, 0, 0.3);
   }
   .list {
     justify-content: space-around;

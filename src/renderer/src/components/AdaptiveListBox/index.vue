@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import {withDefaults} from 'vue'
 // 适配过空间大小的固定列表组件
 interface Props {
-  isShowBg: boolean
+  isShowBg?: boolean
   listStyle?: object
 }
 const props = withDefaults(defineProps<Props>(), {
@@ -11,7 +10,7 @@ const props = withDefaults(defineProps<Props>(), {
 </script>
 
 <template>
-  <div :style="listStyle" :class="['list-container', {bg: isShowBg}]">
+  <div :style="listStyle" :class="['list-container', { bg: isShowBg }]">
     <slot></slot>
   </div>
 </template>
@@ -27,7 +26,7 @@ const props = withDefaults(defineProps<Props>(), {
   box-shadow: 0 5px 15px 5px rgba(0, 0, 0, 0.1);
   transition: 0.3s;
   &.bg {
-    background-color: rgba(255,255,255,.05);
+    background-color: rgba(255, 255, 255, 0.05);
   }
 }
 </style>

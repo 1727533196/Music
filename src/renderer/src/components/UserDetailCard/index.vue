@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {Profile} from "@/api/user";
+import { Profile } from '@/api/user'
 
 interface Props {
   userInfo: Profile
@@ -12,32 +12,33 @@ interface Props {
   location: string
 }
 const props = defineProps<Props>()
-
-
 </script>
 
 <template>
   <div class="user-card-container">
-    <div :style="{backgroundImage: `url(${userInfo.avatarUrl})`}" class="avatar"/>
+    <div :style="{ backgroundImage: `url(${userInfo.avatarUrl})` }" class="avatar" />
     <div class="detail">
       <div class="top-container">
         <div class="vip-info">
           <h2 class="top">{{ userInfo.nickname }}</h2>
           <div class="vip">
-            <div class="icon">陆.</div>
+            <div>陆.</div>
             <div class="tag-info">
               <div class="tag">
-                <img :src="identify.imageUrl">
+                <img :src="identify.imageUrl" />
                 {{ identify.imageDesc }}
               </div>
-              <div class="rank">Lv{{identify.level}}</div>
+              <div class="rank">Lv{{ identify.level }}</div>
             </div>
           </div>
         </div>
         <div class="btn-container">
-          <BaseButton>歌手页</BaseButton>
-          <BaseButton>发私信</BaseButton>
-          <BaseButton>已关注</BaseButton>
+          <v-btn variant="tonal" rounded="lg">歌手页</v-btn>
+          <v-btn variant="tonal" rounded="lg">发私信</v-btn>
+          <v-btn variant="tonal" rounded="lg">已关注</v-btn>
+          <!--          <BaseButton>歌手页</BaseButton>-->
+          <!--          <BaseButton>发私信</BaseButton>-->
+          <!--          <BaseButton>已关注</BaseButton>-->
         </div>
         <div class="line"></div>
       </div>
@@ -48,14 +49,14 @@ const props = defineProps<Props>()
               <div class="count">{{ userInfo.eventCount }}</div>
               <div class="text">动态</div>
             </div>
-            <div class="line"/>
+            <div class="line" />
           </div>
           <div>
             <div>
               <div class="count">{{ userInfo.newFollows }}</div>
               <div class="text">关注</div>
             </div>
-            <div class="line"/>
+            <div class="line" />
           </div>
           <div>
             <div>
@@ -85,7 +86,7 @@ const props = defineProps<Props>()
 .user-card-container {
   display: flex;
   align-items: center;
-  background-color: rgba(255,255,255,.05);
+  background-color: rgba(255, 255, 255, 0.05);
   padding: 20px;
   border-radius: 20px;
   width: calc(87vw - 180px);
@@ -93,13 +94,17 @@ const props = defineProps<Props>()
   margin: 0 auto;
   box-shadow: 0 5px 15px 5px rgba(0, 0, 0, 0.1);
   transition: 0.4s;
+  .btn-container {
+    display: flex;
+    gap: 10px;
+  }
   .bgSetting();
 
   .avatar {
     height: 200px;
     width: 200px;
     border-radius: 50%;
-    background-image: url("https://p1.music.126.net/9GAbSb_hlXPu66HWInJOww==/109951162846052486.jpg");
+    background-image: url('https://p1.music.126.net/9GAbSb_hlXPu66HWInJOww==/109951162846052486.jpg');
     .bgSetting();
     margin-right: 30px;
   }
@@ -119,7 +124,7 @@ const props = defineProps<Props>()
         width: 100%;
         height: 1px;
         border-radius: 1px;
-        background-color: rgba(255,255,255,0.12);
+        background-color: rgba(255, 255, 255, 0.12);
       }
       .vip-info {
         display: flex;
@@ -128,7 +133,6 @@ const props = defineProps<Props>()
         .vip {
           display: flex;
           .icon {
-
           }
           .tag-info {
             display: flex;
@@ -149,7 +153,7 @@ const props = defineProps<Props>()
             }
             .rank {
               margin-left: 5px;
-              background-color: rgb(240,240,240);
+              background-color: rgb(240, 240, 240);
               color: @bgColor;
               font-size: 12px;
               padding: 1px 7px;
@@ -186,7 +190,7 @@ const props = defineProps<Props>()
           margin-left: 20px;
           height: 100%;
           border-radius: 1px;
-          background-color: rgba(255,255,255,0.12);
+          background-color: rgba(255, 255, 255, 0.12);
         }
       }
       .personal-details {
@@ -201,10 +205,7 @@ const props = defineProps<Props>()
       .personal-details + .personal-details {
         margin-top: 5px;
       }
-
     }
   }
 }
-
-
 </style>
