@@ -72,10 +72,15 @@ const model = computed<number>({
     border-radius: 0;
   }
 }
-
-.v-slider-track__background {
-  display: none;
+.base-progress-bar {
+  .v-input__details {
+    display: none;
+  }
+  .v-slider-track__background {
+    display: none;
+  }
 }
+
 .music-detail-bottom {
   .base-progress-bar.detail-progress {
     height: 30px;

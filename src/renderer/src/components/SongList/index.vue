@@ -7,7 +7,8 @@ import {
   defineComponent,
   resolveComponent,
   PropType,
-  watch
+  watch,
+  computed
 } from 'vue'
 import { useRouter } from 'vue-router'
 import { lookup } from '@/utils'
@@ -16,6 +17,7 @@ import { useUserInfo } from '@/store'
 import useMusic from '@/components/MusicPlayer/useMusic'
 import { useMusicAction } from '@/store/music'
 import Pagination from '@/components/Pagination/index.vue'
+import NotFound from '@/assets/not-found.png'
 
 export interface Columns {
   title: string
@@ -218,9 +220,13 @@ export default defineComponent({
       (val) => {
         if (props.isLoadingEndflyback && val) {
           document.querySelector('.main')!.scrollTop = 0
-        } else {
-          filterList.value = props.list
         }
+      }
+    )
+    watch(
+      () => props.list,
+      (val) => {
+        filterList.value = val
       }
     )
     const renderTitle = () => {
@@ -237,7 +243,7 @@ export default defineComponent({
     }
 
     const Content = () =>
-      filterList.value.length
+      props.loading || filterList.value.length
         ? [
             renderTitle(),
             h(
@@ -337,10 +343,26 @@ export default defineComponent({
             'div',
             {
               style: {
-                fontSize: '20'
+                display: 'grid',
+                placeItems: 'center',
+                gap: '20px'
               }
             },
-            `没有找到关于"${searchKeyword.value}"的任何内容`
+            [
+              h(
+                'div',
+                {
+                  style: {
+                    fontSize: '20px'
+                  }
+                },
+                `没有找到关于"${searchKeyword.value}"的任何内容`
+              ),
+              h(vImg, {
+                src: NotFound,
+                width: '150'
+              })
+            ]
           )
 
     return () => {
