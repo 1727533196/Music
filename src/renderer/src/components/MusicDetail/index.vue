@@ -54,7 +54,10 @@ onUnmounted(() => {
             :ar="music.state.songs.ar"
             :videoPlayUrl="music.state.videoPlayUrl"
           />
-          <div class="test" style="height: 80px; position: absolute; bottom: 0; width: 100%"></div>
+          <div
+            class="music-detail-bottom"
+            style="height: 80px; position: absolute; bottom: 0; width: 100%"
+          ></div>
         </div>
       </div>
     </div>
@@ -105,7 +108,7 @@ onUnmounted(() => {
 .container.open {
   transform: translateY(0) !important;
   visibility: visible;
-  .test {
+  .music-detail-bottom {
     background-color: rgba(255, 255, 255, 0.05);
   }
 }

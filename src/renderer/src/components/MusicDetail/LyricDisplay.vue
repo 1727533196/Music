@@ -27,6 +27,19 @@ nextTick(() => {
   const coverEl = document.querySelector('.img-cover') as HTMLDivElement
 
   watch(
+    () => $audio.isPlay,
+    (value) => {
+      if (!props.videoPlayUrl) {
+        return
+      }
+      if (!value) {
+        videoCover.value.pause()
+      } else {
+        videoCover.value.play()
+      }
+    }
+  )
+  watch(
     () => props.bg,
     async (val) => {
       if (!bgEl) return // 如果找不到元素，直接返回

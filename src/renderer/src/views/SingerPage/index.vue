@@ -13,7 +13,7 @@ interface State {
   artist: getArtistDetailRes['data']['artist']
   albums: GetArtistAlbumRes['hotAlbums']
 }
-const state = reactive<State>({
+const state: State = reactive({
   singerDetail: {} as getArtistDetailRes['data'],
   artist: {} as getArtistDetailRes['data']['artist'],
   albums: []

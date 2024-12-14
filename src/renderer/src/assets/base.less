@@ -13,6 +13,22 @@
   background-position: center;
   background-repeat: no-repeat;
 }
+.v-field.v-field--center-affix {
+  border-radius: 8px;
+  .v-field__outline {
+    .v-field__outline__start {
+      border-color: #ffffff33 !important;
+    }
+    .v-field__outline__end {
+      border-color: #ffffff33 !important;
+    }
+  }
+}
+@font-face {
+  //font-family: PingFang;
+  //src: url('./font/苹方黑体-准-简.ttf');
+  //src: url('./font/苹方字体.ttf');
+}
 @text: rgb(210,210,210);
 @darkText: rgb(150, 150, 150);
 @moreDark: rgba(150, 150, 150, 0.60);
@@ -67,6 +83,7 @@
   //padding: 0;
   margin: 0;
   box-sizing: border-box;
+  font-family: PingFang;
   //font-weight: 600;
 }
 body.bold {
@@ -74,7 +91,6 @@ body.bold {
 }
 html,body,#app {
   height: 100%;
-  font-family: Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: @text;

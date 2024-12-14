@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import {useMusicAction} from "@/store/music";
-import {getUserCloud, GetUserCloudRes, GetUserCloudSong, PlayList} from "@/api/musicList";
-import {columns} from './config'
+import { useMusicAction } from '@/store/music'
+import { getUserCloud, GetUserCloudRes, GetUserCloudSong, PlayList } from '@/api/musicList'
+import { columns } from './config'
 import SongList from '@/components/SongList/index.vue'
-import {reactive, ref} from "vue";
+import { reactive, ref } from 'vue'
 
 const music = useMusicAction()
 // GetUserCloudRes['data']
@@ -17,28 +17,30 @@ interface State {
   limit: number
 }
 type test = keyof GetUserCloudRes['data'][0]
-const state = reactive<State>({
+const state: State = reactive({
   loading: true,
   ids: [],
   list: [],
   listInfo: {},
   total: 0,
   page: 1,
-  limit: 100,
+  limit: 100
 })
 
 getUserCloudFn()
 
 async function getUserCloudFn() {
   state.loading = true
-  const {data, count} = await getUserCloud(state.limit, (state.page-1) * state.limit).finally(() => {
-    state.loading = false
-  })
+  const { data, count } = await getUserCloud(state.limit, (state.page - 1) * state.limit).finally(
+    () => {
+      state.loading = false
+    }
+  )
   state.total = count
-  state.list = data.map(item => ({
+  state.list = data.map((item) => ({
     ...item.simpleSong,
     ...item,
-    simpleSong: {},
+    simpleSong: {}
   }))
 }
 
@@ -46,7 +48,6 @@ const currentChange = (val: number) => {
   state.page = val
   getUserCloudFn()
 }
-
 </script>
 
 <template>
@@ -67,6 +68,4 @@ const currentChange = (val: number) => {
   ></SongList>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

@@ -66,7 +66,7 @@ export type GetMusicDetailData = {
   al: {
     // 名称详情
     id: number
-    name: number
+    name: string
     pic: number
     picUrl: string
   }

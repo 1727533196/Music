@@ -31,7 +31,7 @@ interface State {
 
 // 会把用户当前正在播放的列表单独存储起来，以便切换歌单时没有播放切换的歌单不会被清空
 export const useMusicAction = defineStore('musicActionId', () => {
-  const state = reactive<State>({
+  const state: State = reactive({
     musicUrl: '', // 用户当前播放器播放的音乐url
     songs: {}, // 用户当前播放器播放的音乐
     currentItem: null, // 用户当前选中的歌单列表，会随着用户选中的菜单变化

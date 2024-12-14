@@ -106,6 +106,11 @@ export default defineComponent({
       // 是否需要标题
       type: Boolean,
       default: true
+    },
+    isSearch: {
+      // 是否开启搜索功能
+      type: Boolean,
+      default: true
     }
   },
   emits: ['play', 'current-change', 'update:modelValue'], // 播放歌曲
@@ -114,6 +119,12 @@ export default defineComponent({
     const music = useMusicAction()
     const { likeMusic } = useMusic()
     const id = ref(0)
+    const filterList = ref(props.list)
+
+    const loadingDiretive = resolveDirective('loading')!
+    const input = resolveComponent('VTextField')
+    const vImg = resolveComponent('VImg')
+    const searchKeyword = ref('')
 
     const formatCount = (index: number) => {
       return index.toString().length > 1 ? index : '0' + index
@@ -207,6 +218,8 @@ export default defineComponent({
       (val) => {
         if (props.isLoadingEndflyback && val) {
           document.querySelector('.main')!.scrollTop = 0
+        } else {
+          filterList.value = props.list
         }
       }
     )
@@ -223,11 +236,112 @@ export default defineComponent({
       )
     }
 
-    const loadingDiretive = resolveDirective('loading')!
-    const input = resolveComponent('ElInput')
-    const elImage = resolveComponent('ElImage')
-    const vImg = resolveComponent('VImg')
-    const val = ref('')
+    const Content = () =>
+      filterList.value.length
+        ? [
+            renderTitle(),
+            h(
+              'div',
+              { class: 'list-container', style: { display: props.loading ? 'none' : '' } },
+              filterList.value.map((data, i) => {
+                return h(
+                  'div',
+                  {
+                    ondblclick: () => playHandler(data, i),
+                    onMousedown: () => mousedownHandler(data),
+                    key: data.id,
+                    class: `list ${data.copyright === 0 ? 'disable-list' : ''}`
+                    // style: {background: data.id === id.value ? 'rgba(255, 255, 255, 0.08)'
+                    //     : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'none'}
+                  },
+                  props.columns.map((config) => {
+                    if (config.processEl) {
+                      return indiviEl(config, 2, config.processEl(h, data, i))
+                    } else if (config.icon) {
+                      return indiviEl(
+                        config,
+                        2,
+                        config.icon.map((val) => {
+                          const result = isLike(data)
+                          if (val === 'love') {
+                            return h('i', {
+                              onClick: () => likeMusic(data.id, !result),
+                              class: ['iconfont', result ? 'icon-xihuan1' : 'icon-xihuan']
+                            })
+                          }
+                        })
+                      )
+                    } else if (!config.type && config.prop) {
+                      return indiviEl(config, 2, lookup(data, config.prop))
+                    } else if (config.type) {
+                      if (config.type === 'index') {
+                        return indiviEl(
+                          config,
+                          2,
+                          formatCount(
+                            props.isPaging
+                              ? props.pageSize * (props.currentPage - 1) + (i + 1)
+                              : i + 1
+                          )
+                        )
+                      } else if (config.type === 'title') {
+                        return [
+                          indiviEl(
+                            {
+                              ...config,
+                              style: {
+                                ...config.style,
+                                color: activeText(data) ? 'rgb(255,60,60)' : ''
+                              }
+                            },
+                            2,
+                            [
+                              h('div', { class: 'title-box' }, [
+                                h(vImg, {
+                                  style: {
+                                    maxWidth: '50px'
+                                  },
+                                  width: '50',
+                                  'aspect-ratio': '1/1',
+                                  // gradient: 'to top right, rgba(100,115,201,.33), rgba(25,32,72,.7)',
+                                  src: lookup(data, config.picUrl) + '?param=150y150',
+                                  class: 'pic-url'
+                                  // lazy: config.lazy
+                                }),
+                                h('div', { class: 'name-box' }, [
+                                  h(
+                                    'div',
+                                    {
+                                      style: {
+                                        color: activeText(data) ? 'rgb(255,60,60)' : ''
+                                      }
+                                    },
+                                    lookup(data, config.prop)
+                                  ),
+                                  renderSinger(data, config)
+                                ])
+                              ])
+                            ]
+                          )
+                        ]
+                      } else if (config.type === 'album') {
+                        return indiviEl(config, 2, lookup(data, config.prop) || '未知专辑')
+                      }
+                    }
+                  })
+                )
+              })
+            )
+          ]
+        : h(
+            'div',
+            {
+              style: {
+                fontSize: '20'
+              }
+            },
+            `没有找到关于"${searchKeyword.value}"的任何内容`
+          )
 
     return () => {
       return h(
@@ -239,103 +353,38 @@ export default defineComponent({
           class: 'song-list-container'
         },
         [
-          // h(input, {
-          //   modelValue: val.value,
-          //   'onUpdate:modelValue': (value: string) => emit('update:modelValue', value)
-          // }),
-          renderTitle(),
-          h(
-            'div',
-            { class: 'list-container', style: { display: props.loading ? 'none' : '' } },
-            props.list.map((data, i) => {
-              return h(
-                'div',
-                {
-                  ondblclick: () => playHandler(data, i),
-                  onMousedown: () => mousedownHandler(data),
-                  key: data.id,
-                  class: `list ${data.copyright === 0 ? 'disable-list' : ''}`
-                  // style: {background: data.id === id.value ? 'rgba(255, 255, 255, 0.08)'
-                  //     : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'none'}
-                },
-                props.columns.map((config) => {
-                  if (config.processEl) {
-                    return indiviEl(config, 2, config.processEl(h, data, i))
-                  } else if (config.icon) {
-                    return indiviEl(
-                      config,
-                      2,
-                      config.icon.map((val) => {
-                        const result = isLike(data)
-                        if (val === 'love') {
-                          return h('i', {
-                            onClick: () => likeMusic(data.id, !result),
-                            class: ['iconfont', result ? 'icon-xihuan1' : 'icon-xihuan']
-                          })
-                        }
+          props.isSearch &&
+            h(
+              'div',
+              { class: 'search-container', style: { display: props.loading ? 'none' : '' } },
+              [
+                h(input, {
+                  density: 'compact',
+                  placeholder: '搜索此列表歌曲',
+                  prependInnerIcon: 'mdi-magnify',
+                  variant: 'outlined',
+                  maxWidth: 400,
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  modelValue: searchKeyword.value,
+                  'onUpdate:modelValue': (val: string) => {
+                    searchKeyword.value = val
+                    if (!val.trim().length) {
+                      filterList.value = props.list
+                    } else {
+                      filterList.value = props.list.filter((item) => {
+                        const keywords = [item.name.toLowerCase(), item.al.name.toLowerCase()]
+                        item.ar.forEach((a) => {
+                          keywords.push(a.name.toLowerCase())
+                        })
+
+                        return keywords.some((keyword) => keyword.includes(val.toLowerCase()))
                       })
-                    )
-                  } else if (!config.type && config.prop) {
-                    return indiviEl(config, 2, lookup(data, config.prop))
-                  } else if (config.type) {
-                    if (config.type === 'index') {
-                      return indiviEl(
-                        config,
-                        2,
-                        formatCount(
-                          props.isPaging
-                            ? props.pageSize * (props.currentPage - 1) + (i + 1)
-                            : i + 1
-                        )
-                      )
-                    } else if (config.type === 'title') {
-                      return [
-                        indiviEl(
-                          {
-                            ...config,
-                            style: {
-                              ...config.style,
-                              color: activeText(data) ? 'rgb(255,60,60)' : ''
-                            }
-                          },
-                          2,
-                          [
-                            h('div', { class: 'title-box' }, [
-                              h(vImg, {
-                                style: {
-                                  maxWidth: '50px'
-                                },
-                                width: '50',
-                                'aspect-ratio': '1/1',
-                                // gradient: 'to top right, rgba(100,115,201,.33), rgba(25,32,72,.7)',
-                                src: lookup(data, config.picUrl) + '?param=150y150',
-                                class: 'pic-url'
-                                // lazy: config.lazy
-                              }),
-                              h('div', { class: 'name-box' }, [
-                                h(
-                                  'div',
-                                  {
-                                    style: {
-                                      color: activeText(data) ? 'rgb(255,60,60)' : ''
-                                    }
-                                  },
-                                  lookup(data, config.prop)
-                                ),
-                                renderSinger(data, config)
-                              ])
-                            ])
-                          ]
-                        )
-                      ]
-                    } else if (config.type === 'album') {
-                      return indiviEl(config, 2, lookup(data, config.prop) || '未知专辑')
                     }
                   }
                 })
-              )
-            })
-          ),
+              ]
+            ),
+          Content(),
           // <el-pagination background layout="prev, pager, next" :total="1000" />
           renderPagination(),
           withDirectives(
@@ -359,6 +408,10 @@ export default defineComponent({
   flex: 1;
   position: relative;
   padding: 35px;
+  .search-container {
+    display: flex;
+    justify-content: start;
+  }
   .loading {
     position: relative;
     top: 100px;

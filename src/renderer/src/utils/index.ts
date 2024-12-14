@@ -110,6 +110,7 @@ export function toggleImg(src: string, size?: string): Promise<HTMLImageElement>
 }
 
 // 计算出合适的间隙
+// div, [div,div,div], 3 => 10px
 export function suitableSpace(el: Element, itemEl: Element, count: number): number {
   const totalWidth = el.clientWidth
   const itemWidth = itemEl.clientWidth * count
@@ -187,6 +188,7 @@ export function animation(
   }
 }
 
+// gpt-4
 export function rgbToHsl(r: number, g: number, b: number) {
   ;(r /= 255), (g /= 255), (b /= 255)
   let max = Math.max(r, g, b),
@@ -217,6 +219,7 @@ export function rgbToHsl(r: number, g: number, b: number) {
   return [h, s, l]
 }
 
+// gpt-4
 export function isGoodColor(r: number, g: number, b: number) {
   let hsl = rgbToHsl(r, g, b)
   let h = hsl[0],
@@ -228,6 +231,7 @@ export function isGoodColor(r: number, g: number, b: number) {
   }
   return true
 }
+// gpt-4
 export function findBestColors(colors: Array<Array<string>>, num: number): Array<Array<string>> {
   let goodColors = colors.filter((color) => isGoodColor(...color))
   if (goodColors.length < num) {
@@ -390,3 +394,7 @@ export function checkUrlValidity(url: string): UrlValidationResult {
   // 如果一切校验通过，URL 是合法的
   return { isValid: true, message: '' }
 }
+
+// export const createRegExp() {
+//
+// }

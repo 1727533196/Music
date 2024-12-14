@@ -8,7 +8,6 @@ import { useUserInfo } from '@/store'
 
 const settings = useSettings()
 const store = useUserInfo()
-
 const snackbar = ref(false)
 const urlVerify = ref({
   message: '',

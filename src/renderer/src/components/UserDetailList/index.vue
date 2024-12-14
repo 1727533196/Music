@@ -54,11 +54,11 @@ const gotoUserCover = async (uid: number) => {
 
 <template>
   <AdaptiveListBox>
-    <v-tabs @change="test" v-model="val" align-tabs="center" color="primary">
+    <v-tabs v-model="val" align-tabs="center" color="primary">
       <v-tab v-for="item in props.list" :value="item.name">{{ item.label }}</v-tab>
     </v-tabs>
-    <v-tabs-window v-model="val">
-      <v-tabs-window-item v-for="item in props.list" :key="item.name" :value="item.name">
+    <template v-for="item in props.list" :key="item.name">
+      <div v-show="item.name === val">
         <AdaptiveList :loading="props.loading">
           <card
             v-if="store.profile.userId === props.userId && item.name === 'createSongList'"
@@ -84,31 +84,8 @@ const gotoUserCover = async (uid: number) => {
             <h1>无任何数据</h1>
           </div>
         </AdaptiveList>
-      </v-tabs-window-item>
-    </v-tabs-window>
-    <!--    <tabs @tabChange="emit('tabChange', $event)" v-model="val">-->
-    <!--      <tab-pane v-for="item in props.list" :label="item.label" :name="item.name">-->
-    <!--        <AdaptiveList :loading="props.loading">-->
-    <!--          <card-->
-    <!--            v-if="store.profile.userId === props.userId && val === 'createSongList'"-->
-    <!--            :picUrl="img"-->
-    <!--            class="item"-->
-    <!--            name="我的听歌排行"-->
-    <!--            is-click-->
-    <!--            is-start-icon-->
-    <!--          ></card>-->
-    <!--          <card-->
-    <!--            v-for="playItem in playList"-->
-    <!--            @click="cardClickHandler(playItem)"-->
-    <!--            class="item"-->
-    <!--            :pic-url="playItem.coverImgUrl"-->
-    <!--            :name="playItem.name"-->
-    <!--            is-click-->
-    <!--            is-start-icon-->
-    <!--          ></card>-->
-    <!--        </AdaptiveList>-->
-    <!--      </tab-pane>-->
-    <!--    </tabs>-->
+      </div>
+    </template>
   </AdaptiveListBox>
 </template>
 

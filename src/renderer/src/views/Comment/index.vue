@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import {calculateIsToday, formatDate, toggleImg} from "@/utils";
-import {computed, onMounted, reactive, ref, watch} from "vue";
-import {getCommentMusic, getMusicDetail, GetMusicDetailData} from "@/api/musicList";
-import {useRoute, useRouter} from "vue-router";
-import {useFlags} from "@/store/flags";
+import { calculateIsToday, formatDate, toggleImg } from '@/utils'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { getCommentMusic, getMusicDetail, GetMusicDetailData } from '@/api/musicList'
+import { useRoute, useRouter } from 'vue-router'
+import { useFlags } from '@/store/flags'
 import Pagination from '@/components/Pagination/index.vue'
 
 interface State {
@@ -17,12 +17,12 @@ const flags = useFlags()
 const router = useRouter()
 const route = useRoute()
 const page = ref(1)
-const state = reactive<State>({
+const state: State = reactive({
   comments: [],
   song: null,
   total: 0,
   pageSize: 20,
-  currentPage: 1,
+  currentPage: 1
 })
 let id = +route.query.id!
 const currentTab = ref<string>()
@@ -31,14 +31,14 @@ const bg = ref<string>('')
 
 onMounted(() => {
   watch(bg, (val) => {
-    toggleImg(val).then(img => {
+    toggleImg(val).then((img) => {
       imgEl.value!.style.backgroundImage = `url(${img.src})`
     })
   })
 })
 const getCommentMusicFn = async (id: number, page: number) => {
-  const {data, code} = await getCommentMusic(id, 0, page, 20, 2)
-  if(code === 200) {
+  const { data, code } = await getCommentMusic(id, 0, page, 20, 2)
+  if (code === 200) {
     state.comments = data.comments
     state.total = data.totalCount
   }
@@ -48,7 +48,7 @@ const currentChange = (page: number) => {
   getCommentMusicFn(id, page)
 }
 const getMusicDetailFn = async (id: number) => {
-  const {songs} = await getMusicDetail(String(id))
+  const { songs } = await getMusicDetail(String(id))
   state.song = songs[0]
   bg.value = state.song.al.picUrl
 }
@@ -66,13 +66,15 @@ const gotoUserDetail = (uid: number) => {
     }
   })
 }
-watch(() => +route.query.id!, (value) => {
-  if(route.path === '/comment') {
-    id = value
-    init()
+watch(
+  () => +route.query.id!,
+  (value) => {
+    if (route.path === '/comment') {
+      id = value
+      init()
+    }
   }
-})
-
+)
 </script>
 
 <template>
@@ -81,12 +83,17 @@ watch(() => +route.query.id!, (value) => {
       <div class="info">
         <div ref="imgEl" class="bg-img"></div>
         <div class="song-info">
-          <div class="song-name">{{(state.song as GetMusicDetailData).name}}</div>
+          <div class="song-name">{{ (state.song as GetMusicDetailData).name }}</div>
           <div class="singers">
             <div class="singer-info">
-              <span v-for="(item, index) in state.song.ar">歌手: {{item.name + (index < (state.song as GetMusicDetailData).ar.length-1? '/' : '')}}</span>
+              <span v-for="(item, index) in state.song.ar"
+                >歌手:
+                {{
+                  item.name + (index < (state.song as GetMusicDetailData).ar.length - 1 ? '/' : '')
+                }}</span
+              >
             </div>
-            <div class="album">专辑: {{(state.song as GetMusicDetailData).al.name}}</div>
+            <div class="album">专辑: {{ (state.song as GetMusicDetailData).al.name }}</div>
           </div>
         </div>
       </div>
@@ -95,17 +102,23 @@ watch(() => +route.query.id!, (value) => {
           <div class="title">精彩评论</div>
           <div @wheel.stop class="content">
             <div v-for="item in state.comments" class="content-line">
-              <div @click="gotoUserDetail(item.user.userId)" :style="{backgroundImage: `url(${item.user.avatarUrl})`}" class="photo"></div>
+              <div
+                @click="gotoUserDetail(item.user.userId)"
+                :style="{ backgroundImage: `url(${item.user.avatarUrl})` }"
+                class="photo"
+              ></div>
               <div class="right-box">
                 <div class="comment-text">
-                  <div @click="gotoUserDetail(item.user.userId)" class="name">{{ item.user.nickname }}: </div>
-                  <div class="text">{{item.content}}</div>
+                  <div @click="gotoUserDetail(item.user.userId)" class="name">
+                    {{ item.user.nickname }}:
+                  </div>
+                  <div class="text">{{ item.content }}</div>
                 </div>
                 <div class="handle-box">
-                  <div class="time">{{item.timeStr}}</div>
+                  <div class="time">{{ item.timeStr }}</div>
                   <div class="operation">
                     <el-icon><Star /></el-icon>
-                    <span style="font-size: 12px">{{item.likedCount}}</span>
+                    <span style="font-size: 12px">{{ item.likedCount }}</span>
                     <div class="operator-line"></div>
                     <el-icon><ChatDotSquare /></el-icon>
                   </div>
@@ -114,7 +127,12 @@ watch(() => +route.query.id!, (value) => {
               <div class="line"></div>
             </div>
           </div>
-          <pagination @current-change="currentChange" :total="state.total" :pageSize="state.pageSize" :currentPage="state.currentPage"/>
+          <pagination
+            @current-change="currentChange"
+            :total="state.total"
+            :pageSize="state.pageSize"
+            :currentPage="state.currentPage"
+          />
         </div>
       </div>
     </div>
@@ -122,7 +140,9 @@ watch(() => +route.query.id!, (value) => {
 </template>
 
 <style scoped lang="less">
-:deep(.el-tab-pane),:deep(.el-tabs__content),:deep(.el-tabs) {
+:deep(.el-tab-pane),
+:deep(.el-tabs__content),
+:deep(.el-tabs) {
   height: 100%;
 }
 .comment {
@@ -195,7 +215,7 @@ watch(() => +route.query.id!, (value) => {
               left: 0;
               height: 1px;
               width: 100%;
-              background-color: rgba(255,255,255,0.08);
+              background-color: rgba(255, 255, 255, 0.08);
             }
             .photo {
               cursor: pointer;
@@ -206,7 +226,7 @@ watch(() => +route.query.id!, (value) => {
               border-radius: 50%;
               background-color: #42b983;
               margin-right: 20px;
-              .bgSetting()
+              .bgSetting();
             }
             .right-box {
               display: flex;
@@ -223,7 +243,6 @@ watch(() => +route.query.id!, (value) => {
                   margin-right: 5px;
                 }
                 .text {
-
                 }
               }
               .handle-box {
@@ -240,7 +259,7 @@ watch(() => +route.query.id!, (value) => {
                   .operator-line {
                     width: 1.5px;
                     height: 15px;
-                    background-color: rgba(255,255,255,0.05);
+                    background-color: rgba(255, 255, 255, 0.05);
                     margin: 0 10px;
                   }
                   .el-icon {

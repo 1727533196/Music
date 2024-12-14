@@ -12,7 +12,7 @@ interface State {
   recommend: Recommend[]
   loading: boolean
 }
-const state = reactive<State>({
+const state: State = reactive({
   recommend: [],
   loading: false
 })

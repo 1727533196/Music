@@ -12,7 +12,7 @@ interface SettingsState {
   font: string
 }
 export const useSettings = defineStore('settingsId', () => {
-  const state = reactive({
+  const state: SettingsState = reactive({
     baseUrl: 'http://127.0.0.1:3006',
     lyricBg: 'rhythm',
     bold: true,

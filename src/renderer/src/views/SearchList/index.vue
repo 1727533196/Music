@@ -26,7 +26,7 @@ const router = useRouter()
 const limit = ref(50)
 const page = ref(1)
 const loading = ref(false)
-const state = reactive<State>({
+const state: State = reactive({
   songs: {
     result: [],
     songCount: 0
@@ -127,6 +127,7 @@ watch(
     :total="state.songs.songCount"
     :page-size="limit"
     :current-page="page"
+    :is-search="false"
   ></SongList>
   <!--  <tabs v-model="activeName">-->
   <!--    <tab-pane-->

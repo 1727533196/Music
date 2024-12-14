@@ -9,7 +9,6 @@
   ],
   "compilerOptions": {
     "composite": true,
-    "types": ["vue"],
     "baseUrl": ".",
     "paths": {
       "@/*": [

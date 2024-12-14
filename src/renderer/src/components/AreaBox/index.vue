@@ -13,6 +13,7 @@ const left = ref(0)
 const rightDisabled = ref(false)
 const leftDisabled = ref(true)
 
+const isMove = () => {}
 const moveHandler = (direction: 'left' | 'right') => {
   if (content.value) {
     const children = content.value!.children

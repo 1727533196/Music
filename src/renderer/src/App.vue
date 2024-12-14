@@ -56,9 +56,7 @@ getUserAccountFn()
         <Header></Header>
         <div class="body">
           <router-view v-slot="{ Component }">
-            <!--          <keep-alive>-->
             <component :key="refresh" :is="Component"></component>
-            <!--          </keep-alive>-->
           </router-view>
         </div>
       </div>
@@ -66,7 +64,7 @@ getUserAccountFn()
     <div style="height: 20px"></div>
   </div>
   <Bottom :class="[music.state.musicUrl.length ? 'bottom-show' : 'bottom-visible']">
-    <teleport :disabled="!flags.isOpenDetail" to=".music-detail-container .test">
+    <teleport :disabled="!flags.isOpenDetail" to=".music-detail-container .music-detail-bottom">
       <MusicPlayer
         ref="audioInstance"
         @cutSong="music.cutSongHandler"

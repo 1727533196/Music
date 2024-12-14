@@ -22,7 +22,7 @@ interface State {
 const router = useRouter()
 const route = useRoute()
 const store = useUserInfo()
-const state = reactive<State>({
+const state: State = reactive({
   userInfo: {} as Profile,
   identify: {} as {
     level: number
