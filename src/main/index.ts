@@ -2,7 +2,8 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-
+import setupWindowEvents from './module'
+// const { setupWindowEvents } = require('./module')
 // 创建浏览器窗口的函数
 function createWindow(): void {
   // 创建浏览器窗口
@@ -41,7 +42,7 @@ function createWindow(): void {
   }
 
   ipcWindowEvent()
-
+  setupWindowEvents()
   function ipcWindowEvent() {
     ipcMain.on('maximize', () => {
       mainWindow.maximize()

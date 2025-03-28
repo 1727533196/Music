@@ -7,8 +7,7 @@ import {
   defineComponent,
   resolveComponent,
   PropType,
-  watch,
-  computed
+  watch
 } from 'vue'
 import { useRouter } from 'vue-router'
 import { lookup } from '@/utils'
@@ -135,12 +134,12 @@ export default defineComponent({
       // 歌曲相同的情况下, 如果当前双击的歌曲不是当前正在播放的歌单歌曲,那应该播放
       if (music.state.runtimeList?.id === music.state.currentItem?.id) {
         // 没暂停，双击当前应该什么都不做
-        if ($audio.isPlay && props.songs.id === item.id) {
+        if (window.$audio.isPlay && props.songs.id === item.id) {
           return
         }
         // 暂停，双击应该继续播放。
-        if (!$audio.isPlay && props.songs.id === item.id) {
-          return $audio.play()
+        if (!window.$audio.isPlay && props.songs.id === item.id) {
+          return window.$audio.play()
         }
       }
       id.value = item.id
@@ -386,7 +385,8 @@ export default defineComponent({
                   prependInnerIcon: 'mdi-magnify',
                   variant: 'outlined',
                   maxWidth: 400,
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  baseColor: '#ffffff33',
+                  color: '#ffffff33',
                   modelValue: searchKeyword.value,
                   'onUpdate:modelValue': (val: string) => {
                     searchKeyword.value = val
@@ -394,12 +394,15 @@ export default defineComponent({
                       filterList.value = props.list
                     } else {
                       filterList.value = props.list.filter((item) => {
-                        const keywords = [item.name.toLowerCase(), item.al.name.toLowerCase()]
-                        item.ar.forEach((a) => {
-                          keywords.push(a.name.toLowerCase())
+                        const alName = item.al?.name || ' '
+                        const keywords = [item.name?.toLowerCase(), alName.toLowerCase()]
+                        item.ar?.forEach((a) => {
+                          if (a.name) {
+                            keywords.push(a.name.toLowerCase())
+                          }
                         })
 
-                        return keywords.some((keyword) => keyword.includes(val.toLowerCase()))
+                        return keywords.some((keyword) => keyword.includes(val?.toLowerCase()))
                       })
                     }
                   }

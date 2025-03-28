@@ -11,12 +11,38 @@ import {
   enter,
   leave
 } from '@/layout/BaseAside/animation'
+import ContextMenu from '@/components/ContextMenu/index.vue'
 
 const store = useUserInfo()
 const current = ref<ListItem>()
 
 const router = useRouter()
 const route = useRoute()
+
+// 添加右键菜单配置
+const playlistMenuItems = [
+  { label: '播放', value: 'play' },
+  { label: '从播放列表移除', value: 'remove' },
+  { label: '编辑歌单', value: 'edit' }
+]
+
+const handlePlaylistMenuSelect = (item: { label: string; value: string }, playlistItem: ListItem) => {
+  switch (item.value) {
+    case 'play':
+      // 播放该歌单
+      itemClick(playlistItem)
+      break
+    case 'remove':
+      // 从播放列表移除
+      console.log('移除歌单:', playlistItem.name)
+      break
+    case 'edit':
+      // 编辑歌单
+      console.log('编辑歌单:', playlistItem.name)
+      break
+  }
+}
+
 const init = () => {
   // 这里需要特殊处理的有 【创建的歌单】 和 【收藏的歌单】两个列表
   if (route.query.id && route.path === '/play-list') {
@@ -150,34 +176,48 @@ const collapsedHandler = (item) => {
                   }
                 ]"
               >
-                <div
+                <ContextMenu 
                   v-for="item in menuItem.list"
-                  @click="itemClick(item)"
-                  :style="{ fontSize: item.asideFontSize + 'px' || '' }"
-                  :class="['play-list-item', { current: isCurrent(item.path, item.id) }]"
+                  :items="playlistMenuItems"
+                  @select="(menuItem) => handlePlaylistMenuSelect(menuItem, item)"
                 >
-                  <i v-if="item.icon" :class="['iconfont', item.icon || '']"></i>
-                  <img
-                    v-else-if="item.coverImgUrl"
-                    :src="item.coverImgUrl + '?param=150y150'"
-                    alt=""
-                  />
-                  <span class="name">{{ item.name }}</span>
-                </div>
+                  <div
+                    @click="itemClick(item)"
+                    :style="{ fontSize: item.asideFontSize + 'px' || '' }"
+                    :class="['play-list-item', { current: isCurrent(item.path, item.id) }]"
+                  >
+                    <i v-if="item.icon" :class="['iconfont', item.icon || '']"></i>
+                    <img
+                      v-else-if="item.coverImgUrl"
+                      :src="item.coverImgUrl + '?param=150y150'"
+                      alt=""
+                    />
+                    <span class="name">{{ item.name }}</span>
+                  </div>
+                </ContextMenu>
               </div>
             </transition>
           </template>
           <template v-else>
-            <div
-              @click="itemClick(item)"
+            <ContextMenu 
               v-for="item in menuItem.list"
-              :style="{ fontSize: item.asideFontSize + 'px' || '' }"
-              :class="['play-list-item', { current: isCurrent(item.path, item.id) }]"
+              :items="playlistMenuItems"
+              @select="(menuItem) => handlePlaylistMenuSelect(menuItem, item)"
             >
-              <i v-if="item.icon" :class="['iconfont', item.icon || '']"></i>
-              <img v-else-if="item.coverImgUrl" :src="item.coverImgUrl" alt="" />
-              <span class="name">{{ item.name }}</span>
-            </div>
+              <div
+                @click="itemClick(item)"
+                :style="{ fontSize: item.asideFontSize + 'px' || '' }"
+                :class="['play-list-item', { current: isCurrent(item.path, item.id) }]"
+              >
+                <i v-if="item.icon" :class="['iconfont', item.icon || '']"></i>
+                <img
+                  v-else-if="item.coverImgUrl"
+                  :src="item.coverImgUrl + '?param=150y150'"
+                  alt=""
+                />
+                <span class="name">{{ item.name }}</span>
+              </div>
+            </ContextMenu>
           </template>
         </div>
         <div v-if="i < asideMenuConfig.length - 1" class="line"></div>

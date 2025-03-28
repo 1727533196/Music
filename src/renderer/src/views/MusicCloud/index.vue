@@ -37,11 +37,15 @@ async function getUserCloudFn() {
     }
   )
   state.total = count
-  state.list = data.map((item) => ({
-    ...item.simpleSong,
-    ...item,
-    simpleSong: {}
-  }))
+  state.list = data.map((item) => {
+    state.ids.push(item.id)
+    return {
+      ...item.simpleSong,
+      ...item,
+      simpleSong: {}
+    }
+  })
+  music.updateCurrentItem({ id: 'cloud-songs' })
 }
 
 const currentChange = (val: number) => {

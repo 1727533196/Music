@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, provide } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMusicAction } from '@/store/music'
 import { getUserAccountFn } from '@/utils/userInfo'
@@ -14,6 +14,7 @@ import { useUserInfo } from '@/store'
 import PlayListDrawer from '@/components/PlayListDrawer/index.vue'
 import '@/utils/shortcutKey'
 import { useSettings } from '@/store/settings'
+import { useContextMenu } from './components/ContextMenu/useContextMenu'
 
 const audioInstance = ref<MusicPlayerInstanceType>()
 const login = ref()
@@ -23,6 +24,11 @@ const route = useRoute()
 const store = useUserInfo()
 const settings = useSettings()
 const refresh = ref(0) // 登录完成后强制刷新组件
+
+// 创建并提供全局菜单状态
+const { MENU_KEY, activeMenu, setActiveMenu } = useContextMenu()
+provide(MENU_KEY, { activeMenu, setActiveMenu })
+
 // 初始化全局属性
 onMounted(() => {
   if (audioInstance.value !== undefined) {
