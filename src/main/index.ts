@@ -41,29 +41,7 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html')) // 生产环境下加载本地 HTML 文件
   }
 
-  ipcWindowEvent()
-  setupWindowEvents()
-  function ipcWindowEvent() {
-    ipcMain.on('maximize', () => {
-      mainWindow.maximize()
-    })
-    ipcMain.on('unmaximize', () => {
-      mainWindow.unmaximize()
-    })
-    ipcMain.on('minimize', () => {
-      mainWindow.minimize()
-    })
-    ipcMain.on('restore', () => {
-      mainWindow.restore()
-    })
-    ipcMain.on('close', () => {
-      mainWindow.close()
-    })
-    ipcMain.on('reset', () => {
-      app.exit() //退出当前程序
-      app.relaunch() //重新启动
-    })
-  }
+  setupWindowEvents(mainWindow)
 }
 
 // 当 Electron 初始化完成并准备好创建浏览器窗口时调用

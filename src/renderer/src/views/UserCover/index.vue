@@ -58,7 +58,6 @@ const getUserRecordHandler = async (type: number) => {
     recentIds.value = data.map((item) => item.id)
   }
   music.updateCurrentItem({ id: 'userCover' })
-  console.log('recentIds', recentIds)
 }
 
 async function init() {

@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue'
 import { useUserInfo } from '@/store'
 import { useRoute, useRouter } from 'vue-router'
-import { asideMenuConfig, ListItem, needUseComparisonPaths, paths } from '@/layout/BaseAside/config'
+import { ListItem, needUseComparisonPaths, paths } from '@/layout/BaseAside/config'
 import {
   afterEnter,
   afterLeave,
@@ -12,6 +12,11 @@ import {
   leave
 } from '@/layout/BaseAside/animation'
 import ContextMenu from '@/components/ContextMenu/index.vue'
+import SongListCreator from '../../components/SongListCreator.vue'
+import { deletePlay } from '../../api/play'
+import { getUserPlayListFn } from '../../utils/userInfo'
+import { ElMessage } from 'element-plus'
+import Item from './item.vue'
 
 const store = useUserInfo()
 const current = ref<ListItem>()
@@ -21,24 +26,34 @@ const route = useRoute()
 
 // 添加右键菜单配置
 const playlistMenuItems = [
-  { label: '播放', value: 'play' },
-  { label: '从播放列表移除', value: 'remove' },
+  { label: '删除此列表', value: 'delete' },
   { label: '编辑歌单', value: 'edit' }
 ]
 
-const handlePlaylistMenuSelect = (item: { label: string; value: string }, playlistItem: ListItem) => {
+const deletePlayHandler = async (item) => {
+  try {
+    const res = await deletePlay([item.id])
+    getUserPlayListFn()
+    ElMessage.success('删除成功')
+  } catch {
+    ElMessage.error('删除失败')
+  }
+}
+const handlePlaylistMenuSelect = (
+  item: { label: string; value: string },
+  playlistItem: ListItem
+) => {
   switch (item.value) {
     case 'play':
       // 播放该歌单
       itemClick(playlistItem)
       break
-    case 'remove':
+    case 'delete':
       // 从播放列表移除
-      console.log('移除歌单:', playlistItem.name)
+      deletePlayHandler(playlistItem)
       break
     case 'edit':
       // 编辑歌单
-      console.log('编辑歌单:', playlistItem.name)
       break
   }
 }
@@ -128,9 +143,14 @@ const login = () => {
 const collapsedHandler = (item) => {
   item.isCollapsed = !item.isCollapsed
 }
+const dialog = ref(false)
+const openDialog = () => {
+  dialog.value = true
+}
 </script>
 
 <template>
+  <SongListCreator v-model="dialog" />
   <div class="aside">
     <div class="avatar-box">
       <template v-if="store.isLogin">
@@ -147,14 +167,16 @@ const collapsedHandler = (item) => {
       </div>
     </div>
     <div class="play-container">
-      <template :key="i" v-for="(menuItem, i) in asideMenuConfig">
-        <div :class="['lump', { 'collapsed-lump': menuItem.type === 'collapsed' }]">
-          <div
-            @click="menuItem.type === 'collapsed' && collapsedHandler(menuItem)"
-            v-if="menuItem.title && menuItem.list.length"
-            class="title"
-          >
-            {{ menuItem.title }}
+      <template :key="i" v-for="(menuItem, i) in store.asideMenuConfig">
+        <div
+          v-if="menuItem.show"
+          :class="['lump', { 'collapsed-lump': menuItem.type === 'collapsed' }]"
+        >
+          <div v-if="menuItem.title && menuItem.list.length" class="title">
+            <span @click="menuItem.type === 'collapsed' && collapsedHandler(menuItem)">{{
+              menuItem.title
+            }}</span>
+            <v-icon @click="openDialog" class="plus" icon="mdi-plus" />
           </div>
           <template v-if="menuItem.type === 'collapsed'">
             <transition
@@ -176,51 +198,38 @@ const collapsedHandler = (item) => {
                   }
                 ]"
               >
-                <ContextMenu 
-                  v-for="item in menuItem.list"
-                  :items="playlistMenuItems"
-                  @select="(menuItem) => handlePlaylistMenuSelect(menuItem, item)"
-                >
-                  <div
-                    @click="itemClick(item)"
-                    :style="{ fontSize: item.asideFontSize + 'px' || '' }"
-                    :class="['play-list-item', { current: isCurrent(item.path, item.id) }]"
+                <template v-for="item in menuItem.list">
+                  <ContextMenu
+                    v-if="menuItem.mark === 'play'"
+                    :items="playlistMenuItems"
+                    @select="(menuItem) => handlePlaylistMenuSelect(menuItem, item)"
                   >
-                    <i v-if="item.icon" :class="['iconfont', item.icon || '']"></i>
-                    <img
-                      v-else-if="item.coverImgUrl"
-                      :src="item.coverImgUrl + '?param=150y150'"
-                      alt=""
+                    <Item
+                      :item="item"
+                      :checked="isCurrent(item.path, item.id)"
+                      @click="itemClick"
                     />
-                    <span class="name">{{ item.name }}</span>
-                  </div>
-                </ContextMenu>
+                  </ContextMenu>
+                  <Item
+                    v-else
+                    :item="item"
+                    :checked="isCurrent(item.path, item.id)"
+                    @click="itemClick"
+                  />
+                </template>
               </div>
             </transition>
           </template>
           <template v-else>
-            <ContextMenu 
+            <Item
               v-for="item in menuItem.list"
-              :items="playlistMenuItems"
-              @select="(menuItem) => handlePlaylistMenuSelect(menuItem, item)"
-            >
-              <div
-                @click="itemClick(item)"
-                :style="{ fontSize: item.asideFontSize + 'px' || '' }"
-                :class="['play-list-item', { current: isCurrent(item.path, item.id) }]"
-              >
-                <i v-if="item.icon" :class="['iconfont', item.icon || '']"></i>
-                <img
-                  v-else-if="item.coverImgUrl"
-                  :src="item.coverImgUrl + '?param=150y150'"
-                  alt=""
-                />
-                <span class="name">{{ item.name }}</span>
-              </div>
-            </ContextMenu>
+              :item="item"
+              :checked="isCurrent(item.path, item.id)"
+              @click="itemClick"
+            />
           </template>
         </div>
-        <div v-if="i < asideMenuConfig.length - 1" class="line"></div>
+        <div v-if="i < store.asideMenuConfig.length - 1 && menuItem.show" class="line"></div>
       </template>
     </div>
   </div>
@@ -291,6 +300,8 @@ const collapsedHandler = (item) => {
     padding-bottom: 100px;
     .collapsed-lump {
       .title {
+        display: flex;
+        justify-content: space-between;
         cursor: pointer;
       }
       .collapsed {
@@ -310,42 +321,13 @@ const collapsedHandler = (item) => {
         text-align: left;
         padding: 0 10px;
         margin-bottom: 5px;
-      }
-      .play-list-item {
-        cursor: pointer;
-        color: @text;
-        font-size: 13px;
-        text-align: left;
-        line-height: 40px;
-        .textOverflow();
-        padding: 0 10px;
-        border-radius: 5px;
-        display: flex;
-        align-items: center;
-        margin: 7px 0;
-        > img {
-          width: 34px;
-          height: 34px;
-          border-radius: 6px;
+        .plus {
+          border-radius: 50%;
+          width: 18px;
+          font-size: 14px;
+          height: 18px;
+          background-color: rgba(255, 255, 255, 0.1);
         }
-        .name {
-          margin-left: 10px;
-          .textOverflow();
-        }
-      }
-      .play-list-item:hover {
-        background-image: linear-gradient(
-          to right,
-          rgba(255, 17, 104, 0.8),
-          rgba(252, 61, 73, 0.3)
-        );
-      }
-      .current.play-list-item {
-        background-image: linear-gradient(
-          to right,
-          rgba(255, 17, 104, 0.8),
-          rgba(252, 61, 73, 0.7)
-        );
       }
     }
     .line {

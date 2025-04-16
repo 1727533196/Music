@@ -1,4 +1,3 @@
-import { reactive } from 'vue'
 import { PlayList } from '@/api/musicList'
 
 export const paths = [
@@ -17,10 +16,11 @@ export type ListItem = {
   path: (typeof paths)[number]
   asideFontSize?: number
 } & Partial<PlayList>
-interface MenuConfig {
+export interface MenuConfig {
   title: '我的音乐' | '创建的歌单' | '收藏的歌单' | false
   mark: 'my' | 'play' | 'subscribedList' | false
   list: ListItem[]
+  show?: boolean
   type?: 'collapsed' | 'tiled'
   isCollapsed?: boolean
 }
@@ -38,6 +38,7 @@ export const originAsideMenuConfig: MenuConfig[] = [
   {
     title: false,
     mark: false,
+    show: true,
     list: [
       {
         name: '为我推荐',
@@ -111,5 +112,3 @@ export const originAsideMenuConfig: MenuConfig[] = [
     list: []
   }
 ]
-
-export const asideMenuConfig = reactive([...originAsideMenuConfig])

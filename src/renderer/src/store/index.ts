@@ -1,9 +1,14 @@
 import { defineStore } from 'pinia'
 import { Profile } from '@/api/user'
-import { PlayList } from '@/api/musicList'
-import { asideFontSize, asideMenuConfig, ListItem } from '@/layout/BaseAside/config'
+import { getMusicUrl, PlayList } from '@/api/musicList'
+import {
+  asideFontSize,
+  ListItem,
+  MenuConfig,
+  originAsideMenuConfig
+} from '@/layout/BaseAside/config'
 import { useAnonimousLogin } from '@/utils/useLogin'
-
+import { useMusicAction } from './music'
 export const useUserInfo = defineStore('userInfoId', {
   state: () => {
     return {
@@ -21,7 +26,8 @@ export const useUserInfo = defineStore('userInfoId', {
       volume: Number(localStorage.getItem('volume')) || 1, // 用户当前播放器音量
       events: {
         login: () => {}
-      }
+      },
+      asideMenuConfig: [...originAsideMenuConfig] as MenuConfig[]
     }
   },
   actions: {
@@ -39,23 +45,28 @@ export const useUserInfo = defineStore('userInfoId', {
       }
       localStorage.setItem('userId', String(this.profile.userId))
       this.isLogin = true
-      console.log('12312')
+      localStorage.setItem('IS_LOGIN', JSON.stringify(true))
+      localStorage.setItem('PROFILE', JSON.stringify(this.profile))
     },
     updateUserPlayList(val: PlayList[]) {
       this.userPlayListInfo = val
 
-      console.log('this.userPlayListInfo', this.userPlayListInfo)
       const copyVal = JSON.parse(JSON.stringify(val)) as PlayList[]
       const myList: ListItem[] = []
       const subscribedList: ListItem[] = []
-      const myListItem = asideMenuConfig.find((item) => item.mark === 'my')
+      const asideMenuConfig = this.asideMenuConfig
+      const myListItem = asideMenuConfig.find((item) => item.mark === 'my')!
       copyVal.forEach((item) => {
         if (item.subscribed) {
           subscribedList.push({ ...item, asideFontSize, icon: '', path: '/play-list' })
         } else {
           if (item.specialType === 5) {
             asideMenuConfig.find((item) => item.mark === 'my')
-            myListItem!.list = [
+            const loveListIndex = myListItem.list.findIndex((item) => item.name === '我喜欢的音乐')
+            if (loveListIndex !== -1) {
+              myListItem.list.splice(loveListIndex, 1)
+            }
+            myListItem.list = [
               {
                 ...item,
                 name: '我喜欢的音乐',
@@ -76,10 +87,17 @@ export const useUserInfo = defineStore('userInfoId', {
           }
         }
       })
+      asideMenuConfig.forEach((item) => {
+        if (typeof item.mark !== 'boolean') {
+          item.show = this.isLogin
+        }
+      })
       let playItem = asideMenuConfig.find((item) => item.mark === 'play')
       let subscribedListItem = asideMenuConfig.find((item) => item.mark === 'subscribedList')
       myList.length && (playItem!.list = myList)
       subscribedList.length && (subscribedListItem!.list = subscribedList)
+
+      localStorage.setItem('MENU_CONFIG', JSON.stringify(asideMenuConfig))
     },
     updateUserLikeIds(ids: number[]) {
       this.userLikeIds = ids
@@ -89,6 +107,29 @@ export const useUserInfo = defineStore('userInfoId', {
     },
     loginCallBack() {
       this.events.login()
+    },
+    loadCache() {
+      const isLogin = JSON.parse(localStorage.getItem('IS_LOGIN') || 'false')
+      if (!isLogin) {
+        return
+      }
+      this.isLogin = true
+      const menuConfig = localStorage.getItem('MENU_CONFIG')
+      if (menuConfig) {
+        this.asideMenuConfig = JSON.parse(menuConfig)
+      }
+      const profile = localStorage.getItem('PROFILE')
+      if (profile) {
+        this.profile = JSON.parse(profile)
+      }
+      const music = useMusicAction()
+      const musicConfig = localStorage.getItem('MUSIC_CONFIG')
+      if (musicConfig) {
+        music.updateState(JSON.parse(musicConfig))
+        getMusicUrl(music.state.songs.id).then(({ data }) => {
+          music.state.musicUrl = data[0].url || ''
+        })
+      }
     }
   }
 })

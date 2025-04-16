@@ -45,11 +45,8 @@ const setBaseUrl = () => {
     message: '修改网络域成功'
   })
 }
-const test = () => {
-  console.log('111')
-}
+const test = () => {}
 const updateBg = (value) => {
-  console.log('value', value)
   settings.setState({
     lyricBg: value
   })

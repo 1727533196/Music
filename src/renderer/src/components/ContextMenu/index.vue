@@ -20,10 +20,8 @@ const y = ref(0)
 const menuRef = ref(null)
 const menuId = ref(Symbol('menu-id'))
 
-// 显示菜单
 const showMenu = (e) => {
   e.preventDefault()
-  // 先关闭其他菜单
   if (menuManager.activeMenu.value) {
     menuManager.setActiveMenu(null)
   }
@@ -36,18 +34,16 @@ const showMenu = (e) => {
   })
 }
 
-// 隐藏菜单
 const hideMenu = () => {
   visible.value = false
 }
 
-// 处理菜单项点击
-const handleSelect = (item) => {
+const handleSelect = (item, event) => {
   emit('select', item)
   hideMenu()
+  event.stopPropagation()
 }
 
-// 点击其他地方时隐藏菜单
 const handleClickOutside = (e) => {
   if (menuRef.value && !menuRef.value.contains(e.target)) {
     hideMenu()
@@ -69,9 +65,11 @@ onUnmounted(() => {
 <template>
   <div class="context-menu-wrapper" @contextmenu="showMenu">
     <slot></slot>
-    
-    <div 
-      v-if="visible" 
+  </div>
+
+  <teleport to="body">
+    <div
+      v-if="visible"
       ref="menuRef"
       class="context-menu"
       :style="{ left: x + 'px', top: y + 'px' }"
@@ -80,12 +78,12 @@ onUnmounted(() => {
         v-for="(item, index) in items"
         :key="index"
         class="menu-item"
-        @click="handleSelect(item)"
+        @click="(e) => handleSelect(item, e)"
       >
         {{ item.label }}
       </div>
     </div>
-  </div>
+  </teleport>
 </template>
 
 <style lang="less" scoped>
@@ -97,21 +95,27 @@ onUnmounted(() => {
 
 .context-menu {
   position: fixed;
-  background: #fff;
-  border-radius: 4px;
+  backdrop-filter: blur(30px) saturate(210%);
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: rgba(40, 40, 40, 0.7);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-  padding: 4px 0;
+  padding: 6px 0;
   min-width: 120px;
-  z-index: 9999;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
 }
 
 .menu-item {
-  padding: 8px 16px;
+  padding: 4px 8px;
   cursor: pointer;
   transition: background-color 0.2s;
-  
+
   &:hover {
-    background-color: #f5f5f5;
+    background-color: rgba(255, 255, 255, 0.05);
   }
 }
 </style>

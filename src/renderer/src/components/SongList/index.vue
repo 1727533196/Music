@@ -17,6 +17,8 @@ import useMusic from '@/components/MusicPlayer/useMusic'
 import { useMusicAction } from '@/store/music'
 import Pagination from '@/components/Pagination/index.vue'
 import NotFound from '@/assets/not-found.png'
+import ContextMenu from '@/components/ContextMenu/index.vue'
+import { checkMusic, deleteSong } from '@/api/play'
 
 export interface Columns {
   title: string
@@ -36,7 +38,7 @@ interface Props {
   songs: GetMusicDetailData // 播放器正在播放的歌曲信息
   // header: Header[]
   columns: Columns[]
-  listInfo?: PlayList // 歌单信息, 如果传入，则会定位到当前歌单播放级，不传则定位id级，用于确认当前歌曲是否选中
+  listInfo: PlayList // 歌单信息, 如果传入，则会定位到当前歌单播放级，不传则定位id级，用于确认当前歌曲是否选中
   loading?: boolean // 是否加载中
   ids?: number[] // 歌曲id列表, 用来判断是否为当前歌单, 如果需要使当前歌单进入运行时则需要传入
   scroll?: boolean // 是否显示滚动条
@@ -58,7 +60,10 @@ export const indiviEl = (config: Columns, type: 1 | 2, value: any) => {
     value
   )
 }
-
+const playlistMenuItems = [
+  { label: '收藏歌曲', value: 'collection' },
+  { label: '删除歌曲', value: 'delete' }
+]
 export default defineComponent({
   props: {
     list: {
@@ -75,7 +80,10 @@ export default defineComponent({
     },
     loading: Boolean,
     ids: Array as PropType<number[]>,
-    listInfo: Object as PropType<PlayList>,
+    listInfo: {
+      type: Object as PropType<PlayList>,
+      required: true
+    },
     scroll: Boolean, // 是否显示滚动条
     isPaging: {
       // 是否需要分页
@@ -121,16 +129,41 @@ export default defineComponent({
     const { likeMusic } = useMusic()
     const id = ref(0)
     const filterList = ref(props.list)
+    const copyrightVisible = ref(false)
 
     const loadingDiretive = resolveDirective('loading')!
     const input = resolveComponent('VTextField')
+    const VDialog = resolveComponent('VDialog')
+    const VCard = resolveComponent('VCard')
     const vImg = resolveComponent('VImg')
+    const VCardTitle = resolveComponent('VCardTitle')
+    const VBtn = resolveComponent('VBtn')
+    const VCardText = resolveComponent('VCardText')
     const searchKeyword = ref('')
 
     const formatCount = (index: number) => {
       return index.toString().length > 1 ? index : '0' + index
     }
-    const playHandler = (item: GetMusicDetailData, index: number) => {
+    const handlePlaylistMenuSelect = (item: { label: string; value: string }, row) => {
+      console.log('listInfo', props.listInfo, row)
+      switch (item.value) {
+        case 'collection':
+          break
+        case 'delete':
+          deleteSong({
+            op: 'del',
+            pid: props.listInfo.id,
+            tracks: row.id
+          })
+          break
+      }
+    }
+    const playHandler = async (item: GetMusicDetailData, index: number) => {
+      const { success } = await checkMusic(item.id)
+      if (success === false) {
+        copyrightVisible.value = true
+        return
+      }
       // 歌曲相同的情况下, 如果当前双击的歌曲不是当前正在播放的歌单歌曲,那应该播放
       if (music.state.runtimeList?.id === music.state.currentItem?.id) {
         // 没暂停，双击当前应该什么都不做
@@ -240,6 +273,9 @@ export default defineComponent({
         })
       )
     }
+    const closeCopyrightVisible = () => {
+      copyrightVisible.value = false
+    }
 
     const Content = () =>
       props.loading || filterList.value.length
@@ -250,90 +286,98 @@ export default defineComponent({
               { class: 'list-container', style: { display: props.loading ? 'none' : '' } },
               filterList.value.map((data, i) => {
                 return h(
-                  'div',
+                  ContextMenu,
                   {
-                    ondblclick: () => playHandler(data, i),
-                    onMousedown: () => mousedownHandler(data),
-                    key: data.id,
-                    class: `list ${data.copyright === 0 ? 'disable-list' : ''}`
-                    // style: {background: data.id === id.value ? 'rgba(255, 255, 255, 0.08)'
-                    //     : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'none'}
+                    items: playlistMenuItems,
+                    onSelect: (e) => handlePlaylistMenuSelect(e, data)
                   },
-                  props.columns.map((config) => {
-                    if (config.processEl) {
-                      return indiviEl(config, 2, config.processEl(h, data, i))
-                    } else if (config.icon) {
-                      return indiviEl(
-                        config,
-                        2,
-                        config.icon.map((val) => {
-                          const result = isLike(data)
-                          if (val === 'love') {
-                            return h('i', {
-                              onClick: () => likeMusic(data.id, !result),
-                              class: ['iconfont', result ? 'icon-xihuan1' : 'icon-xihuan']
-                            })
-                          }
-                        })
-                      )
-                    } else if (!config.type && config.prop) {
-                      return indiviEl(config, 2, lookup(data, config.prop))
-                    } else if (config.type) {
-                      if (config.type === 'index') {
-                        return indiviEl(
-                          config,
-                          2,
-                          formatCount(
-                            props.isPaging
-                              ? props.pageSize * (props.currentPage - 1) + (i + 1)
-                              : i + 1
-                          )
-                        )
-                      } else if (config.type === 'title') {
-                        return [
-                          indiviEl(
-                            {
-                              ...config,
-                              style: {
-                                ...config.style,
-                                color: activeText(data) ? 'rgb(255,60,60)' : ''
-                              }
-                            },
+                  () =>
+                    h(
+                      'div',
+                      {
+                        ondblclick: () => playHandler(data, i),
+                        onMousedown: () => mousedownHandler(data),
+                        key: data.id,
+                        class: `list ${data.copyright === 0 ? 'disable-list' : ''}`
+                        // style: {background: data.id === id.value ? 'rgba(255, 255, 255, 0.08)'
+                        //     : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'none'}
+                      },
+                      props.columns.map((config) => {
+                        if (config.processEl) {
+                          return indiviEl(config, 2, config.processEl(h, data, i))
+                        } else if (config.icon) {
+                          return indiviEl(
+                            config,
                             2,
-                            [
-                              h('div', { class: 'title-box' }, [
-                                h(vImg, {
-                                  style: {
-                                    maxWidth: '50px'
-                                  },
-                                  width: '50',
-                                  'aspect-ratio': '1/1',
-                                  // gradient: 'to top right, rgba(100,115,201,.33), rgba(25,32,72,.7)',
-                                  src: lookup(data, config.picUrl) + '?param=150y150',
-                                  class: 'pic-url'
-                                  // lazy: config.lazy
-                                }),
-                                h('div', { class: 'name-box' }, [
-                                  h(
-                                    'div',
-                                    {
-                                      style: {
-                                        color: activeText(data) ? 'rgb(255,60,60)' : ''
-                                      }
-                                    },
-                                    lookup(data, config.prop)
-                                  ),
-                                  renderSinger(data, config)
-                                ])
-                              ])
-                            ]
+                            config.icon.map((val) => {
+                              const result = isLike(data)
+                              if (val === 'love') {
+                                return h('i', {
+                                  onClick: () => likeMusic(data.id, !result),
+                                  class: ['iconfont', result ? 'icon-xihuan1' : 'icon-xihuan']
+                                })
+                              }
+                            })
                           )
-                        ]
-                      } else if (config.type === 'album') {
-                        return indiviEl(config, 2, lookup(data, config.prop) || '未知专辑')
-                      }
-                    }
-                  })
+                        } else if (!config.type && config.prop) {
+                          return indiviEl(config, 2, lookup(data, config.prop))
+                        } else if (config.type) {
+                          if (config.type === 'index') {
+                            return indiviEl(
+                              config,
+                              2,
+                              formatCount(
+                                props.isPaging
+                                  ? props.pageSize * (props.currentPage - 1) + (i + 1)
+                                  : i + 1
+                              )
+                            )
+                          } else if (config.type === 'title') {
+                            return [
+                              indiviEl(
+                                {
+                                  ...config,
+                                  style: {
+                                    ...config.style,
+                                    color: activeText(data) ? 'rgb(255,60,60)' : ''
+                                  }
+                                },
+                                2,
+                                [
+                                  h('div', { class: 'title-box' }, [
+                                    h(vImg, {
+                                      style: {
+                                        maxWidth: '50px'
+                                      },
+                                      width: '50',
+                                      'aspect-ratio': '1/1',
+                                      // gradient: 'to top right, rgba(100,115,201,.33), rgba(25,32,72,.7)',
+                                      src: lookup(data, config.picUrl) + '?param=150y150',
+                                      class: 'pic-url'
+                                      // lazy: config.lazy
+                                    }),
+                                    h('div', { class: 'name-box' }, [
+                                      h(
+                                        'div',
+                                        {
+                                          style: {
+                                            color: activeText(data) ? 'rgb(255,60,60)' : ''
+                                          }
+                                        },
+                                        lookup(data, config.prop)
+                                      ),
+                                      renderSinger(data, config)
+                                    ])
+                                  ])
+                                ]
+                              )
+                            ]
+                          } else if (config.type === 'album') {
+                            return indiviEl(config, 2, lookup(data, config.prop) || '未知专辑')
+                          }
+                        }
+                      })
+                    )
                 )
               })
             )
@@ -409,6 +453,53 @@ export default defineComponent({
                 })
               ]
             ),
+          h(
+            VDialog,
+            {
+              scrim: false,
+              modelValue: copyrightVisible.value,
+              'onUpdate:modelValue': () => closeCopyrightVisible,
+              maxWidth: '400'
+            },
+            [
+              h(
+                VCard,
+                {
+                  rounded: 'lg'
+                },
+                [
+                  h(
+                    VCardTitle,
+                    {
+                      class: 'd-flex justify-space-between align-center'
+                    },
+                    [
+                      h('div', { class: 'text-h5 text-medium-emphasis ps-2' }, '当前歌曲暂无音源'),
+                      h(VBtn, {
+                        icon: 'mdi-close',
+                        variant: 'text',
+                        onClick: closeCopyrightVisible
+                      })
+                    ]
+                  ),
+                  h(
+                    VCardText,
+                    {
+                      class: 'd-flex justify-center align-center'
+                    },
+                    h(
+                      VBtn,
+                      {
+                        variant: 'tonal',
+                        onClick: closeCopyrightVisible
+                      },
+                      '好'
+                    )
+                  )
+                ]
+              )
+            ]
+          ),
           Content(),
           // <el-pagination background layout="prev, pager, next" :total="1000" />
           renderPagination(),

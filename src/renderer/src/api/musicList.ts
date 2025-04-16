@@ -238,6 +238,7 @@ export const getIntelliganceList = (pid: number, id: number, sid: number) =>
     'get'
   )
 
+// 歌曲动态封面
 export const getDynamicCover = (id: number) => request(`/song/dynamic/cover?id=${id}`, 'get')
 
 export const updateScrobble = (id: number, sourceid?: number) =>

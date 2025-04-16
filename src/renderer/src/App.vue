@@ -24,11 +24,11 @@ const route = useRoute()
 const store = useUserInfo()
 const settings = useSettings()
 const refresh = ref(0) // 登录完成后强制刷新组件
+store.loadCache()
 
 // 创建并提供全局菜单状态
 const { MENU_KEY, activeMenu, setActiveMenu } = useContextMenu()
 provide(MENU_KEY, { activeMenu, setActiveMenu })
-
 // 初始化全局属性
 onMounted(() => {
   if (audioInstance.value !== undefined) {

@@ -53,14 +53,11 @@ const show = () => {
 }
 
 const close = (val) => {
-  console.log('close', val)
   clearInterval(timer)
 }
 
 const setMode = (val: 'qr' | 'phone') => {
-  console.log('val', val)
   mode.value = val
-  console.log('mode', mode)
 }
 
 defineExpose({

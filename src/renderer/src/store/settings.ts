@@ -30,7 +30,6 @@ export const useSettings = defineStore('settingsId', () => {
         ...values
       })
     )
-    console.log('state', state)
     values?.baseUrl && setBaseURL(values.baseUrl)
   }
   const getState = () => {

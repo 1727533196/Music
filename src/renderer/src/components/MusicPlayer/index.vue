@@ -20,7 +20,6 @@ type userAudio = {
 } & Omit<HTMLAudioElement, 'pause' | 'play'>
 
 export interface MusicPlayerInstanceType {
-  orderStatusVal: UnwrapRef<typeof orderStatusVal>
   el: UnwrapRef<userAudio>
   isPlay: UnwrapRef<boolean>
   reset: (val: boolean) => void
@@ -41,8 +40,6 @@ const store = useUserInfo()
 const props = defineProps<Props>()
 const emit = defineEmits(['playEnd', 'cutSong'])
 const isPlay = ref(false)
-// 0心动 1列表循环 2随机播放 3单曲循环
-const orderStatusVal = ref<0 | 1 | 2 | 3>(0)
 const audio = ref<userAudio>()
 const music = useMusicAction()
 const flags = useFlags()
@@ -78,6 +75,10 @@ onMounted(() => {
 })
 function play(lengthen: boolean = false) {
   let volume = store.volume
+  if (music.state.load) {
+    cutSongHandler()
+    music.state.load = false
+  }
   player.play()
   audio.value!.volume = 0
   originPlay.call(audio.value).catch((err) => {
@@ -85,6 +86,8 @@ function play(lengthen: boolean = false) {
   })
   isPlay.value = true
   timeState.stop = false
+
+  console.log('music.state.load', music.state.load)
 
   // 开始时直接改变就可以，让逐字歌词跟得上
   transitionIsPlay.value = true
@@ -162,10 +165,10 @@ const end = () => {
 const setOrderHandler = () => {
   const runtimeList = music.state.runtimeList
 
-  let newValue = (orderStatusVal.value + 1) % orderStatus.length
+  let newValue = (music.state.orderStatusVal + 1) % orderStatus.length
 
   // 如果上一次是心动模式并且当前播放的列表是”我喜欢的“，这次切换为其他，则重新获取”我喜欢的“列表,并更新进行时列表
-  if (runtimeList?.specialType === 5 && orderStatusVal.value === 0 && newValue !== 0) {
+  if (runtimeList?.specialType === 5 && music.state.orderStatusVal === 0 && newValue !== 0) {
     getPlayListDetailFn(runtimeList.id, '', false)
     music.updateTracks(
       playListState.playList,
@@ -174,15 +177,16 @@ const setOrderHandler = () => {
   }
 
   // 如果当前播放歌单不是”我喜欢的“列表，则心动模式不可用
-  orderStatusVal.value =
-    newValue === 0 && runtimeList?.specialType !== 5 ? 1 : (newValue as typeof orderStatusVal.value)
+  music.state.orderStatusVal =
+    newValue === 0 && runtimeList?.specialType !== 5
+      ? 1
+      : (newValue as typeof music.state.orderStatusVal)
 
   music.getIntelliganceListHandler()
 }
 
 // 执行切换事件，随后暂停time监听器，等待歌曲加载完成后会打开
 const cutSongHandler = () => {
-  console.log('music.state.lyric', music.state.lyric)
   const type = music.state.lrcMode === 1 ? 'lrc' : 'yrc'
   player.updateAudioLrc(music.state.lyric, type)
   executeListener('cutSong')
@@ -190,7 +194,6 @@ const cutSongHandler = () => {
 
 const exposeObj = {
   el: audio,
-  orderStatusVal,
   isPlay,
   reset,
   play,
@@ -234,7 +237,7 @@ defineExpose(exposeObj)
     <DetailCenter
       :orderStatus="orderStatus"
       :isPlay="isPlay"
-      :orderStatusVal="orderStatusVal"
+      :orderStatusVal="music.state.orderStatusVal"
       @play="play"
       @pause="pause"
       @cutSong="(val) => emit('cutSong', val)"

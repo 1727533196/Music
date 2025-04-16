@@ -40,7 +40,6 @@ const searchHandler = (
   item: string | object,
   key?: 'allMatch' | 'songs' | 'artists' | 'albums' | 'playlists' | 'search' | 'hot'
 ) => {
-  console.log('item', item, key)
   if (isString(item) && !item.length) {
     return
   }

@@ -1,23 +1,22 @@
 //  快捷键配置文件
-import {useFlags} from "@/store/flags";
+import { useFlags } from '@/store/flags'
 
 const keydownHandler = (event: KeyboardEvent) => {
   const flags = useFlags()
 
-  console.log('event', event.code)
   // 空格暂停|播放
   switch (event.code) {
-    case 'Space' :
+    case 'Space':
       event.preventDefault()
-      if($audio.isPlay) {
+      if ($audio.isPlay) {
         $audio.pause()
       } else {
         $audio.play()
       }
       break
     case 'ArrowRight':
-    case 'ArrowLeft' :
-      event.code === 'ArrowRight' ? $audio.time += 10 : $audio.time -= 10
+    case 'ArrowLeft':
+      event.code === 'ArrowRight' ? ($audio.time += 10) : ($audio.time -= 10)
       break
     case 'ArrowUp':
     case 'ArrowDown':
@@ -25,7 +24,6 @@ const keydownHandler = (event: KeyboardEvent) => {
       flags.isOpenDetail = event.code === 'ArrowUp'
       break
   }
-
 }
 // 按键配置
 document.onkeydown = keydownHandler

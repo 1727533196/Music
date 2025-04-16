@@ -26,7 +26,6 @@ const moveHandler = (direction: 'left' | 'right') => {
       for (let i = 0; i < children.length; i++) {
         const el = children[i] as HTMLElement
         const distance = el.offsetLeft + el.clientWidth
-        console.log('el', el)
         if (distance > currentScrollLeft + containerWidth) {
           left.value = el.offsetLeft
           break

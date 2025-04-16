@@ -1,6 +1,6 @@
-import {formattingTime} from "@/utils";
-import {Columns} from "@/components/SongList/index.vue";
-import {GetMusicDetailData} from "@/api/musicList";
+import { formattingTime } from '@/utils'
+import { Columns } from '@/components/SongList/index.vue'
+import { GetMusicDetailData } from '@/api/musicList'
 
 export const columns: Columns[] = [
   {
@@ -9,7 +9,7 @@ export const columns: Columns[] = [
     type: 'index',
     class: 'empty',
     style: {
-      position: 'relative',
+      position: 'relative'
     }
   },
   {
@@ -19,21 +19,21 @@ export const columns: Columns[] = [
     width: '45%',
     class: 'title',
     type: 'title',
-    lazy: true,
+    lazy: true
   },
   {
     title: '专辑',
     prop: 'al.name', // 嵌套取值
     width: '35%',
     class: 'album',
-    type: 'album',
+    type: 'album'
   },
   {
     title: '操作',
     width: '45px',
     type: 'handle',
     class: 'handle',
-    icon: ['love'],
+    icon: ['love']
   },
   {
     title: '时长',
@@ -43,5 +43,5 @@ export const columns: Columns[] = [
     processEl: (h, data: GetMusicDetailData) => {
       return formattingTime(data.dt)
     }
-  },
+  }
 ]

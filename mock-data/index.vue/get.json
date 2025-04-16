@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/src/components/AreaBox/index.vue",
+    "headers": {
+      "host": "localhost:5173",
+      "connection": "keep-alive",
+      "sec-ch-ua": "\"Not/A)Brand\";v=\"8\", \"Chromium\";v=\"126\"",
+      "origin": "http://localhost:5173",
+      "sec-ch-ua-mobile": "?0",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) music/1.0.0 Chrome/126.0.6478.61 Electron/31.0.2 Safari/537.36",
+      "sec-ch-ua-platform": "\"Windows\"",
+      "accept": "*/*",
+      "sec-fetch-site": "same-origin",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-dest": "script",
+      "referer": "http://localhost:5173/src/views/Home/components/individual.vue",
+      "accept-encoding": "gzip, deflate, br",
+      "accept-language": "zh-CN"
+    }
+  },
+  "response": {
+    "statusCode": 404,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "date": "Tue, 08 Apr 2025 12:34:45 GMT",
+      "connection": "close",
+      "transfer-encoding": "chunked"
+    },
+    "body": "Mock data not found"
+  },
+  "timestamp": "2025-04-08T12:34:45.421Z"
+}

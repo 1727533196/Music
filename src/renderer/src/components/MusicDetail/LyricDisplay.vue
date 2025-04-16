@@ -42,7 +42,7 @@ nextTick(() => {
   watch(
     () => props.bg,
     async (val) => {
-      if (!bgEl) return // 如果找不到元素，直接返回
+      if (!bgEl || !val) return // 如果找不到元素，直接返回
       // 创建一个 GSAP 时间轴
       const tl = gsap.timeline()
       // 使用时间轴先缩小元素
@@ -69,7 +69,8 @@ nextTick(() => {
           }
         })
       })
-    }
+    },
+    { immediate: true }
   )
 })
 const arNames = computed(() => {
@@ -132,7 +133,7 @@ const arNames = computed(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+  //background-color: rgba(0, 0, 0, 0.5);
   .lyric-and-bg-container {
     display: flex;
     margin-top: 17vh;
