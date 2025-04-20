@@ -24,7 +24,7 @@
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@element-plus/icons-vue": "^2.3.1",
-    "@lrc-player/core": "^1.1.4",
+    "@lrc-player/core": "^1.1.5",
     "@lrc-player/parse": "^1.0.0",
     "axios": "^1.7.7",
     "colorthief": "^2.4.0",

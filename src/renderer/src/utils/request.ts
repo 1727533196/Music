@@ -48,7 +48,6 @@ http.interceptors.response.use(
       status,
       data: { code }
     } = response
-    console.log('response', response)
     const url = response.config.url?.split('?')[0]!
     if (!ignoreState.includes(url) && status !== 200 && code !== 200) {
       ElMessage.error(response.data.message || `请求出现错误，当前状态码为${code || status}`)

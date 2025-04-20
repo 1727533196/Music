@@ -18,7 +18,7 @@ import { useMusicAction } from '@/store/music'
 import Pagination from '@/components/Pagination/index.vue'
 import NotFound from '@/assets/not-found.png'
 import ContextMenu from '@/components/ContextMenu/index.vue'
-import { checkMusic, deleteSong } from '@/api/play'
+import { checkMusic } from '@/api/play'
 
 export interface Columns {
   title: string
@@ -126,7 +126,7 @@ export default defineComponent({
   setup(props, { emit, attrs }) {
     const store = useUserInfo()
     const music = useMusicAction()
-    const { likeMusic } = useMusic()
+    const { likeMusic, deleteSongHandler } = useMusic()
     const id = ref(0)
     const filterList = ref(props.list)
     const copyrightVisible = ref(false)
@@ -144,17 +144,13 @@ export default defineComponent({
     const formatCount = (index: number) => {
       return index.toString().length > 1 ? index : '0' + index
     }
-    const handlePlaylistMenuSelect = (item: { label: string; value: string }, row) => {
+    const handlePlaylistMenuSelect = (item: { label: string; value: string }, row, index) => {
       console.log('listInfo', props.listInfo, row)
       switch (item.value) {
         case 'collection':
           break
         case 'delete':
-          deleteSong({
-            op: 'del',
-            pid: props.listInfo.id,
-            tracks: row.id
-          })
+          deleteSongHandler(row.id, props.listInfo.id, index)
           break
       }
     }
@@ -289,7 +285,7 @@ export default defineComponent({
                   ContextMenu,
                   {
                     items: playlistMenuItems,
-                    onSelect: (e) => handlePlaylistMenuSelect(e, data)
+                    onSelect: (e) => handlePlaylistMenuSelect(e, data, i)
                   },
                   () =>
                     h(

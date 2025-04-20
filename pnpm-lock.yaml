@@ -18,8 +18,8 @@ importers:
         specifier: ^2.3.1
         version: 2.3.1(vue@3.5.13(typescript@5.5.2))
       '@lrc-player/core':
-        specifier: ^1.1.4
-        version: 1.1.4
+        specifier: ^1.1.5
+        version: 1.1.5
       '@lrc-player/parse':
         specifier: ^1.0.0
         version: 1.0.0
@@ -513,8 +513,8 @@ packages:
   '@lokesh.dhakar/quantize@1.3.0':
     resolution: {integrity: sha512-4KBSyaMj65d8A+2vnzLxtHFu4OmBU4IKO0yLxZ171Itdf9jGV4w+WbG7VsKts2jUdRkFSzsZqpZOz6hTB3qGAw==}
 
-  '@lrc-player/core@1.1.4':
-    resolution: {integrity: sha512-XjpIs8hHFHShncFuI02H3L2R++Gs924h4pUyKBpAT/P6tveUQ58bBumcODyALT5rR9g0clauVhOGGobeogS5ag==}
+  '@lrc-player/core@1.1.5':
+    resolution: {integrity: sha512-1xl/BiHdtHy6GzUTrmzpRpQCu4wKwRFGXFEX5ouev1FJ+7fxWwntdU37upO3bIs0hWSb+3L6gKo3LylRJaDizg==}
 
   '@lrc-player/parse@1.0.0':
     resolution: {integrity: sha512-eR6vo7Az1mXywU0yP/XVnehoRJweH0vak/1mcMj69EORysG7KJNNFDFbhGUaYo6o1PtuGtnLCazegd2E8K5b5w==}
@@ -3050,7 +3050,7 @@ snapshots:
 
   '@lokesh.dhakar/quantize@1.3.0': {}
 
-  '@lrc-player/core@1.1.4': {}
+  '@lrc-player/core@1.1.5': {}
 
   '@lrc-player/parse@1.0.0': {}
 
