@@ -126,9 +126,9 @@ export const useUserInfo = defineStore('userInfoId', {
       const musicConfig = localStorage.getItem('MUSIC_CONFIG')
       if (musicConfig) {
         music.updateState(JSON.parse(musicConfig))
-        getMusicUrl(music.state.songs.id).then(({ data }) => {
-          music.state.musicUrl = data[0].url || ''
-        })
+        // getMusicUrl(music.state.songs.id).then(({ data }) => {
+        //   music.state.musicUrl = data[0].url || ''
+        // })
       }
     }
   }

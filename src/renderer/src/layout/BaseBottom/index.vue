@@ -1,4 +1,8 @@
-<script setup lang="ts" name="Bottom"></script>
+<script setup lang="ts" name="Bottom">
+defineSlots<{
+  default?: (props: {}) => any
+}>()
+</script>
 
 <template>
   <div class="bottom-container container">

@@ -75,16 +75,16 @@ defineExpose({
 
         <div class="desc">使用网易云音乐APP扫码登录</div>
 
-        <v-card-text class="text-center">
-          <a
-            class="text-blue text-decoration-none"
-            rel="noopener noreferrer"
-            style="cursor: pointer"
-            @click="setMode('phone')"
-          >
-            选用手机号登录<v-icon icon="mdi-chevron-right"></v-icon>
-          </a>
-        </v-card-text>
+<!--        <v-card-text class="text-center">-->
+<!--          <a-->
+<!--            class="text-blue text-decoration-none"-->
+<!--            rel="noopener noreferrer"-->
+<!--            style="cursor: pointer"-->
+<!--            @click="setMode('phone')"-->
+<!--          >-->
+<!--            选用手机号登录<v-icon icon="mdi-chevron-right"></v-icon>-->
+<!--          </a>-->
+<!--        </v-card-text>-->
       </div>
       <template v-slot:actions>
         <v-btn

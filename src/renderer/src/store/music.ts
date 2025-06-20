@@ -31,6 +31,7 @@ interface State {
   load: boolean
   index: number
   lastIndexList: number[]
+  searchList: any[]
 }
 
 // 会把用户当前正在播放的列表单独存储起来，以便切换歌单时没有播放切换的歌单不会被清空
@@ -49,7 +50,8 @@ export const useMusicAction = defineStore('musicActionId', () => {
     orderStatusVal: 0,
     load: false,
     lastIndexList: [],
-    index: 0
+    index: 0,
+    searchList: [],
   })
   watch(
     () => state.index,
@@ -57,7 +59,9 @@ export const useMusicAction = defineStore('musicActionId', () => {
       state.lastIndexList.push(oldValue)
     }
   )
-
+  const updateSearchList = (val: any) => {
+    state.searchList = val
+  }
   const updateCurrentItem = (val: CurrentItem) => {
     val.name = val.specialType === 5 ? '我喜欢的歌单' : val.name
     state.currentItem = val
@@ -233,6 +237,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
     cutSongHandler,
     updateBgColor,
     getIntelliganceListHandler,
-    updateTracks
+    updateTracks,
+    updateSearchList,
   }
 })

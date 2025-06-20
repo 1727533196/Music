@@ -70,10 +70,10 @@ const moveHandler = (direction: 'left' | 'right') => {
   <div class="area-box">
     <div class="head">
       <div class="title">
-        <div>
+        <span style="cursor: pointer">
           <slot name="title"></slot>
           <el-icon style="position: relative; top: 1px" :size="16"><ArrowRightBold /></el-icon>
-        </div>
+        </span>
         <div class="move-container" v-if="props.isMove">
           <div
             @click="moveHandler('left')"
@@ -111,7 +111,6 @@ const moveHandler = (direction: 'left' | 'right') => {
       justify-content: space-between;
       align-items: center;
       font-size: 18px;
-      cursor: pointer;
       .move-container {
         display: flex;
         gap: 10px;

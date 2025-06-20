@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { GetMusicDetailData } from '@/api/musicList'
 import { useMusicAction } from '@/store/music'
 import { useFlags } from '@/store/flags'
@@ -10,19 +10,15 @@ interface Props {
 const props = defineProps<Props>()
 const music = useMusicAction()
 const flags = useFlags()
-const change = (val: number) => {
-  window.$audio.time = (val * window.$audio.el.duration) / 100
-}
 
-// const model = computed<number>({
-//   get() {
-//     return (music.state.currentTime / window.$audio.el.duration) * 100
-//   },
-//   set(val) {
-//     window.$audio.time = (val * window.$audio.el.duration) / 100
-//   }
-// })
-const model = ref(0)
+const model = computed<number>({
+  get() {
+    return (music.state.currentTime / window.$audio?.el.duration) * 100
+  },
+  set(val) {
+    window.$audio.time = (val * window.$audio?.el.duration) / 100
+  }
+})
 </script>
 
 <template>

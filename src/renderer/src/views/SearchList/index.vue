@@ -50,6 +50,8 @@ const search = async (key: string, offset: number, limit: number) => {
   })
   state.songs.songCount = result.songCount
   state.songs.result = result.songs
+  music.updateSearchList(result.songs)
+
 }
 
 const currentChange = (val: number) => {
@@ -68,7 +70,8 @@ const gotoSongList = (item: any) => {
   router.push({
     path: '/play-list',
     query: {
-      id: item.id
+      id: item.id,
+      position: 1,
     }
   })
 }

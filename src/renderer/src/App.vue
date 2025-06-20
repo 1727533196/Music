@@ -70,15 +70,17 @@ getUserAccountFn()
     <div style="height: 20px"></div>
   </div>
   <Bottom :class="[music.state.musicUrl.length ? 'bottom-show' : 'bottom-visible']">
-    <teleport :disabled="!flags.isOpenDetail" to=".music-detail-container .music-detail-bottom">
-      <MusicPlayer
-        ref="audioInstance"
-        @cutSong="music.cutSongHandler"
-        @playEnd="music.playEnd"
-        :songs="music.state?.songs"
-        :src="music.state.musicUrl"
-      ></MusicPlayer>
-    </teleport>
+    <template #default>
+      <teleport :disabled="!flags.isOpenDetail" to=".music-detail-container .music-detail-bottom">
+        <MusicPlayer
+          ref="audioInstance"
+          @cutSong="music.cutSongHandler"
+          @playEnd="music.playEnd"
+          :songs="music.state?.songs"
+          :src="music.state.musicUrl"
+        ></MusicPlayer>
+      </teleport>
+    </template>
   </Bottom>
   <Login ref="login"></Login>
 </template>

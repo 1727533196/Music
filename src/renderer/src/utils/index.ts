@@ -395,6 +395,23 @@ export function checkUrlValidity(url: string): UrlValidationResult {
   return { isValid: true, message: '' }
 }
 
-// export const createRegExp() {
-//
-// }
+export function convertToProxyUrl(originalUrl) {
+  try {
+    const url = new URL(originalUrl);
+    const hostParts = url.hostname.split('.');
+
+    // 提取 m804 中的数字
+    const serverNum = hostParts[0].replace('m', ''); // "804"
+
+    const fullPath = url.pathname; // "/20250509015458/jdymusic/obj/.../file.mp3"
+
+    // 保留查询参数（如 ?vuutv=xxx）
+    const search = url.search; // "?vuutv=xxx"
+    console.log('fullPath', fullPath)
+
+    return `http://neonic.top/music-proxy/${serverNum}${fullPath}${search}`;
+  } catch (e) {
+    console.error('URL转换失败:', e);
+    return originalUrl; // 或抛出错误
+  }
+}

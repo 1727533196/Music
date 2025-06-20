@@ -85,7 +85,6 @@ init()
       :ids="recentIds"
       :list="state.recent"
       :isNeedTitle="false"
-      :listInfo="{}"
       lazy
     />
   </div>
@@ -98,7 +97,6 @@ init()
       :ids="historyIds"
       :list="state.history"
       :isNeedTitle="false"
-      :listInfo="{}"
       lazy
     />
   </div>

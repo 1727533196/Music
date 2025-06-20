@@ -13,7 +13,7 @@ interface SettingsState {
 }
 export const useSettings = defineStore('settingsId', () => {
   const state: SettingsState = reactive({
-    baseUrl: 'http://127.0.0.1:3006',
+    baseUrl: import.meta.env.VITE_URL,
     lyricBg: 'rhythm',
     bold: true,
     font: 'Avenir, Helvetica, Arial, sans-serif'
