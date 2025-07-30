@@ -12,12 +12,12 @@ export const sendCodePhone = async (phone: string) => {
       ElMessage.success('验证码已发送')
     }
   } catch (e: any) {
-    ElMessage.error(e.message)
+    throw e
   }
 }
 
 // 验证码登录
-export const codeLogin = async (phone: string, code: string) => {
+export const codeLogin = async (phone: string, code: string): Promise<any> => {
   try {
     const data = await phoneLogin(phone, code)
     const store = useUserInfo()
@@ -27,8 +27,9 @@ export const codeLogin = async (phone: string, code: string) => {
     setCookies(data.cookie)
     getUserPlayListFn()
     store.loginCallBack()
+    return data
   } catch (e: any) {
-    ElMessage.error(e.message)
+    throw e
   }
 }
 

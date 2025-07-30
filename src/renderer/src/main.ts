@@ -29,7 +29,7 @@ const app = createApp(App)
   .use(router)
   .use(pinia)
   .use(vuetify)
-  .use(ElementPlus)
+  .use(ElementPlus, { size: 'small', zIndex: 3000 })
   .use(ElementIcon)
   .use(InitComponent)
 
