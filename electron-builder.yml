@@ -12,7 +12,7 @@ files:
 asarUnpack:
   - resources/**
 win:
-  icon: build/icon.ico
+  icon: src/renderer/src/assets/logo.ico
   executableName: 音乐
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
