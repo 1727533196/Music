@@ -348,51 +348,15 @@ type UrlValidationResult = {
   message: string
 }
 export function checkUrlValidity(url: string): UrlValidationResult {
-  // 使用正则表达式来检查 URL 的基本格式
-  const baseUrlRegex = /^(https?:\/\/)?([a-zA-Z0-9.-]+)(:\d+)?(\/.*)?$/
-
-  // 检查 URL 是否匹配基本格式
-  const match = url.match(baseUrlRegex)
-  if (!match) {
+  try {
+    const parsed = new URL(url) // 如果格式错误会抛异常
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return { isValid: false, message: '协议必须是 http 或 https' }
+    }
+    return { isValid: true, message: '' }
+  } catch {
     return { isValid: false, message: 'URL 格式不正确' }
   }
-
-  // 提取协议（http 或 https）、主机名和端口信息
-  const protocol = match[1]
-  const hostname = match[2]
-  const port = match[3]
-
-  // 校验协议（确保协议是 http 或 https）
-  if (protocol && protocol !== 'http://' && protocol !== 'https://') {
-    return { isValid: false, message: '协议必须是 http 或 https' }
-  }
-
-  // 判断是否为有效的 IP 地址
-  const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/
-  if (ipRegex.test(hostname)) {
-    const parts = hostname.split('.').map(Number)
-    const validIp = parts.every((part) => part >= 0 && part <= 255)
-    if (!validIp) {
-      return { isValid: false, message: 'IP 地址部分无效，每段数字必须在 0-255 之间' }
-    }
-  } else {
-    // 判断是否为有效的域名
-    const domainRegex = /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$/
-    if (!domainRegex.test(hostname)) {
-      return { isValid: false, message: '域名格式无效' }
-    }
-  }
-
-  // 校验端口号（如果存在）
-  if (port) {
-    const portNumber = Number(port.slice(1)) // 去掉前面的 ":" 进行解析
-    if (portNumber < 1 || portNumber > 65535) {
-      return { isValid: false, message: '端口号必须在 1 到 65535 之间' }
-    }
-  }
-
-  // 如果一切校验通过，URL 是合法的
-  return { isValid: true, message: '' }
 }
 
 export function convertToProxyUrl(originalUrl) {

@@ -247,3 +247,7 @@ export const updateScrobble = (id: number, sourceid?: number) =>
 // 获取用户播放记录
 export const getUserRecord = (uid: number, type: number = 1) =>
   request(`/user/record?uid=${uid}&type=${type}`)
+
+// 云盘歌曲信息匹配纠正
+export const updateCloudMatch = (uid: number, sid: string, asid: string) =>
+  request(`/cloud/match?uid=${uid}&sid=${sid}&asid=${asid}`, 'get')
