@@ -19,7 +19,7 @@
 
 ### 环境要求
 
-- Node.js 20+
+- Node.js 18+
 - pnpm (推荐) 或 npm/yarn
 
 ### 1. 安装网易云音乐 API 服务器
@@ -44,8 +44,6 @@
    yarn start
    ```
 
-   > 默认请求端口号为3006, 可以在.env 文件中更改VITE_APP_WEB_URL
-
 ### 2. 启动应用
 
 1. 安装依赖：
@@ -57,7 +55,7 @@
    ```bash
    pnpm dev
    ```
-
+   > 默认请求端口号为3006, 可以在.env 文件中更改VITE_URL
 3. 构建应用：
    ```bash
    # Windows
@@ -69,6 +67,11 @@
    # Linux
    pnpm build:linux
    ```
+### 可能会遇到的问题
+
+#### 1. Electron uninstall
+     尝试更改node版本， node 版本：20->18.20.1 。
+     查看这个链接获取更多信息：https://github.com/alex8088/electron-vite/issues/129
 
 ### 3. 配置
 
