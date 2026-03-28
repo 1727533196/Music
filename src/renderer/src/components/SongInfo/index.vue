@@ -71,15 +71,15 @@ const gotoUserDetail = () => {
         {{ music.state.currentItem?.description }}
       </span>
 
-      <div class="song-handle">
-        <v-btn variant="tonal" rounded="lg">播放全部</v-btn>
-        <v-btn variant="tonal" rounded="lg">收藏</v-btn>
-        <v-btn variant="tonal" rounded="lg">下载全部</v-btn>
-        <!--        <BaseButton type="subject">播放全部</BaseButton>-->
-        <!--        <BaseButton>收藏</BaseButton>-->
-        <!--        <BaseButton>分享</BaseButton>-->
-        <!--        <BaseButton>下载全部</BaseButton>-->
-      </div>
+<!--      <div class="song-handle">-->
+<!--        <v-btn variant="tonal" rounded="lg">播放全部</v-btn>-->
+<!--        <v-btn variant="tonal" rounded="lg">收藏</v-btn>-->
+<!--        <v-btn variant="tonal" rounded="lg">下载全部</v-btn>-->
+<!--        &lt;!&ndash;        <BaseButton type="subject">播放全部</BaseButton>&ndash;&gt;-->
+<!--        &lt;!&ndash;        <BaseButton>收藏</BaseButton>&ndash;&gt;-->
+<!--        &lt;!&ndash;        <BaseButton>分享</BaseButton>&ndash;&gt;-->
+<!--        &lt;!&ndash;        <BaseButton>下载全部</BaseButton>&ndash;&gt;-->
+<!--      </div>-->
       <!--      <div class="song-count">-->
       <!--        <div class="p1">-->
       <!--          <span>歌曲 : </span>-->

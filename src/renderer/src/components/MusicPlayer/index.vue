@@ -188,7 +188,9 @@ const setOrderHandler = () => {
 // 执行切换事件，随后暂停time监听器，等待歌曲加载完成后会打开
 const cutSongHandler = () => {
   const type = music.state.lrcMode === 1 ? 'lrc' : 'yrc'
-  player.updateAudioLrc(music.state.lyric, type)
+  if(music.state.lyric?.length) {
+    player.updateAudioLrc(music.state.lyric, type)
+  }
   executeListener('cutSong')
 }
 

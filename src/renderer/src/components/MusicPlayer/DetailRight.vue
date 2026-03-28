@@ -23,7 +23,7 @@ const openDrawer = () => {
     <div style="display:flex;">
       <div v-if="props.songs.ar" class="current-time">{{ formattingTime(props.currentTime * 1000) }}</div>
       <span style="margin: 0 5px;line-height: 15px">/</span>
-      <div v-if="props.songs.ar" class="total-time">{{ formattingTime(props.songs.dt) }}</div>
+      <div v-if="props.songs.ar" class="total-time">{{ formattingTime(props.songs.dt || 0) }}</div>
     </div>
     <el-icon @click.stop="openDrawer" class="list"><Expand /></el-icon>
     <Volume :audio="props.audio"></Volume>

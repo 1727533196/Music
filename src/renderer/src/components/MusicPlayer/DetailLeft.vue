@@ -55,7 +55,11 @@ const gotoComment = () => {
     </div>
 
     <div class="name-info">
-      <span class="song-name">{{ props.songs.name }}</span>
+      <div class="song-name-box">
+        <span class="song-name">{{ props.songs.name }}</span>
+        <i v-if="isLike" @click="likeMusic(id, false)"  class="iconfont icon-xihuan1"></i>
+        <i v-else  @click="likeMusic(id)"  class="iconfont icon-xihuan"></i>
+      </div>
       <div class="name-container">
         <template v-for="(item, i) in props.songs.ar">
           <span class="name">{{ item.name }}</span>
@@ -63,8 +67,7 @@ const gotoComment = () => {
         </template>
       </div>
     </div>
-    <i v-if="isLike" @click="likeMusic(id, false)"  class="iconfont icon-xihuan1"></i>
-    <i v-else  @click="likeMusic(id)"  class="iconfont icon-xihuan"></i>
+
   </div>
   <div v-show="flags.isOpenDetail" class="left detail-left">
     <el-icon :size="25" @click="closeMusicDetail" class="close np-drag"><ArrowDown /></el-icon>
@@ -86,8 +89,6 @@ const gotoComment = () => {
 
   .iconfont {
     cursor: pointer;
-    position: relative;
-    top: -8px;
   }
   .icon-xihuan {
     color: @darkText;
@@ -153,11 +154,17 @@ const gotoComment = () => {
     justify-content: space-around;
     align-items: flex-start;
 
-    .song-name {
-      font-size: 15px;
-      max-width: 140px;
-      .textOverflow();
+    .song-name-box {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      .song-name {
+        font-size: 15px;
+        max-width: 140px;
+        .textOverflow();
+      }
     }
+
 
     .name-container {
       max-width: 140px;

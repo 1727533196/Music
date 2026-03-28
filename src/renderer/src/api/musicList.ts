@@ -52,6 +52,7 @@ export interface GetPlayListDetailRes {
 export type getMusicUrlData = {
   size: number
   url: string
+  time: number
 }
 
 interface GetMusicUrlRes {
@@ -77,6 +78,8 @@ export type GetMusicDetailData = {
     name: string
     tns: []
   }[]
+  fee: number
+  artist: string
   name: string
   dt: number
   id: number

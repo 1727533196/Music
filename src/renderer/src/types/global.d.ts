@@ -13,6 +13,7 @@ declare global {
   interface ImportMetaEnv {
     VITE_URL: string
   }
+  const $audio: MusicPlayerInstanceType
 }
 
 declare module '@electron-toolkit/preload' {
@@ -20,3 +21,5 @@ declare module '@electron-toolkit/preload' {
     send(channel: Channel, ...args: any[]): void
   }
 }
+
+export {}

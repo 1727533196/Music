@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {defineComponent, h, nextTick, ref, watch} from 'vue'
+import {computed, defineComponent, h, nextTick, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {animation, lookup} from '@/utils'
 import { GetMusicDetailData, PlayList } from '@/api/musicList'
@@ -9,7 +9,9 @@ import { useMusicAction } from '@/store/music'
 import Pagination from '@/components/Pagination/index.vue'
 import NotFound from '@/assets/not-found.png'
 import ContextMenu from '@/components/ContextMenu/index.vue'
-import { checkMusic } from '@/api/play'
+import {checkMusic, deleteSong} from '@/api/play'
+import {ElMessage} from "element-plus";
+import {getUserPlayListFn} from "@/utils/userInfo";
 
 export interface Columns {
   title: string
@@ -26,7 +28,7 @@ export interface Columns {
 }
 
 const playlistMenuItems = [
-  { label: '收藏歌曲', value: 'collection' },
+  { label: '添加歌曲', value: 'collection' },
   { label: '评论', value: 'comment' },
   { label: '删除歌曲', value: 'delete' },
 ]
@@ -69,6 +71,8 @@ const id = ref(0)
 const filterList = ref(props.list)
 const copyrightVisible = ref(false)
 const searchKeyword = ref('')
+const collectionDialogVisible = ref(false)
+const currentMenuSongItem = ref(null)
 
 const formatCount = (index: number) => {
   return index.toString().length > 1 ? index : '0' + index
@@ -77,6 +81,8 @@ const formatCount = (index: number) => {
 const handlePlaylistMenuSelect = (item: { label: string; value: string }, row, index) => {
   switch (item.value) {
     case 'collection':
+      collectionDialogVisible.value = true
+      currentMenuSongItem.value = row
       break
     case 'delete':
       deleteSongHandler(row.id, props.listInfo.id, index)
@@ -218,9 +224,44 @@ watch(
     filterList.value = val
   }
 )
+
+const menuList = computed(() => {
+  console.log('store.userPlayListInfo', store.userPlayListInfo.filter(item => !item.subscribed))
+  return store.userPlayListInfo.filter(item => !item.subscribed)
+})
+
+const collectionHandler = async (menu) => {
+  try {
+    await deleteSong('add', menu.id,currentMenuSongItem.value?.id)
+    collectionDialogVisible.value = false
+    ElMessage.success({
+      message: '添加成功',
+    })
+    getUserPlayListFn()
+  } catch {
+
+  }
+}
 </script>
 
 <template>
+  <el-dialog
+    v-model="collectionDialogVisible"
+    width="auto"
+    align-center
+    class="user-menu-dialog"
+    title="收藏音乐"
+  >
+    <div class="user-menu-dialog-content">
+      <div @click="collectionHandler(menu)" v-for="menu in menuList" class="user-menu-item">
+        <div style="display: flex;gap: 4px">
+          <img style="border-radius: 6px;" :src="menu.coverImgUrl" width="50" height="50" alt="">
+          <span>{{menu.specialType === 5 ? '我喜欢的音乐' : menu.name}}</span>
+        </div>
+        <el-icon><Plus /></el-icon>
+      </div>
+    </div>
+  </el-dialog>
   <div
     class="song-list-container"
     :style="{ overflowY: scroll ? 'auto' : 'visible' }"
@@ -360,18 +401,23 @@ watch(
                       {{ lookup(data, config.prop) }}
                     </div>
                     <div class="name-container">
-                      <template v-if="!data.ar">
-                        {{ data.artist }}
-                      </template>
-                      <template v-else>
+                      <div class="tag-box">
+                        <el-tag effect="plain" style="margin-right: 5px;" v-if="data.fee === 1" type="primary">vip</el-tag>
+                      </div>
+                      <div class="ar-box">
+                        <template v-if="!data.ar">
+                          {{ data.artist }}
+                        </template>
+                        <template v-else>
                         <span
                           v-for="(ar, index) in data.ar"
                           :key="ar.id || index"
                           :style="{
                             cursor: ar.id ? 'pointer' : 'default',
-                            color: ar.id ? '' : 'rgba(150, 150, 150, 0.60)'
+                            color: ar.id ? '' : 'rgba(150, 150, 150, 0.60)',
                           }"
                           @click="ar.id && singerDetail(ar.id)"
+                          class="ar"
                         >
                           {{ ar.name || data.artist || '未知艺人' }}
                           <span
@@ -379,7 +425,8 @@ watch(
                             style="color: #969696"
                           > / </span>
                         </span>
-                      </template>
+                        </template>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -426,6 +473,36 @@ watch(
     />
   </div>
 </template>
+
+<style lang="less">
+.user-menu-dialog {
+  min-width: 400px;
+  .user-menu-dialog-content {
+    display: flex;
+    justify-content: flex-start;
+    flex-direction: column;
+    gap: 16px;
+    .user-menu-item {
+      padding: 8px 10px;
+      background-color: rgba(255,255,255,0.05);
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: 0.5s background-color;
+      gap: 4px;
+
+      &:hover{
+        background-color: rgba(255,255,255,0.1);
+      }
+      &:active{
+        background-color: rgba(255,255,255,0.15);
+      }
+    }
+  }
+}
+</style>
 
 <style lang="less" scoped>
 .position-target {
@@ -514,7 +591,19 @@ watch(
         flex-direction: column;
         justify-content: space-around;
         .name-container {
+          display: flex;
+          align-items: center;
           color: @text;
+          .tag-box {
+
+          }
+          .ar-box {
+            position: relative;
+            top: 2px;
+            .ar:hover {
+              color: #85b9e6;
+            }
+          }
         }
         .title {
           color: @text;

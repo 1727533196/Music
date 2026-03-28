@@ -34,7 +34,7 @@ const playDetailList = (item: Recommend | typeof recommendSongs) => {
 
 <template>
   <div v-loading="state.loading" class="container">
-    <SkeletonCard :loading="state.loading">
+<!--    <SkeletonCard :loading="state.loading">-->
       <AreaBox>
         <template v-slot:title>歌单</template>
         <Card
@@ -51,7 +51,7 @@ const playDetailList = (item: Recommend | typeof recommendSongs) => {
           :pic-url="item.picUrl"
         ></Card>
       </AreaBox>
-    </SkeletonCard>
+<!--    </SkeletonCard>-->
   </div>
 </template>
 

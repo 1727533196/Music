@@ -51,7 +51,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
     load: false,
     lastIndexList: [],
     index: 0,
-    searchList: [],
+    searchList: []
   })
   watch(
     () => state.index,
@@ -113,6 +113,22 @@ export const useMusicAction = defineStore('musicActionId', () => {
       state.videoPlayUrl = null
     }
   }
+  // 设置媒体元数据
+  const updateMediaSession = (song) => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: song.title, // 歌曲名
+        artist: song.artist, // 歌手
+        album: song.album, // 专辑名
+        artwork: [
+          { src: song.coverUrl, sizes: '96x96', type: 'image/png' },
+          { src: song.coverUrl, sizes: '128x128', type: 'image/png' },
+          { src: song.coverUrl, sizes: '192x192', type: 'image/png' },
+          { src: song.coverUrl, sizes: '512x512', type: 'image/png' }
+        ]
+      })
+    }
+  }
   // 获取音乐url并播放
   const getMusicUrlHandler = async (item: GetMusicDetailData, i?: number) => {
     try {
@@ -124,6 +140,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
         getMusicUrl(item.id),
         getMusicDetail(item.id.toString())
       ])
+      state.songs.dt = data[0].time
       state.index = i === undefined ? state.index : i
       $audio.reset(true)
       await $audio.pause(false)
@@ -132,6 +149,12 @@ export const useMusicAction = defineStore('musicActionId', () => {
       // 监听audio是否加载完毕
       localStorage.setItem('MUSIC_CONFIG', JSON.stringify({ ...state, load: true }))
 
+      updateMediaSession({
+        title: item.name,
+        artist: item.ar.map((item) => item.name).join('/ '),
+        album: item.al.name,
+        coverUrl: item.al.picUrl
+      })
       $audio.el.oncanplay = async () => {
         try {
           await $audio.play()
@@ -200,6 +223,39 @@ export const useMusicAction = defineStore('musicActionId', () => {
     }
     playEnd()
   }
+  const registerMediaSessionHandlers = () => {
+    if ('mediaSession' in navigator) {
+      // 播放
+      navigator.mediaSession.setActionHandler('play', () => {
+        $audio.play()
+      })
+
+      // 暂停
+      navigator.mediaSession.setActionHandler('pause', () => {
+        $audio.pause()
+      })
+
+      // 上一首
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        cutSongHandler(false)
+      })
+
+      // 下一首
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        cutSongHandler(true)
+      })
+
+      // 拖动进度条 (macOS Big Sur+ 支持)
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.fastSeek && 'fastSeek' in $audio.el) {
+          $audio.el.fastSeek(details.seekTime)
+          return
+        }
+        window.$audio.time = details.seekTime
+      })
+    }
+  }
+  registerMediaSessionHandlers()
   const updateBgColor = (colors: Array<Array<string>>) => {
     state.bgColor = colors
   }
@@ -238,6 +294,6 @@ export const useMusicAction = defineStore('musicActionId', () => {
     updateBgColor,
     getIntelliganceListHandler,
     updateTracks,
-    updateSearchList,
+    updateSearchList
   }
 })

@@ -30,9 +30,9 @@ const closeDetail = () => {
 
 onMounted(() => {
   window.onresize = () => {
-    correctHeight.value = document.body.clientHeight
+    correctHeight.value = document.body?.clientHeight
   }
-  correctHeight.value = document.body.clientHeight
+  correctHeight.value = document.body?.clientHeight
 })
 onUnmounted(() => {
   window.onresize = null

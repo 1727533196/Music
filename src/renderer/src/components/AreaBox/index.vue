@@ -142,7 +142,7 @@ const moveHandler = (direction: 'left' | 'right') => {
   }
   .content {
     display: flex;
-    overflow: hidden;
+    overflow: auto;
     column-gap: 20px;
   }
 }
