@@ -68,21 +68,23 @@ onUnmounted(() => {
   </div>
 
   <teleport to="body">
-    <div
-      v-if="visible"
-      ref="menuRef"
-      class="context-menu"
-      :style="{ left: x + 'px', top: y + 'px' }"
-    >
+    <transition name="context-menu-fade">
       <div
-        v-for="(item, index) in items"
-        :key="index"
-        class="menu-item"
-        @click="(e) => handleSelect(item, e)"
+        v-if="visible"
+        ref="menuRef"
+        class="context-menu"
+        :style="{ left: x + 'px', top: y + 'px' }"
       >
-        {{ item.label }}
+        <div
+          v-for="(item, index) in items"
+          :key="index"
+          class="menu-item"
+          @click="(e) => handleSelect(item, e)"
+        >
+          <span class="menu-item-label">{{ item.label }}</span>
+        </div>
       </div>
-    </div>
+    </transition>
   </teleport>
 </template>
 
@@ -95,27 +97,69 @@ onUnmounted(() => {
 
 .context-menu {
   position: fixed;
-  backdrop-filter: blur(30px) saturate(210%);
-  border-radius: 6px;
+  backdrop-filter: blur(20px) saturate(180%);
+  border-radius: 12px;
   overflow: hidden;
-  background-color: rgba(40, 40, 40, 0.7);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-  padding: 6px 0;
-  min-width: 120px;
+  background: linear-gradient(145deg, rgba(30, 30, 30, 0.95), rgba(20, 20, 20, 0.9));
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  padding: 8px;
+  min-width: 160px;
   z-index: 99999;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .menu-item {
-  padding: 4px 8px;
+  padding: 10px 16px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px;
+  position: relative;
 
   &:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.08);
   }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  .menu-item-label {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    transition: color 0.2s ease;
+    font-weight: 500;
+  }
+}
+
+// 淡入动画
+.context-menu-fade-enter-active,
+.context-menu-fade-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.context-menu-fade-enter-from {
+  opacity: 0;
+  transform: scale(0.95) translateY(-8px);
+}
+
+.context-menu-fade-enter-to {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.context-menu-fade-leave-from {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.context-menu-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.95) translateY(-8px);
 }
 </style>

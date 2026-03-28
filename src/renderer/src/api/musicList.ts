@@ -64,6 +64,7 @@ export interface CurrentItem extends PlayList {
 }
 export type GetMusicDetailData = {
   playCount: number
+  pc: any
   al: {
     // 名称详情
     id: number

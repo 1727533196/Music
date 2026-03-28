@@ -49,7 +49,11 @@ http.interceptors.response.use(
       data: { code }
     } = response
     const url = response.config.url?.split('?')[0]!
-    if (!ignoreState.includes(url) && status !== 200 && code !== 200) {
+    console.log('code', code, status, status !== 200 && code !== 200)
+    // 判断 status 和 code 是否为数字类型，只有是数字时才进行严格相等判断
+    const isStatusError = typeof status === 'number' && status !== 200
+    const isCodeError = typeof code === 'number' && code !== 200
+    if (!ignoreState.includes(url) && (isStatusError || isCodeError)) {
       ElMessage.error(response.data.message || `请求出现错误，当前状态码为${code || status}`)
       return Promise.reject(response.data)
     }

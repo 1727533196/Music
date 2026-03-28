@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import {computed, defineComponent, h, nextTick, ref, watch} from 'vue'
+import {computed, h, nextTick, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
-import {animation, lookup} from '@/utils'
+import {lookup} from '@/utils'
 import { GetMusicDetailData, PlayList } from '@/api/musicList'
 import { useUserInfo } from '@/store'
 import useMusic from '@/components/MusicPlayer/useMusic'
@@ -12,6 +12,8 @@ import ContextMenu from '@/components/ContextMenu/index.vue'
 import {checkMusic, deleteSong} from '@/api/play'
 import {ElMessage} from "element-plus";
 import {getUserPlayListFn} from "@/utils/userInfo";
+import CorrectSongDialog from './CorrectSongDialog.vue'
+import CollectionDialog from './CollectionDialog.vue'
 
 export interface Columns {
   title: string
@@ -27,11 +29,17 @@ export interface Columns {
   processEl?: (createVNode: typeof h, arg: any, index: number) => any
 }
 
-const playlistMenuItems = [
-  { label: '添加歌曲', value: 'collection' },
-  { label: '评论', value: 'comment' },
-  { label: '删除歌曲', value: 'delete' },
-]
+const playlistMenuItems = (song: GetMusicDetailData) => {
+  const result = [
+    { label: '添加歌曲', value: 'collection' },
+    { label: '评论', value: 'comment' },
+    { label: '删除歌曲', value: 'delete' },
+  ]
+  if (song?.pc?.privateCloud) {
+    result.push({ label: '纠正信息', value: 'correct' })
+  }
+  return result
+}
 interface Props {
   list: GetMusicDetailData[];
   songs: GetMusicDetailData;
@@ -72,7 +80,8 @@ const filterList = ref(props.list)
 const copyrightVisible = ref(false)
 const searchKeyword = ref('')
 const collectionDialogVisible = ref(false)
-const currentMenuSongItem = ref(null)
+const correctDialogVisible = ref(false)
+const currentMenuSongItem = ref<null | GetMusicDetailData>(null)
 
 const formatCount = (index: number) => {
   return index.toString().length > 1 ? index : '0' + index
@@ -94,6 +103,10 @@ const handlePlaylistMenuSelect = (item: { label: string; value: string }, row, i
           id: row.id,
         }
       })
+      break
+    case 'correct':
+      currentMenuSongItem.value = row
+      correctDialogVisible.value = true
       break
   }
 }
@@ -232,7 +245,7 @@ const menuList = computed(() => {
 
 const collectionHandler = async (menu) => {
   try {
-    await deleteSong('add', menu.id,currentMenuSongItem.value?.id)
+    await deleteSong('add', menu.id, currentMenuSongItem.value?.id!)
     collectionDialogVisible.value = false
     ElMessage.success({
       message: '添加成功',
@@ -242,26 +255,26 @@ const collectionHandler = async (menu) => {
 
   }
 }
+
+const handleCollectionConfirm = (playlist) => {
+  collectionHandler(playlist)
+}
 </script>
 
 <template>
-  <el-dialog
+  <!-- 收藏到歌单对话框 -->
+  <CollectionDialog
     v-model="collectionDialogVisible"
-    width="auto"
-    align-center
-    class="user-menu-dialog"
-    title="收藏音乐"
-  >
-    <div class="user-menu-dialog-content">
-      <div @click="collectionHandler(menu)" v-for="menu in menuList" class="user-menu-item">
-        <div style="display: flex;gap: 4px">
-          <img style="border-radius: 6px;" :src="menu.coverImgUrl" width="50" height="50" alt="">
-          <span>{{menu.specialType === 5 ? '我喜欢的音乐' : menu.name}}</span>
-        </div>
-        <el-icon><Plus /></el-icon>
-      </div>
-    </div>
-  </el-dialog>
+    :playlist="menuList"
+    @confirm="handleCollectionConfirm"
+  />
+
+  <CorrectSongDialog
+    v-model="correctDialogVisible"
+    :song-data="currentMenuSongItem"
+    :userId="store.profile.userId!"
+  />
+
   <div
     class="song-list-container"
     :style="{ overflowY: scroll ? 'auto' : 'visible' }"
@@ -339,7 +352,7 @@ const collectionHandler = async (menu) => {
         <ContextMenu
           v-for="(data, i) in filterList"
           :key="data.id"
-          :items="playlistMenuItems"
+          :items="playlistMenuItems(data)"
           @select="(e) => handlePlaylistMenuSelect(e, data, i)"
         >
           <div
@@ -403,6 +416,7 @@ const collectionHandler = async (menu) => {
                     <div class="name-container">
                       <div class="tag-box">
                         <el-tag effect="plain" style="margin-right: 5px;" v-if="data.fee === 1" type="primary">vip</el-tag>
+                        <el-tag effect="plain" style="margin-right: 5px;" v-if="data?.pc?.privateCloud" type="success">云盘</el-tag>
                       </div>
                       <div class="ar-box">
                         <template v-if="!data.ar">
@@ -474,37 +488,10 @@ const collectionHandler = async (menu) => {
   </div>
 </template>
 
-<style lang="less">
-.user-menu-dialog {
-  min-width: 400px;
-  .user-menu-dialog-content {
-    display: flex;
-    justify-content: flex-start;
-    flex-direction: column;
-    gap: 16px;
-    .user-menu-item {
-      padding: 8px 10px;
-      background-color: rgba(255,255,255,0.05);
-      border-radius: 6px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      transition: 0.5s background-color;
-      gap: 4px;
-
-      &:hover{
-        background-color: rgba(255,255,255,0.1);
-      }
-      &:active{
-        background-color: rgba(255,255,255,0.15);
-      }
-    }
-  }
-}
-</style>
-
 <style lang="less" scoped>
+:deep(.v-overlay__scrim) {
+  background-color: rgba(0, 0, 0, 1) !important;
+}
 .position-target {
 }
 /* 保留原有的样式不变 */

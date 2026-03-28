@@ -21,3 +21,14 @@ export const deleteSong = (op: 'add' | 'del', pid: number, tracks: number) =>
   })
 
 export const checkMusic = (id: number) => request(`/check/music?id=${id}`)
+
+// 云盘歌曲信息匹配纠正
+// uid: 用户 id, sid: 云盘的歌曲 id, asid: 要匹配的歌曲 id (取消匹配传 0)
+export const matchCloudSong = (uid: number, sid: number, asid: number) =>
+  request('/cloud/match', 'get', {
+    params: {
+      uid,
+      sid,
+      asid,
+    }
+  })
