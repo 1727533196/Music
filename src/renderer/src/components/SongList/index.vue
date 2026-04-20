@@ -14,6 +14,7 @@ import {ElMessage} from "element-plus";
 import {getUserPlayListFn} from "@/utils/userInfo";
 import CorrectSongDialog from './CorrectSongDialog.vue'
 import CollectionDialog from './CollectionDialog.vue'
+import CopyrightDialog from './components/CopyrightDialog.vue'
 
 export interface Columns {
   title: string
@@ -35,7 +36,7 @@ const playlistMenuItems = (song: GetMusicDetailData) => {
     { label: '评论', value: 'comment' },
     { label: '删除歌曲', value: 'delete' },
   ]
-  if (song?.pc?.privateCloud) {
+  if (song?.pc?.privateCloud || ['/cloud'].includes(route.path)) {
     result.push({ label: '纠正信息', value: 'correct' })
   }
   return result
@@ -299,30 +300,10 @@ const handleCollectionConfirm = (playlist) => {
     </div>
 
     <!-- 版权提示对话框 -->
-    <VDialog
+    <CopyrightDialog
       v-model="copyrightVisible"
-      scrim
-      :max-width="400"
-    >
-      <VCard rounded="lg">
-        <VCardTitle class="d-flex justify-space-between align-center">
-          <div class="text-h5 text-medium-emphasis ps-2">当前歌曲暂无音源</div>
-          <VBtn
-            icon="mdi-close"
-            variant="text"
-            @click="closeCopyrightVisible"
-          />
-        </VCardTitle>
-        <VCardText class="d-flex justify-center align-center">
-          <VBtn
-            variant="tonal"
-            @click="closeCopyrightVisible"
-          >
-            好
-          </VBtn>
-        </VCardText>
-      </VCard>
-    </VDialog>
+      @confirm="closeCopyrightVisible"
+    />
 
     <!-- 主要内容 -->
     <template v-if="loading || filterList.length">

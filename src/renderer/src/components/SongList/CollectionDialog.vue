@@ -49,34 +49,45 @@ const selectPlaylist = (playlist: PlayList) => {
 <template>
   <v-dialog
     v-model="dialogVisible"
-    max-width="500"
+    max-width="520"
     persistent
+    transition="dialog-bottom-transition"
     class="collection-dialog"
   >
-    <v-card rounded="xl" class="dialog-card">
+    <v-card 
+      rounded="xl" 
+      class="dialog-card"
+      elevation="8"
+    >
+      <!-- 装饰性顶部渐变条 -->
+      <div class="gradient-bar" />
+      
       <!-- 标题栏 -->
-      <v-card-title class="dialog-header">
-        <div class="header-content">
-          <v-icon icon="mdi-playlist-plus" size="large" color="primary" />
-          <div class="title-text">
-            <div class="main-title">收藏到歌单</div>
-            <div class="sub-title">选择一个歌单添加歌曲</div>
-          </div>
-        </div>
-        <v-btn
-          icon="mdi-close"
-          variant="text"
-          size="small"
-          @click="dialogVisible = false"
-        />
-      </v-card-title>
-
-      <v-divider />
+      <v-card-item class="pb-0 pt-6 px-6">
+        <template #prepend>
+          <v-avatar
+            size="56"
+            color="primary"
+            variant="tonal"
+            class="icon-avatar"
+          >
+            <v-icon icon="mdi-playlist-plus" size="32" />
+          </v-avatar>
+        </template>
+        
+        <v-card-title class="text-h6 font-weight-bold mb-1">
+          收藏到歌单
+        </v-card-title>
+        
+        <v-card-subtitle class="text-body-2 text-medium-emphasis">
+          选择一个歌单添加歌曲
+        </v-card-subtitle>
+      </v-card-item>
 
       <!-- 内容区 -->
-      <v-card-text class="dialog-content">
+      <v-card-text class="px-6 py-4 dialog-content">
         <div class="playlist-container">
-          <v-list class="playlist-list">
+          <v-list class="playlist-list" lines="two">
             <v-list-item
               v-for="playlist in playlist"
               :key="playlist.id"
@@ -92,7 +103,6 @@ const selectPlaylist = (playlist: PlayList) => {
                   height="50"
                   class="playlist-cover"
                   cover
-                  lazy-src
                 />
               </template>
 
@@ -101,8 +111,9 @@ const selectPlaylist = (playlist: PlayList) => {
               <template #append>
                 <v-icon
                   :icon="selectedPlaylist?.id === playlist.id ? 'mdi-check-circle' : 'mdi-radiobox-blank'"
-                  :color="selectedPlaylist?.id === playlist.id ? 'primary' : ''"
+                  :color="selectedPlaylist?.id === playlist.id ? 'primary' : 'grey-darken-1'"
                   size="24"
+                  class="check-icon"
                 />
               </template>
             </v-list-item>
@@ -119,13 +130,24 @@ const selectPlaylist = (playlist: PlayList) => {
       <!-- 底部操作栏 -->
       <v-card-actions class="dialog-footer">
         <v-spacer />
-        <v-btn variant="text" @click="dialogVisible = false">取消</v-btn>
+        <v-btn
+          variant="text"
+          color="medium-emphasis"
+          @click="dialogVisible = false"
+          class="mr-2"
+        >
+          取消
+        </v-btn>
         <v-btn
           color="primary"
-          variant="elevated"
+          variant="flat"
+          size="large"
+          min-width="120"
           :disabled="!selectedPlaylist"
           @click="handleConfirm"
+          class="confirm-btn"
         >
+          <v-icon icon="mdi-check" start />
           确认
         </v-btn>
       </v-card-actions>
@@ -134,45 +156,34 @@ const selectPlaylist = (playlist: PlayList) => {
 </template>
 
 <style lang="less" scoped>
+:deep(.v-overlay__scrim) {
+  background-color: rgba(0, 0, 0, 1) !important;
+}
+
 .collection-dialog {
-  // 自定义 scrim 背景色
-  :deep(.v-overlay__scrim) {
-    background-color: rgba(0, 0, 0, 0.7) !important;
-  }
-
   .dialog-card {
-    background: linear-gradient(145deg, rgba(30, 30, 30, 0.98), rgba(20, 20, 20, 0.95));
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), transparent);
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-  }
 
-  .dialog-header {
-    padding: 20px 24px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    display: flex;
-    justify-content: space-between;
+    .gradient-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg,
+        #f093fb 0%,
+        #f5576c 50%,
+        #f093fb 100%);
+      background-size: 200% 100%;
+      animation: gradient-shift 3s ease infinite;
+    }
 
-    .header-content {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-
-      .title-text {
-        flex: 1;
-
-        .main-title {
-          font-size: 20px;
-          font-weight: 600;
-          color: #fff;
-          margin-bottom: 4px;
-        }
-
-        .sub-title {
-          font-size: 13px;
-          color: rgba(255, 255, 255, 0.5);
-        }
-      }
+    .icon-avatar {
+      border-radius: 16px;
+      animation: pulse-icon 2s ease-in-out infinite;
     }
   }
 
@@ -181,20 +192,36 @@ const selectPlaylist = (playlist: PlayList) => {
     max-height: 400px;
     overflow-y: auto;
 
+    // 自定义滚动条
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+    }
+
     .playlist-container {
       padding: 16px;
 
       .playlist-list {
         background: transparent;
-        border-radius: 12px;
-        overflow: hidden;
 
         .playlist-item {
           margin-bottom: 8px;
-          padding: 14px;
-          background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+          padding: 12px 16px;
+          background: rgba(255, 255, 255, 0.03);
           border: 1px solid rgba(255, 255, 255, 0.06);
-          border-radius: 10px !important;
+          border-radius: 12px !important;
           cursor: pointer;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           position: relative;
@@ -207,15 +234,17 @@ const selectPlaylist = (playlist: PlayList) => {
             left: 0;
             right: 0;
             bottom: 0;
-            background: linear-gradient(135deg, rgba(82, 121, 255, 0.15), transparent);
+            background: linear-gradient(135deg, 
+              rgba(var(--v-theme-primary), 0.1), 
+              transparent);
             opacity: 0;
             transition: opacity 0.3s ease;
-            border-radius: 10px;
+            border-radius: 12px;
           }
 
           &:hover {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
-            border-color: rgba(82, 121, 255, 0.3);
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(var(--v-theme-primary), 0.3);
             transform: translateX(4px);
 
             &::before {
@@ -223,7 +252,11 @@ const selectPlaylist = (playlist: PlayList) => {
             }
 
             .playlist-name {
-              color: #fff;
+              color: rgb(var(--v-theme-on-surface));
+            }
+
+            .check-icon {
+              color: rgb(var(--v-theme-primary)) !important;
             }
           }
 
@@ -232,15 +265,15 @@ const selectPlaylist = (playlist: PlayList) => {
           }
 
           &.selected {
-            background: linear-gradient(135deg, rgba(82, 121, 255, 0.2), rgba(82, 121, 255, 0.1));
-            border-color: rgba(82, 121, 255, 0.5);
+            background: rgba(var(--v-theme-primary), 0.12);
+            border-color: rgba(var(--v-theme-primary), 0.4);
 
             &::before {
               opacity: 1;
             }
 
             .playlist-name {
-              color: #5279ff;
+              color: rgb(var(--v-theme-primary));
               font-weight: 600;
             }
           }
@@ -248,13 +281,22 @@ const selectPlaylist = (playlist: PlayList) => {
           .playlist-cover {
             border-radius: 8px;
             margin-right: 16px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease;
+          }
+
+          &:hover .playlist-cover {
+            transform: scale(1.05);
           }
 
           .playlist-name {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 500;
-            color: rgba(255, 255, 255, 0.9);
+            color: rgba(255, 255, 255, 0.85);
+            transition: all 0.3s ease;
+          }
+
+          .check-icon {
             transition: all 0.3s ease;
           }
         }
@@ -278,9 +320,60 @@ const selectPlaylist = (playlist: PlayList) => {
 
   .dialog-footer {
     padding: 16px 24px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 0 0 12px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .confirm-btn {
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+    background: rgba(var(--v-theme-primary), 0.15) !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(var(--v-theme-primary), 0.3);
+    color: rgb(var(--v-theme-primary)) !important;
+
+    &:hover:not(:disabled) {
+      transform: translateY(-2px);
+      background: rgba(var(--v-theme-primary), 0.25) !important;
+      box-shadow: 0 8px 32px rgba(var(--v-theme-primary), 0.3);
+      border-color: rgba(var(--v-theme-primary), 0.5);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes pulse-icon {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+// 深色模式适配
+:deep(.v-theme--dark) {
+  .dialog-card {
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), transparent);
   }
 }
 </style>

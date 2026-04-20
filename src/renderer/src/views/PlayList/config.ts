@@ -36,6 +36,15 @@ export const columns: Columns[] = [
     icon: ['love']
   },
   {
+    title: 'id',
+    width: '100px',
+    class: 'handle',
+    processEl(createVNode, arg, index) {
+        return createVNode('span', {
+        }, arg.id)
+    },
+  },
+  {
     title: '时长',
     prop: 'dt',
     width: '10%',

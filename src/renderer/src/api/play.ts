@@ -12,13 +12,13 @@ export const deletePlay = (ids: string[]) => request(`/playlist/delete?id=${ids.
 
 // 对歌单添加或删除歌曲  op=add&pid=24381616&tracks=347231
 export const deleteSong = (op: 'add' | 'del', pid: number, tracks: number) =>
-  request('/playlist/tracks', 'get', {
-    params: {
+  request('/playlist/tracks',
+    {
       op,
       pid,
       tracks,
     }
-  })
+  )
 
 export const checkMusic = (id: number) => request(`/check/music?id=${id}`)
 

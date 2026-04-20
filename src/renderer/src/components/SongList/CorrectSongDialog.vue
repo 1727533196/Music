@@ -307,6 +307,9 @@ watch(searchKeyword, () => {
   .dialog-header {
     padding: 20px 24px;
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 
     .header-content {
       display: flex;

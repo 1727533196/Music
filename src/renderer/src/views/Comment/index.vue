@@ -80,53 +80,82 @@ watch(
 <template>
   <div class="comment">
     <div v-if="state.song !== null" class="comment-box">
-      <div class="info">
+      <!-- 歌曲信息卡片 -->
+      <div class="info-card">
         <div ref="imgEl" class="bg-img"></div>
         <div class="song-info">
           <div class="song-name">{{ (state.song as GetMusicDetailData).name }}</div>
           <div class="singers">
             <div class="singer-info">
+              <v-icon icon="mdi-account-music" size="small" class="mr-1" />
               <span v-for="(item, index) in state.song.ar"
-                >歌手:
-                {{
-                  item.name + (index < (state.song as GetMusicDetailData).ar.length - 1 ? '/' : '')
+                >{{
+                  item.name + (index < (state.song as GetMusicDetailData).ar.length - 1 ? ' / ' : '')
                 }}</span
               >
             </div>
-            <div class="album">专辑: {{ (state.song as GetMusicDetailData).al.name }}</div>
+            <div class="album">
+              <v-icon icon="mdi-album" size="small" class="mr-1" />
+              {{ (state.song as GetMusicDetailData).al.name }}
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- 评论内容区 -->
       <div class="comment-content">
         <div class="comment-content-box">
-          <div class="title">精彩评论</div>
+          <div class="title">
+            <v-icon icon="mdi-comment-text-multiple" size="small" class="mr-2" />
+            精彩评论
+            <span class="comment-count">({{ state.total }})</span>
+          </div>
+
           <div @wheel.stop class="content">
-            <div v-for="item in state.comments" class="content-line">
+            <div v-for="(item, index) in state.comments" :key="index" class="content-line">
               <div
                 @click="gotoUserDetail(item.user.userId)"
-                :style="{ backgroundImage: `url(${item.user.avatarUrl})` }"
+                :style="{ backgroundImage: `url(${item.user.avatarUrl}?param=80y80)` }"
                 class="photo"
               ></div>
               <div class="right-box">
-                <div class="comment-text">
+                <div class="comment-header">
                   <div @click="gotoUserDetail(item.user.userId)" class="name">
-                    {{ item.user.nickname }}:
+                    {{ item.user.nickname }}
                   </div>
-                  <div class="text">{{ item.content }}</div>
-                </div>
-                <div class="handle-box">
                   <div class="time">{{ item.timeStr }}</div>
+                </div>
+                <div class="text">{{ item.content }}</div>
+                <div class="handle-box">
                   <div class="operation">
-                    <el-icon><Star /></el-icon>
-                    <span style="font-size: 12px">{{ item.likedCount }}</span>
-                    <div class="operator-line"></div>
-                    <el-icon><ChatDotSquare /></el-icon>
+                    <v-btn
+                      variant="text"
+                      size="x-small"
+                      class="action-btn"
+                    >
+                      <v-icon icon="mdi-star-outline" size="small" />
+                      <span>{{ item.likedCount }}</span>
+                    </v-btn>
+                    <v-btn
+                      variant="text"
+                      size="x-small"
+                      class="action-btn"
+                    >
+                      <v-icon icon="mdi-reply" size="small" />
+                      <span>回复</span>
+                    </v-btn>
                   </div>
                 </div>
               </div>
-              <div class="line"></div>
+            </div>
+
+            <!-- 空状态 -->
+            <div v-if="state.comments.length === 0" class="empty-state">
+              <v-icon icon="mdi-comment-off-outline" size="x-large" color="grey" />
+              <div class="empty-text">暂无评论</div>
             </div>
           </div>
+
           <pagination
             @current-change="currentChange"
             :total="state.total"
@@ -140,133 +169,268 @@ watch(
 </template>
 
 <style scoped lang="less">
-:deep(.el-tab-pane),
-:deep(.el-tabs__content),
-:deep(.el-tabs) {
-  height: 100%;
-}
 .comment {
   height: 100%;
   width: 100%;
-  //position: fixed;
-  //transform: translateY(100%);
-  //background-color: @bgColor;
+  overflow-y: auto;
+
+  // 自定义滚动条
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+  }
+
   .comment-box {
-    padding: 0 0 0 35px;
+    padding: 35px;
+    padding-top: 10px;
     display: flex;
-    flex-wrap: wrap;
     flex-direction: column;
-    flex-flow: column;
     height: 100%;
-    .info {
+    gap: 24px;
+
+    // 歌曲信息卡片
+    .info-card {
       display: flex;
-      margin-bottom: 30px;
+      align-items: center;
+      padding: 20px 24px;
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      transition: all 0.3s ease;
+      flex-shrink: 0;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.1);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      }
+
+      .bg-img {
+        width: 110px;
+        height: 110px;
+        min-width: 110px;
+        border-radius: 12px;
+        background-size: cover;
+        background-position: center;
+        margin-right: 24px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        transition: transform 0.3s ease;
+      }
+
+      &:hover .bg-img {
+        transform: scale(1.05);
+      }
+
       .song-info {
+        flex: 1;
         display: flex;
         flex-direction: column;
-        font-size: 13px;
+        justify-content: center;
+
         .song-name {
-          font-size: 30px;
-          margin-bottom: 20px;
-          //margin-top: 10px;
+          font-size: 26px;
+          font-weight: 700;
+          margin-bottom: 14px;
+          background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.7) 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
         }
+
         .singers {
           display: flex;
-          align-items: center;
-          .singer-info {
+          flex-direction: column;
+          gap: 6px;
+          font-size: 13px;
+          color: rgba(255, 255, 255, 0.6);
+
+          .singer-info,
+          .album {
             display: flex;
             align-items: center;
-            margin-right: 20px;
           }
         }
       }
-      .bg-img {
-        transition: 1s background;
-        width: 130px;
-        height: 130px;
-        border-radius: 10px;
-        .bgSetting();
-        margin-right: 20px;
-      }
     }
+
+    // 评论内容区
     .comment-content {
-      :deep(.el-tabs__item) {
-        margin-right: 30px;
-      }
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+
       .comment-content-box {
         height: 100%;
-        margin-bottom: 150px;
+        display: flex;
+        flex-direction: column;
+
         .title {
-          font-size: 18px;
-          margin-bottom: 5px;
+          font-size: 20px;
+          font-weight: 600;
+          margin-bottom: 20px;
+          display: flex;
+          align-items: center;
+          color: rgba(255, 255, 255, 0.9);
+
+          .comment-count {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-left: 8px;
+            font-weight: 400;
+          }
         }
+
         .content {
-          padding-right: 35px;
+          flex: 1;
+          overflow-y: auto;
+          padding-right: 10px;
+          margin-bottom: 16px;
+          min-height: 0;
+
+          // 自定义滚动条
+          &::-webkit-scrollbar {
+            width: 6px;
+          }
+
+          &::-webkit-scrollbar-track {
+            background: transparent;
+          }
+
+          &::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+
+            &:hover {
+              background: rgba(255, 255, 255, 0.25);
+            }
+          }
+
           .content-line {
             display: flex;
-            align-items: center;
-            position: relative;
-            padding-bottom: 25px;
-            width: 100%;
-            padding-top: 25px;
-            .line {
-              position: absolute;
-              bottom: 0;
-              left: 0;
-              height: 1px;
-              width: 100%;
-              background-color: rgba(255, 255, 255, 0.08);
+            align-items: flex-start;
+            padding: 20px;
+            margin-bottom: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+            &:hover {
+              background: rgba(255, 255, 255, 0.05);
+              border-color: rgba(var(--v-theme-primary), 0.2);
+              transform: translateX(4px);
+              box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+
+              .photo {
+                transform: scale(1.1);
+              }
             }
+
             .photo {
-              cursor: pointer;
-              width: 40px;
-              height: 40px;
-              min-width: 40px;
-              min-height: 40px;
+              width: 48px;
+              height: 48px;
+              min-width: 48px;
               border-radius: 50%;
-              background-color: #42b983;
-              margin-right: 20px;
-              .bgSetting();
+              background-size: cover;
+              background-position: center;
+              margin-right: 16px;
+              cursor: pointer;
+              transition: all 0.3s ease;
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+              border: 2px solid rgba(255, 255, 255, 0.1);
             }
+
             .right-box {
+              flex: 1;
               display: flex;
               flex-direction: column;
-              align-content: space-around;
-              width: 100%;
-              .comment-text {
-                display: flex;
-                font-size: 13px;
-                margin-bottom: 6px;
-                .name {
-                  color: #0086b3;
-                  cursor: pointer;
-                  margin-right: 5px;
-                }
-                .text {
-                }
-              }
-              .handle-box {
+              gap: 8px;
+
+              .comment-header {
                 display: flex;
                 justify-content: space-between;
-                .time {
-                  font-size: 13px;
-                }
-                .operation {
-                  position: relative;
-                  top: 4px;
-                  display: flex;
-                  align-items: center;
-                  .operator-line {
-                    width: 1.5px;
-                    height: 15px;
-                    background-color: rgba(255, 255, 255, 0.05);
-                    margin: 0 10px;
+                align-items: center;
+
+                .name {
+                  font-size: 14px;
+                  font-weight: 600;
+                  color: rgb(var(--v-theme-primary));
+                  cursor: pointer;
+                  transition: all 0.3s ease;
+
+                  &:hover {
+                    opacity: 0.8;
                   }
-                  .el-icon {
-                    cursor: pointer;
+                }
+
+                .time {
+                  font-size: 12px;
+                  color: rgba(255, 255, 255, 0.4);
+                }
+              }
+
+              .text {
+                font-size: 14px;
+                line-height: 1.6;
+                color: rgba(255, 255, 255, 0.85);
+                word-break: break-word;
+              }
+
+              .handle-box {
+                margin-top: 4px;
+
+                .operation {
+                  display: flex;
+                  gap: 8px;
+
+                  .action-btn {
+                    font-size: 12px;
+                    color: rgba(255, 255, 255, 0.5);
+                    padding: 0 8px;
+                    min-width: auto;
+
+                    &:hover {
+                      color: rgb(var(--v-theme-primary));
+                      background: rgba(var(--v-theme-primary), 0.1);
+                    }
+
+                    .v-icon {
+                      margin-right: 4px;
+                    }
                   }
                 }
               }
+            }
+          }
+
+          .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 80px 20px;
+            gap: 16px;
+
+            .empty-text {
+              font-size: 14px;
+              color: rgba(255, 255, 255, 0.4);
             }
           }
         }
