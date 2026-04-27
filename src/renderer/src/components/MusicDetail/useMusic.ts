@@ -137,6 +137,8 @@ export const useRhythm = (insertionEl) => {
         index++
       }
     }
+
+    console.log('insertionEl', insertionEl)
   }
 
   return {

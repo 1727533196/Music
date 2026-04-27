@@ -7,7 +7,7 @@ const USER_SETTINGS = 'USER_SETTINGS'
 // 定义状态接口
 interface SettingsState {
   baseUrl: string
-  lyricBg: 'rgb' | 'rhythm'
+  lyricBg: 'rgb' | 'shader' | 'rhythm'
   bold: true
   font: string
 }

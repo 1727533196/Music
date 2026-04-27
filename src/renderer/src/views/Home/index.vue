@@ -1,66 +1,42 @@
 <script setup lang="ts" name="Home">
-import { ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import ArtistBanner from './components/ArtistBanner.vue'
 import SongsSection from './components/SongsSection.vue'
 import VideoSection from './components/VideoSection.vue'
 import AlbumsSection from './components/AlbumsSection.vue'
 import MixSection from './components/MixSection.vue'
 import recommendImage from '@/assets/recommend.png'
+import usePlayList from '@/layout/BaseAside/usePlayList'
+import { playListState } from '@/layout/BaseAside/usePlayList'
+import { useMusicAction } from '@/store/music'
+import type { GetMusicDetailData } from '@/api/musicList'
 
-const activeTab = ref('popular')
-
-// Artist Info
-const artistInfo = {
-  name: "Some Artist's Name Here",
-  listeners: '364,461',
-  description: 'Is an Australian pop artist who has won passionate fans of the drip pop scene with his unobtrusive and slow melody.',
-  likedSongs: '436',
-  lastRelease: '08.21.2019'
+// Song Info
+const songInfo = {
+  name: "Modernism",
+  artist: "Some Nice Girls",
+  album: "Album Name Here",
+  duration: "3:45",
+  releaseDate: "2019.08.21",
+  playCount: "1,234,567"
 }
 
-// Songs Data
-const songs = ref([
-  { id: 1, name: 'Modernism', artist: 'Some Nice Girls', cover: recommendImage },
-  { id: 2, name: 'Dream About', artist: 'Well-Known Band', cover: recommendImage },
-  { id: 3, name: 'Day In Life', artist: 'Well-Known Band', cover: recommendImage },
-  { id: 4, name: 'This Hazy Morning', artist: 'Group of People', cover: recommendImage },
-  { id: 5, name: 'Modernism', artist: 'Some Nice Girls', cover: recommendImage },
-])
+// 使用现有的 usePlayList hook
+const { getRecommendSongs } = usePlayList()
+const music = useMusicAction()
 
-// Videos Data
-const videos = ref([
-  { 
-    id: 1, 
-    title: 'You Will Be Lucky To See Something Interesting This Week',
-    thumbnail: recommendImage 
-  },
-])
+// 转换 API 数据为组件所需格式（复用 SongList 的数据格式）
+const dailySongs = computed(() => {
+  return playListState.playList
+})
 
-// Albums Data
-const albums = ref([
-  { id: 1, name: 'Album 1', cover: recommendImage },
-  { id: 2, name: 'Album 2', cover: recommendImage },
-  { id: 3, name: 'Album 3', cover: recommendImage },
-  { id: 4, name: 'Album 4', cover: recommendImage },
-  { id: 5, name: 'Album 5', cover: recommendImage },
-  { id: 6, name: 'Album 6', cover: recommendImage },
-])
-
-// Mixes Data
-const mixes = ref([
-  { id: 1, name: 'Mix 1', cover: recommendImage },
-  { id: 2, name: 'Mix 2', cover: recommendImage },
-  { id: 3, name: 'Mix 3', cover: recommendImage },
-  { id: 4, name: 'Mix 4', cover: recommendImage },
-  { id: 5, name: 'Mix 5', cover: recommendImage },
-])
-
-// Event Handlers
-const handlePlay = (item: any) => {
-  console.log('Play:', item)
+// 播放歌曲 - 使用 store 中的 getMusicUrlHandler
+const handlePlay = (item: GetMusicDetailData, index?: number) => {
+  music.getMusicUrlHandler(item, index)
 }
 
-const handleLike = (item: any) => {
+// 喜欢歌曲
+const handleLike = (item: GetMusicDetailData) => {
   console.log('Like:', item)
 }
 
@@ -71,17 +47,23 @@ const handleShare = () => {
 const handleNavigate = (direction: 'prev' | 'next') => {
   console.log('Navigate:', direction)
 }
+
+// 组件挂载时获取每日推荐歌曲
+onMounted(async () => {
+  await getRecommendSongs()
+})
 </script>
 
 <template>
   <div class="home-container">
-    <!-- Artist Banner -->
+    <!-- Song Banner -->
     <ArtistBanner
-      :name="artistInfo.name"
-      :listeners="artistInfo.listeners"
-      :description="artistInfo.description"
-      :liked-songs="artistInfo.likedSongs"
-      :last-release="artistInfo.lastRelease"
+      :name="songInfo.name"
+      :artist="songInfo.artist"
+      :album="songInfo.album"
+      :duration="songInfo.duration"
+      :release-date="songInfo.releaseDate"
+      :play-count="songInfo.playCount"
       :cover-image="recommendImage"
       :background-image="recommendImage"
       @play="handlePlay"
@@ -89,105 +71,48 @@ const handleNavigate = (direction: 'prev' | 'next') => {
       @share="handleShare"
     />
     
-    <!-- Tabs Navigation -->
-    <div class="tabs-container pa-6">
-      <v-tabs v-model="activeTab" color="primary" align-tabs="start">
-        <v-tab value="all">All</v-tab>
-        <v-tab value="popular">Popular</v-tab>
-        <v-tab value="tracks">Tracks</v-tab>
-        <v-tab value="albums">Albums</v-tab>
-        <v-tab value="about">About</v-tab>
-      </v-tabs>
-    </div>
+
     
     <!-- Content Area -->
     <div class="content-area pa-6">
-      <v-window v-model="activeTab">
-        <v-window-item value="all">
-          <div class="content-grid">
-            <!-- Left Column: Songs -->
-            <div class="left-column">
-              <SongsSection
-                title="Songs"
-                :songs="songs"
-                @play="handlePlay"
-                @like="handleLike"
-                @navigate="handleNavigate"
-              />
-            </div>
-            
-            <!-- Right Column: Video & Others -->
-            <div class="right-column">
-              <VideoSection
-                title="Video"
-                :videos="videos"
-                @play="handlePlay"
-                @navigate="handleNavigate"
-              />
-              
-              <AlbumsSection
-                title="Albums"
-                :albums="albums"
-                @play="handlePlay"
-                @like="handleLike"
-                @navigate="handleNavigate"
-              />
-              
-              <MixSection
-                title="Mix"
-                :mixes="mixes"
-                @play="handlePlay"
-                @like="handleLike"
-                @navigate="handleNavigate"
-              />
-            </div>
-          </div>
-        </v-window-item>
-        
-        <v-window-item value="popular">
+      <div class="content-grid">
+        <!-- Left Column: Songs -->
+        <div class="left-column">
           <SongsSection
-            title="Popular Songs"
-            :songs="songs"
+            title="每日推荐"
+            :songs="dailySongs"
             @play="handlePlay"
             @like="handleLike"
             @navigate="handleNavigate"
           />
-        </v-window-item>
+        </div>
         
-        <v-window-item value="tracks">
-          <SongsSection
-            title="All Tracks"
-            :songs="songs"
+        <!-- Right Column: Video & Others -->
+        <div class="right-column">
+          <VideoSection
+            title="Video"
+            :videos="videos"
             @play="handlePlay"
-            @like="handleLike"
             @navigate="handleNavigate"
           />
-        </v-window-item>
-        
-        <v-window-item value="albums">
+          
           <AlbumsSection
-            title="All Albums"
+            title="Albums"
             :albums="albums"
             @play="handlePlay"
             @like="handleLike"
             @navigate="handleNavigate"
           />
-        </v-window-item>
-        
-        <v-window-item value="about">
-          <v-card rounded="xl" elevation="0" class="pa-6">
-            <h2 class="text-h5 font-weight-bold mb-4">About the Artist</h2>
-            <p class="text-body-1 text-medium-emphasis mb-4">
-              {{ artistInfo.description }}
-            </p>
-            <div class="text-body-2 text-medium-emphasis">
-              <div class="mb-2"><strong>Listeners:</strong> {{ artistInfo.listeners }}</div>
-              <div class="mb-2"><strong>Liked Songs:</strong> {{ artistInfo.likedSongs }}</div>
-              <div><strong>Last Release:</strong> {{ artistInfo.lastRelease }}</div>
-            </div>
-          </v-card>
-        </v-window-item>
-      </v-window>
+          
+          <MixSection
+            title="Mix"
+            :mixes="mixes"
+            @play="handlePlay"
+            @like="handleLike"
+            @navigate="handleNavigate"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -195,10 +120,6 @@ const handleNavigate = (direction: 'prev' | 'next') => {
 <style lang="less" scoped>
 .home-container {
   min-height: 100vh;
-}
-
-.tabs-container {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .content-area {

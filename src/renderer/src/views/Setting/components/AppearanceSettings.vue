@@ -41,6 +41,7 @@ const updateBold = (value: boolean) => {
         class="theme-toggle"
       >
         <v-btn value="rhythm">模糊背景</v-btn>
+        <v-btn value="shader">流体</v-btn>
         <v-btn value="rgb">纯色模式</v-btn>
       </v-btn-toggle>
     </div>

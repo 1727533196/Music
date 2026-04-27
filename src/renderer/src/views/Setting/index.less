@@ -52,7 +52,7 @@
       :deep(.v-text-field) {
         width: 100%;
         max-width: 320px;
-        
+
         .v-field {
           background: rgba(255, 255, 255, 0.05);
           border-radius: 10px;
@@ -77,19 +77,19 @@
         }
       }
     }
-    
+
     // 按钮和开关直接放在右侧的情况
     > .v-btn,
     > .v-switch {
       justify-self: start;
       margin-left: 0;
     }
-    
+
     > .v-btn-toggle {
       justify-self: start;
       margin-left: 0;
     }
-    
+
     // 开关不需要额外 margin
     > .v-switch {
       justify-self: start;
@@ -102,12 +102,14 @@
   background: rgba(255, 255, 255, 0.05);
   border-radius: 10px;
   padding: 4px;
-  
+  display: flex;
+  gap: 4px;
+
   :deep(.v-btn) {
     border-radius: 8px;
     font-size: 13px;
     font-weight: 500;
-    
+
     &.v-btn--active {
       background: rgba(255, 255, 255, 0.15);
     }

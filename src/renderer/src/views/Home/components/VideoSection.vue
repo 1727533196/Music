@@ -49,7 +49,7 @@ const emit = defineEmits<{
     </div>
     
     <!-- Video Grid -->
-    <v-row>
+    <v-row v-if="videos && videos.length > 0">
       <v-col cols="12">
         <v-card
           rounded="xl"
@@ -58,7 +58,7 @@ const emit = defineEmits<{
           @click="emit('play', videos[0])"
         >
           <div class="video-thumbnail">
-            <v-img :src="videos[0]?.thumbnail" cover class="video-img" />
+            <v-img :src="videos[0].thumbnail" cover class="video-img" />
             
             <div class="play-overlay">
               <div class="play-circle">
@@ -68,13 +68,19 @@ const emit = defineEmits<{
             
             <div class="video-info pa-4">
               <div class="text-subtitle-1 font-weight-bold mb-1">
-                {{ videos[0]?.title }}
+                {{ videos[0].title }}
               </div>
             </div>
           </div>
         </v-card>
       </v-col>
     </v-row>
+    
+    <!-- Empty State -->
+    <div v-else class="empty-state text-center py-8">
+      <v-icon icon="mdi-video-off" size="64" color="medium-emphasis" />
+      <div class="text-body-1 text-medium-emphasis mt-4">暂无视频内容</div>
+    </div>
   </div>
 </template>
 
@@ -136,5 +142,13 @@ const emit = defineEmits<{
       background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
     }
   }
+}
+
+.empty-state {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 </style>

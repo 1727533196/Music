@@ -437,17 +437,17 @@ const handleCollectionConfirm = (playlist) => {
     </template>
 
     <!-- 空状态 -->
-    <div
-      v-else
-      style="display: grid; place-items: center; gap: 20px"
-    >
-      <div style="font-size: 20px">
-        没有找到关于"{{ searchKeyword }}"的任何内容
+    <div v-else class="empty-state">
+      <div class="empty-content">
+        <div class="empty-icon-wrapper">
+          <v-icon icon="mdi-music-off" size="80" class="empty-icon" />
+        </div>
+        <div class="empty-text">
+          <div class="empty-title">未找到相关内容</div>
+          <div class="empty-desc">没有找到关于"{{ searchKeyword }}"的任何歌曲</div>
+          <div class="empty-hint">试试其他关键词吧</div>
+        </div>
       </div>
-      <VImg
-        :src="NotFound"
-        width="150"
-      />
     </div>
 
     <!-- 分页 -->
@@ -474,6 +474,76 @@ const handleCollectionConfirm = (playlist) => {
   background-color: rgba(0, 0, 0, 1) !important;
 }
 .position-target {
+}
+
+// 空状态样式
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 60px 20px;
+
+  .empty-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+    text-align: center;
+
+    .empty-icon-wrapper {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, rgba(var(--v-theme-primary), 0.1) 0%, rgba(var(--v-theme-primary), 0.05) 100%);
+      border-radius: 50%;
+      border: 2px solid rgba(var(--v-theme-primary), 0.2);
+      box-shadow: 0 8px 32px rgba(var(--v-theme-primary), 0.15);
+
+      .empty-icon {
+        color: rgba(var(--v-theme-primary), 0.6);
+        animation: float 3s ease-in-out infinite;
+      }
+
+      @keyframes float {
+        0%, 100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-8px);
+        }
+      }
+    }
+
+    .empty-text {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+
+      .empty-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.85);
+        letter-spacing: 0.5px;
+      }
+
+      .empty-desc {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.5);
+        line-height: 1.6;
+      }
+
+      .empty-hint {
+        font-size: 13px;
+        color: rgba(var(--v-theme-primary), 0.7);
+        margin-top: 4px;
+        font-weight: 500;
+      }
+    }
+  }
 }
 /* 保留原有的样式不变 */
 .song-list-container {

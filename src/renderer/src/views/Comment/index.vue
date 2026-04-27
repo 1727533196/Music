@@ -4,7 +4,6 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { getCommentMusic, getMusicDetail, GetMusicDetailData } from '@/api/musicList'
 import { useRoute, useRouter } from 'vue-router'
 import { useFlags } from '@/store/flags'
-import Pagination from '@/components/Pagination/index.vue'
 
 interface State {
   comments: any[]
@@ -12,17 +11,22 @@ interface State {
   total: number
   pageSize: number
   currentPage: number
+  loading: boolean
+  hasMore: boolean
 }
 const flags = useFlags()
 const router = useRouter()
 const route = useRoute()
 const page = ref(1)
+const contentEl = ref<HTMLDivElement>()
 const state: State = reactive({
   comments: [],
   song: null,
   total: 0,
   pageSize: 20,
-  currentPage: 1
+  currentPage: 1,
+  loading: false,
+  hasMore: true
 })
 let id = +route.query.id!
 const currentTab = ref<string>()
@@ -36,16 +40,52 @@ onMounted(() => {
     })
   })
 })
-const getCommentMusicFn = async (id: number, page: number) => {
+
+// 在 nextTick 后添加滚动监听
+watch(
+  () => contentEl.value,
+  (el) => {
+    if (el) {
+      el.addEventListener('scroll', handleScroll)
+    }
+  },
+  { immediate: true }
+)
+const getCommentMusicFn = async (id: number, page: number, append = false) => {
+  if (state.loading) return
+  
+  state.loading = true
   const { data, code } = await getCommentMusic(id, 0, page, 20, 2)
   if (code === 200) {
-    state.comments = data.comments
+    if (append) {
+      state.comments = [...state.comments, ...data.comments]
+    } else {
+      state.comments = data.comments
+    }
     state.total = data.totalCount
+    state.hasMore = state.comments.length < state.total
   }
+  state.loading = false
 }
-const currentChange = (page: number) => {
-  state.currentPage = page
-  getCommentMusicFn(id, page)
+const loadMore = () => {
+  if (!state.hasMore || state.loading) return
+  state.currentPage++
+  getCommentMusicFn(id, state.currentPage, true)
+}
+
+// 监听滚动到底部
+const handleScroll = (e: Event) => {
+  const target = e.target as HTMLDivElement
+  if (!target) return
+  
+  const { scrollTop, scrollHeight, clientHeight } = target
+  console.log('滚动:', { scrollTop, scrollHeight, clientHeight, diff: scrollHeight - scrollTop - clientHeight })
+  
+  // 距离底部 100px 时加载
+  if (scrollHeight - scrollTop - clientHeight < 100) {
+    console.log('触发加载')
+    loadMore()
+  }
 }
 const getMusicDetailFn = async (id: number) => {
   const { songs } = await getMusicDetail(String(id))
@@ -111,7 +151,7 @@ watch(
             <span class="comment-count">({{ state.total }})</span>
           </div>
 
-          <div @wheel.stop class="content">
+          <div ref="contentEl" @wheel.stop class="content">
             <div v-for="(item, index) in state.comments" :key="index" class="content-line">
               <div
                 @click="gotoUserDetail(item.user.userId)"
@@ -150,18 +190,22 @@ watch(
             </div>
 
             <!-- 空状态 -->
-            <div v-if="state.comments.length === 0" class="empty-state">
+            <div v-if="state.comments.length === 0 && !state.loading" class="empty-state">
               <v-icon icon="mdi-comment-off-outline" size="x-large" color="grey" />
               <div class="empty-text">暂无评论</div>
             </div>
-          </div>
 
-          <pagination
-            @current-change="currentChange"
-            :total="state.total"
-            :pageSize="state.pageSize"
-            :currentPage="state.currentPage"
-          />
+            <!-- 加载更多提示 -->
+            <div v-if="state.loading" class="loading-more">
+              <v-progress-circular indeterminate size="24" width="2" color="primary" />
+              <span>加载中...</span>
+            </div>
+
+            <!-- 没有更多了 -->
+            <div v-if="!state.hasMore && state.comments.length > 0" class="no-more">
+              <span>没有更多评论了</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -193,12 +237,12 @@ watch(
   }
 
   .comment-box {
-    padding: 35px;
+    padding: 20px;
     padding-top: 10px;
     display: flex;
     flex-direction: column;
     height: 100%;
-    gap: 24px;
+    gap: 16px;
 
     // 歌曲信息卡片
     .info-card {
@@ -301,8 +345,9 @@ watch(
           flex: 1;
           overflow-y: auto;
           padding-right: 10px;
-          margin-bottom: 16px;
           min-height: 0;
+          display: flex;
+          flex-direction: column;
 
           // 自定义滚动条
           &::-webkit-scrollbar {
@@ -325,43 +370,42 @@ watch(
           .content-line {
             display: flex;
             align-items: flex-start;
-            padding: 20px;
-            margin-bottom: 12px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
             background: rgba(255, 255, 255, 0.02);
             border: 1px solid rgba(255, 255, 255, 0.04);
-            border-radius: 12px;
+            border-radius: 8px;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
             &:hover {
               background: rgba(255, 255, 255, 0.05);
               border-color: rgba(var(--v-theme-primary), 0.2);
-              transform: translateX(4px);
-              box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+              transform: translateX(2px);
 
               .photo {
-                transform: scale(1.1);
+                transform: scale(1.05);
               }
             }
 
             .photo {
-              width: 48px;
-              height: 48px;
-              min-width: 48px;
+              width: 36px;
+              height: 36px;
+              min-width: 36px;
               border-radius: 50%;
               background-size: cover;
               background-position: center;
-              margin-right: 16px;
+              margin-right: 12px;
               cursor: pointer;
               transition: all 0.3s ease;
-              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-              border: 2px solid rgba(255, 255, 255, 0.1);
+              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+              border: 1px solid rgba(255, 255, 255, 0.1);
             }
 
             .right-box {
               flex: 1;
               display: flex;
               flex-direction: column;
-              gap: 8px;
+              gap: 4px;
 
               .comment-header {
                 display: flex;
@@ -369,7 +413,7 @@ watch(
                 align-items: center;
 
                 .name {
-                  font-size: 14px;
+                  font-size: 13px;
                   font-weight: 600;
                   color: rgb(var(--v-theme-primary));
                   cursor: pointer;
@@ -381,29 +425,30 @@ watch(
                 }
 
                 .time {
-                  font-size: 12px;
+                  font-size: 11px;
                   color: rgba(255, 255, 255, 0.4);
                 }
               }
 
               .text {
-                font-size: 14px;
-                line-height: 1.6;
+                font-size: 13px;
+                line-height: 1.5;
                 color: rgba(255, 255, 255, 0.85);
                 word-break: break-word;
               }
 
               .handle-box {
-                margin-top: 4px;
+                margin-top: 2px;
 
                 .operation {
                   display: flex;
-                  gap: 8px;
+                  gap: 4px;
 
                   .action-btn {
-                    font-size: 12px;
+                    font-size: 11px;
                     color: rgba(255, 255, 255, 0.5);
-                    padding: 0 8px;
+                    padding: 0 6px;
+                    height: 24px;
                     min-width: auto;
 
                     &:hover {
@@ -412,7 +457,8 @@ watch(
                     }
 
                     .v-icon {
-                      margin-right: 4px;
+                      margin-right: 3px;
+                      font-size: 14px;
                     }
                   }
                 }
@@ -425,13 +471,30 @@ watch(
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 80px 20px;
-            gap: 16px;
+            padding: 60px 20px;
+            gap: 12px;
 
             .empty-text {
               font-size: 14px;
               color: rgba(255, 255, 255, 0.4);
             }
+          }
+
+          .loading-more {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 24px 0;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 13px;
+          }
+
+          .no-more {
+            text-align: center;
+            padding: 20px 0;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 13px;
           }
         }
       }

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 interface Props {
   name: string
-  listeners: string
-  description: string
-  likedSongs: string
-  lastRelease: string
+  artist: string
+  album: string
+  duration: string
+  releaseDate: string
+  playCount: string
   coverImage: string
   backgroundImage: string
 }
@@ -23,7 +24,7 @@ const emit = defineEmits<{
     <div class="banner-background">
       <v-img :src="backgroundImage" cover class="banner-bg-img" />
     </div>
-    
+
     <div class="banner-content d-flex pa-6">
       <!-- Artist Avatar -->
       <v-img
@@ -34,20 +35,20 @@ const emit = defineEmits<{
         max-width="200"
         max-height="200"
       />
-      
-      <!-- Artist Info -->
-      <div class="artist-info d-flex flex-column justify-end flex-grow-1 pb-5">
+
+      <!-- Song Info -->
+      <div class="song-info d-flex flex-column justify-end flex-grow-1 pb-5">
         <div class="text-caption text-medium-emphasis mb-2">
-          {{ listeners }} LISTENERS
+          {{ artist }}
         </div>
         <h1 class="text-h4 font-weight-bold mb-3 text-white">
           {{ name }}
         </h1>
         <p class="text-body-2 text-medium-emphasis mb-4" style="max-width: 600px; line-height: 1.6;">
-          {{ description }}
+          专辑：{{ album }}
         </p>
-        
-        <div class="d-flex align-center gap-3">
+
+        <div class="d-flex align-center button-group">
           <v-btn
             color="white"
             variant="tonal"
@@ -57,9 +58,9 @@ const emit = defineEmits<{
             class="px-6"
           >
             <v-icon start icon="mdi-play" />
-            PLAY
+            播放
           </v-btn>
-          
+
           <v-btn
             color="pink"
             variant="tonal"
@@ -72,19 +73,23 @@ const emit = defineEmits<{
           </v-btn>
         </div>
       </div>
-      
+
       <!-- Stats -->
-      <div class="banner-stats text-right">
+      <div class="song-stats text-right">
         <div class="mb-2">
-          <div class="text-caption text-medium-emphasis">Liked Songs</div>
-          <div class="text-body-1 font-weight-bold">{{ likedSongs }}</div>
+          <div class="text-caption text-medium-emphasis">时长</div>
+          <div class="text-body-1 font-weight-bold">{{ duration }}</div>
+        </div>
+        <div class="mb-2">
+          <div class="text-caption text-medium-emphasis">播放次数</div>
+          <div class="text-body-1 font-weight-bold">{{ playCount }}</div>
         </div>
         <div>
-          <div class="text-caption text-medium-emphasis">Last Release</div>
-          <div class="text-body-1 font-weight-bold">{{ lastRelease }}</div>
+          <div class="text-caption text-medium-emphasis">发行日期</div>
+          <div class="text-body-1 font-weight-bold">{{ releaseDate }}</div>
         </div>
       </div>
-      
+
       <!-- Share Button -->
       <v-btn
         icon
@@ -105,33 +110,34 @@ const emit = defineEmits<{
   position: relative;
   overflow: hidden;
   margin: 16px;
-  
+
   .banner-background {
     position: absolute;
     inset: 0;
     opacity: 0.6;
-    
+
     .banner-bg-img {
       filter: blur(20px);
     }
   }
-  
+
   .banner-content {
     position: relative;
     z-index: 1;
     gap: 24px;
   }
-  
-  .artist-avatar {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+
+  .song-info {
+    position: relative;
+    z-index: 1;
   }
   
-  .banner-stats {
+  .song-stats {
     position: absolute;
     bottom: 24px;
     right: 60px;
   }
-  
+
   .share-btn {
     position: absolute;
     top: 24px;
