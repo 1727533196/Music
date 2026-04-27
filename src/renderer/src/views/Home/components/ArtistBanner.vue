@@ -102,8 +102,11 @@ const extractColorsFromCover = () => {
     const colors = findBestColors(rgb, 10) // 提取10色
 
     if (colors && colors.length > 0) {
-      mainColors.value = colors
+      // 创建新的数组引用以确保 Vue 能检测到变化
+      mainColors.value = [...colors]
     }
+  }).catch(err => {
+    console.error('Failed to extract colors from cover:', err)
   })
 }
 
@@ -121,13 +124,13 @@ watch(
 
 // 监听当前歌曲变化
 watch(
-  () => currentSong.value,
-  () => {
-    if (currentSong.value) {
+  () => currentSong.value?.coverImage, // 只监听封面图片的变化
+  (newCover, oldCover) => {
+    if (newCover && newCover !== oldCover) {
       extractColorsFromCover()
     }
   },
-  { deep: true }
+  { immediate: true } // 立即执行一次以处理初始值
 )
 
 onMounted(() => {
