@@ -58,6 +58,10 @@
 import { onMounted, onUnmounted, ref, watch, reactive, nextTick } from 'vue'
 import * as THREE from 'three'
 const props = defineProps({
+  /**
+   * 主色调数组，每个颜色为 [R, G, B] 格式
+   * 示例：[[255, 160, 210], [160, 120, 255]]
+   */
   mainColor: {
     type: Array,
     default: () => [
@@ -67,14 +71,66 @@ const props = defineProps({
       [100, 180, 255],
     ],
   },
+  /**
+   * 流体动画速度
+   * 范围：0.001 - 0.6，默认 0.5
+   * 值越大，流动越快
+   */
   speed:        { type: Number,  default: 0.5 },
+  
+  /**
+   * 旋涡流场强度（Curl Noise 强度）
+   * 范围：0.5 - 6.0，默认 2.2
+   * 值越大，颜色的弧形扭曲越明显
+   */
   curlStrength: { type: Number,  default: 2.2   },
+  
+  /**
+   * 色块大小缩放比例
+   * 范围：1.0 - 8.0，默认 2.9
+   * 值越大，颜色区域越分散；值越小，颜色越集中
+   */
   blobScale:    { type: Number,  default: 2.9   },
+  
+  /**
+   * 整体亮度调整
+   * 范围：0.5 - 2.5，默认 1.0
+   * > 1.0 增亮，< 1.0 变暗
+   */
   brightness:   { type: Number,  default: 1   },
+  
+  /**
+   * 饱和度调整
+   * 范围：0.5 - 3.0，默认 3.0
+   * > 1.0 增加饱和度，< 1.0 降低饱和度
+   */
   saturation:   { type: Number,  default: 3   },
+  
+  /**
+   * 白化程度（向白色混合）
+   * 范围：0.0 - 0.6，默认 0.0
+   * Apple Music 风格关键参数，值约 0.12-0.25 时呈现粉嫩质感
+   */
   whiten:       { type: Number,  default: 0  },
+  
+  /**
+   * 暗角效果强度
+   * 范围：0.0 - 0.8，默认 0.0
+   * 值越大，边缘越暗，聚焦中心效果越明显
+   */
   vignette:     { type: Number,  default: 0  },
+  
+  /**
+   * 胶片噪点强度
+   * 范围：0.0 - 0.05，默认 0.0
+   * 添加细微的颗粒感，增强质感
+   */
   grain:        { type: Number,  default: 0 },
+  
+  /**
+   * 是否显示调试面板
+   * true 时显示实时参数调节滑块
+   */
   showDebug:    { type: Boolean, default: false },
 })
 
@@ -96,6 +152,9 @@ const MAX_BLOBS    = 10
 const instanceSeed = Math.random() * 100.0
 const container    = ref(null)
 let scene, camera, renderer, clock, uniforms, animFrameId
+let targetColors = [] // 目标颜色数组
+let blobPhaseOffset = 0 // 色球相位偏移（只影响色球位置，不影响流场）
+let targetBlobPhaseOffset = 0 // 目标色球相位偏移
 
 function parseRGB(rgb) {
   if (!Array.isArray(rgb) || rgb.length < 3) return new THREE.Color(1, 1, 1)
@@ -126,9 +185,10 @@ watch(
   (newVal) => {
     if (!uniforms) return
     const colors = normalizeColors(newVal)
-    for (let i = 0; i < MAX_BLOBS; i++) {
-      uniforms[`uColor${i}`].value.copy(colors[i])
-    }
+    // 更新目标颜色，用于过渡动画
+    targetColors = colors.map(c => c.clone())
+    // 生成新的色球相位偏移，让色球切换到新轨迹（小数值）
+    targetBlobPhaseOffset += 10.0 + Math.random() * 20.0
     const cnt = Math.min(newVal.length, MAX_BLOBS)
     uniforms.uColorCount.value = cnt
     uniforms.uBlobCount.value  = cnt
@@ -174,9 +234,10 @@ function init() {
   ))
 
   const parsedColors  = normalizeColors(props.mainColor)
+  targetColors = parsedColors.map(c => c.clone()) // 初始化目标颜色
   const colorUniforms = {}
   for (let i = 0; i < MAX_BLOBS; i++) {
-    colorUniforms[`uColor${i}`] = { value: parsedColors[i] }
+    colorUniforms[`uColor${i}`] = { value: parsedColors[i].clone() }
   }
   const cnt = Math.min(props.mainColor.length, MAX_BLOBS)
 
@@ -184,6 +245,7 @@ function init() {
     iTime:         { value: 0.0 },
     iResolution:   { value: new THREE.Vector2(w, h) },
     uSeed:         { value: instanceSeed },
+    uBlobPhase:    { value: 0.0 },  // 新增：色球相位偏移 uniform
     uSpeed:        { value: config.speed        },
     uCurlStrength: { value: config.curlStrength },
     uBlobScale:    { value: config.blobScale    },
@@ -229,7 +291,45 @@ function animate() {
   animFrameId = requestAnimationFrame(animate)
   if (!renderer || !scene || !camera || !uniforms || !clock) return
   uniforms.iTime.value = clock.getElapsedTime()
+
+  // 颜色过渡动画：每帧向目标颜色插值
+  updateColorTransition()
+  
+  // 色球相位过渡：平滑切换到新的色球轨迹
+  updateBlobPhaseTransition()
+
   renderer.render(scene, camera)
+}
+
+function updateBlobPhaseTransition() {
+  if (!uniforms) return
+  
+  // 平滑插值到目标相位（过渡速度）
+  const lerpSpeed = 0.02
+  blobPhaseOffset += (targetBlobPhaseOffset - blobPhaseOffset) * lerpSpeed
+  
+  // 更新 uniform
+  uniforms.uBlobPhase.value = blobPhaseOffset
+}
+
+function updateColorTransition() {
+  if (!uniforms || targetColors.length === 0) return
+
+  // 过渡速度（可调整）
+  const lerpSpeed = 0.02
+
+  for (let i = 0; i < MAX_BLOBS; i++) {
+    const uniformKey = `uColor${i}`
+    if (!uniforms[uniformKey]) continue
+
+    const currentColor = uniforms[uniformKey].value
+    const targetColor = targetColors[i]
+
+    if (targetColor) {
+      // 线性插值向目标颜色靠近
+      currentColor.lerp(targetColor, lerpSpeed)
+    }
+  }
 }
 
 function buildVert() {
@@ -249,6 +349,7 @@ function buildFrag() {
     uniform vec2  iResolution;
     uniform float iTime;
     uniform float uSeed;
+    uniform float uBlobPhase;  /* 新增：色球相位偏移（只影响色球位置） */
     uniform float uSpeed;
     uniform float uCurlStrength; /* 旋转流场强度 */
     uniform float uBlobScale;
@@ -373,9 +474,11 @@ function buildFrag() {
       float py = hash11(idx * 7.31  + 4.71) * 6.2832;
       float fx = 0.03 + hash11(idx * 3.17 + 0.57) * 0.02;
       float fy = 0.025 + hash11(idx * 5.71 + 1.23) * 0.02;
+      /* 加入相位偏移，让色球轨迹可以平滑切换 */
+      float phaseT = t + uBlobPhase;
       return vec2(
-        0.5 + 0.3 * sin(t * fx + px),
-        0.5 + 0.3 * cos(t * fy + py)
+        0.5 + 0.3 * sin(phaseT * fx + px),
+        0.5 + 0.3 * cos(phaseT * fy + py)
       );
     }
 
@@ -402,7 +505,7 @@ function buildFrag() {
      */
     void main() {
       vec2 uv = vUv;
-      float t = iTime * uSpeed;
+      float t = iTime * uSpeed;  /* 流场使用正常时间 */
       float aspect = iResolution.x / iResolution.y;
 
       /* ── Step 1: 旋转流场域变形（核心！）────────────────────────────────

@@ -5,7 +5,6 @@ import SongsSection from './components/SongsSection.vue'
 import VideoSection from './components/VideoSection.vue'
 import AlbumsSection from './components/AlbumsSection.vue'
 import MixSection from './components/MixSection.vue'
-import recommendImage from '@/assets/recommend.png'
 import usePlayList from '@/layout/BaseAside/usePlayList'
 import { playListState } from '@/layout/BaseAside/usePlayList'
 import { useMusicAction } from '@/store/music'
@@ -32,7 +31,8 @@ const dailySongs = computed(() => {
 
 // 播放歌曲 - 使用 store 中的 getMusicUrlHandler
 const handlePlay = (item: GetMusicDetailData, index?: number) => {
-  music.getMusicUrlHandler(item, index)
+  console.log('item', item, index)
+  music.getMusicUrlHandler(item)
 }
 
 // 喜欢歌曲
@@ -58,21 +58,11 @@ onMounted(async () => {
   <div class="home-container">
     <!-- Song Banner -->
     <ArtistBanner
-      :name="songInfo.name"
-      :artist="songInfo.artist"
-      :album="songInfo.album"
-      :duration="songInfo.duration"
-      :release-date="songInfo.releaseDate"
-      :play-count="songInfo.playCount"
-      :cover-image="recommendImage"
-      :background-image="recommendImage"
       @play="handlePlay"
       @like="handleLike"
       @share="handleShare"
     />
-    
 
-    
     <!-- Content Area -->
     <div class="content-area pa-6">
       <div class="content-grid">
@@ -86,7 +76,7 @@ onMounted(async () => {
             @navigate="handleNavigate"
           />
         </div>
-        
+
         <!-- Right Column: Video & Others -->
         <div class="right-column">
           <VideoSection
@@ -95,7 +85,7 @@ onMounted(async () => {
             @play="handlePlay"
             @navigate="handleNavigate"
           />
-          
+
           <AlbumsSection
             title="Albums"
             :albums="albums"
@@ -103,7 +93,7 @@ onMounted(async () => {
             @like="handleLike"
             @navigate="handleNavigate"
           />
-          
+
           <MixSection
             title="Mix"
             :mixes="mixes"
@@ -132,47 +122,47 @@ onMounted(async () => {
   gap: 24px;
   height: calc(100vh - 400px);
   min-height: 600px;
-  
+
   .left-column {
     overflow-y: auto;
     padding-right: 8px;
-    
+
     &::-webkit-scrollbar {
       width: 8px;
     }
-    
+
     &::-webkit-scrollbar-track {
       background: rgba(255, 255, 255, 0.05);
       border-radius: 4px;
     }
-    
+
     &::-webkit-scrollbar-thumb {
       background: rgba(255, 255, 255, 0.2);
       border-radius: 4px;
-      
+
       &:hover {
         background: rgba(255, 255, 255, 0.3);
       }
     }
   }
-  
+
   .right-column {
     overflow-y: auto;
     padding-left: 8px;
-    
+
     &::-webkit-scrollbar {
       width: 8px;
     }
-    
+
     &::-webkit-scrollbar-track {
       background: rgba(255, 255, 255, 0.05);
       border-radius: 4px;
     }
-    
+
     &::-webkit-scrollbar-thumb {
       background: rgba(255, 255, 255, 0.2);
       border-radius: 4px;
-      
+
       &:hover {
         background: rgba(255, 255, 255, 0.3);
       }
