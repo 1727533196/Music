@@ -57,7 +57,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch, reactive, nextTick } from 'vue'
 import * as THREE from 'three'
-
 const props = defineProps({
   mainColor: {
     type: Array,
@@ -93,7 +92,7 @@ const config = reactive({
 ;['speed','curlStrength','blobScale','brightness','saturation','whiten','vignette','grain']
 .forEach(k => watch(() => props[k], v => { config[k] = v }))
 
-const MAX_BLOBS    = 6
+const MAX_BLOBS    = 10
 const instanceSeed = Math.random() * 100.0
 const container    = ref(null)
 let scene, camera, renderer, clock, uniforms, animFrameId
@@ -267,6 +266,10 @@ function buildFrag() {
     uniform vec3 uColor3;
     uniform vec3 uColor4;
     uniform vec3 uColor5;
+    uniform vec3 uColor6;
+    uniform vec3 uColor7;
+    uniform vec3 uColor8;
+    uniform vec3 uColor9;
 
     varying vec2 vUv;
 
@@ -278,7 +281,11 @@ function buildFrag() {
       if (fi < 2.5) return uColor2;
       if (fi < 3.5) return uColor3;
       if (fi < 4.5) return uColor4;
-      return uColor5;
+      if (fi < 5.5) return uColor5;
+      if (fi < 6.5) return uColor6;
+      if (fi < 7.5) return uColor7;
+      if (fi < 8.5) return uColor8;
+      return uColor9;
     }
 
     /* ── Hash ─────────────────────────────────────────────────────────────── */

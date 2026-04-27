@@ -34,7 +34,7 @@ onMounted(() => {
       console.log('lyricBg', lyricBg)
       toggleImg(bg, '200y200').then((img) => {
         const rgb    = colorExtraction(img)
-        const colors = findBestColors(rgb, 4) // ★ 提取4色，效果更丰富
+        const colors = findBestColors(rgb, 10) // ★ 提取4色，效果更丰富
 
         console.log('提取的颜色:', colors)
 
