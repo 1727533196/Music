@@ -63,7 +63,7 @@ const getMenuItems = (song: GetMusicDetailData) => {
 // 处理菜单选择
 const handleMenuSelect = async (item: any) => {
   currentSongForMenu.value = item.song
-  
+
   switch (item.value) {
     case 'play-next':
       // TODO: 实现播放下一首
@@ -103,10 +103,10 @@ const handleCollectionConfirm = async (playlist: any) => {
 <template>
   <div class="songs-section">
     <!-- Section Header -->
-    <div class="d-flex align-center justify-space-between mb-4">
+    <div class="section-header d-flex align-center justify-space-between mb-4">
       <h2 class="text-h5 font-weight-bold">{{ title }}</h2>
 
-      <div v-if="showNavigation" class="d-flex gap-2">
+      <div v-if="showNavigation" class="d-flex" style="gap: 8px">
         <v-btn
           icon
           variant="tonal"
@@ -128,39 +128,47 @@ const handleCollectionConfirm = async (playlist: any) => {
 
     <!-- Song List -->
     <div class="song-list">
-      <ContextMenu
-        v-for="(song, index) in songs"
-        :key="song.id"
-        :items="getMenuItems(song)"
-        @select="handleMenuSelect"
-      >
-        <div
-          class="song-item"
-          @click="handleSongClick(song, index)"
+      <template v-if="songs && songs.length > 0">
+        <ContextMenu
+          v-for="(song, index) in songs"
+          :key="song.id"
+          :items="getMenuItems(song)"
+          @select="handleMenuSelect"
         >
-        <div class="song-content">
-          <div class="song-cover-wrapper">
-            <v-img
-              :src="song.al?.picUrl || ''"
-              cover
-              class="song-cover"
-            />
-          </div>
+          <div
+            class="song-item"
+            @click="handleSongClick(song, index)"
+          >
+          <div class="song-content">
+            <div class="song-cover-wrapper">
+              <v-img
+                :src="song.al?.picUrl || ''"
+                cover
+                class="song-cover"
+              />
+            </div>
 
-          <div class="song-info">
-            <div class="song-name" :class="{ 'is-playing': isPlaying(song) }">
-              {{ song.name }}
-            </div>
-            <div class="song-artist">
-              {{ song.ar?.map(artist => artist.name).join(' / ') }}
+            <div class="song-info">
+              <div class="song-name" :class="{ 'is-playing': isPlaying(song) }">
+                {{ song.name }}
+              </div>
+              <div class="song-artist">
+                {{ song.ar?.map(artist => artist.name).join(' / ') }}
+              </div>
             </div>
           </div>
-        </div>
-        </div>
-      </ContextMenu>
+          </div>
+        </ContextMenu>
+      </template>
+      
+      <!-- Empty State -->
+      <div v-else class="empty-state text-center py-8">
+        <v-icon icon="mdi-music-off" size="64" color="grey" />
+        <div class="text-body-1 text-medium-emphasis mt-4">暂无推荐歌曲</div>
+      </div>
     </div>
   </div>
-  
+
   <!-- 收藏到歌单对话框 -->
   <CollectionDialog
     v-model="collectionDialogVisible"
@@ -171,8 +179,51 @@ const handleCollectionConfirm = async (playlist: any) => {
 
 <style lang="less" scoped>
 .songs-section {
+  height: 335px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  .section-header {
+    flex-shrink: 0;
+  }
+
   .song-list {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 8px;
+    display: flex;
+    flex-direction: column;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+      border-radius: 3px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      transition: background 0.3s;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+    }
+
+    .empty-state {
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
     .song-item {
+      flex: 0 0 auto;
       padding: 8px 12px;
       margin-bottom: 4px;
       border-radius: 8px;
@@ -181,12 +232,12 @@ const handleCollectionConfirm = async (playlist: any) => {
       cursor: pointer;
       transition: background 0.2s ease,
                   border-color 0.2s ease;
-            
+
       &:hover {
         background: rgba(255, 255, 255, 0.08);
         border-color: rgba(255, 255, 255, 0.1);
       }
-            
+
       &:active {
         background: rgba(255, 255, 255, 0.15);
       }

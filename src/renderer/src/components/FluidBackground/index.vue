@@ -77,56 +77,56 @@ const props = defineProps({
    * 值越大，流动越快
    */
   speed:        { type: Number,  default: 0.5 },
-  
+
   /**
    * 旋涡流场强度（Curl Noise 强度）
    * 范围：0.5 - 6.0，默认 2.2
    * 值越大，颜色的弧形扭曲越明显
    */
   curlStrength: { type: Number,  default: 2.2   },
-  
+
   /**
    * 色块大小缩放比例
    * 范围：1.0 - 8.0，默认 2.9
    * 值越大，颜色区域越分散；值越小，颜色越集中
    */
   blobScale:    { type: Number,  default: 2.9   },
-  
+
   /**
    * 整体亮度调整
    * 范围：0.5 - 2.5，默认 1.0
    * > 1.0 增亮，< 1.0 变暗
    */
   brightness:   { type: Number,  default: 1   },
-  
+
   /**
    * 饱和度调整
    * 范围：0.5 - 3.0，默认 3.0
    * > 1.0 增加饱和度，< 1.0 降低饱和度
    */
   saturation:   { type: Number,  default: 3   },
-  
+
   /**
    * 白化程度（向白色混合）
    * 范围：0.0 - 0.6，默认 0.0
    * Apple Music 风格关键参数，值约 0.12-0.25 时呈现粉嫩质感
    */
   whiten:       { type: Number,  default: 0  },
-  
+
   /**
    * 暗角效果强度
    * 范围：0.0 - 0.8，默认 0.0
    * 值越大，边缘越暗，聚焦中心效果越明显
    */
   vignette:     { type: Number,  default: 0  },
-  
+
   /**
    * 胶片噪点强度
    * 范围：0.0 - 0.05，默认 0.0
    * 添加细微的颗粒感，增强质感
    */
   grain:        { type: Number,  default: 0 },
-  
+
   /**
    * 是否显示调试面板
    * true 时显示实时参数调节滑块
@@ -294,7 +294,7 @@ function animate() {
 
   // 颜色过渡动画：每帧向目标颜色插值
   updateColorTransition()
-  
+
   // 色球相位过渡：平滑切换到新的色球轨迹
   updateBlobPhaseTransition()
 
@@ -303,11 +303,11 @@ function animate() {
 
 function updateBlobPhaseTransition() {
   if (!uniforms) return
-  
+
   // 平滑插值到目标相位（过渡速度）
   const lerpSpeed = 0.02
   blobPhaseOffset += (targetBlobPhaseOffset - blobPhaseOffset) * lerpSpeed
-  
+
   // 更新 uniform
   uniforms.uBlobPhase.value = blobPhaseOffset
 }
@@ -525,7 +525,8 @@ function buildFrag() {
 
       /* 4步积分，平衡效果与性能 */
       for (int step = 0; step < 4; step++) {
-        vec2 curl = fbmCurl(warpedUv * 1.5, t);
+        /* 提高采样频率，让流场的漩涡更细密，拉丝感更强 */
+        vec2 curl = fbmCurl(warpedUv * 1.0, t);
         warpedUv += curl * stepSize;
       }
 
@@ -560,6 +561,13 @@ function buildFrag() {
       }
 
       vec3 col = colorSum / max(weightSum, 0.0001);
+
+      /* ── Step 2.5: 色彩锐化（制造 Apple Music 式的交错感）──────────────
+       * 核心技巧：通过 pow 函数提升对比度。
+       * 这会让不同颜色的交界处变得更“硬”，产生类似大理石纹路的清晰边界，
+       * 避免颜色过度融合成一团模糊的灰色。
+       */
+      col = pow(col, vec3(1.3));
 
       /* ── Step 3: 白化（还原 Apple Music 粉白质感）───────────────────────
        *

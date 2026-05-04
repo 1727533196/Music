@@ -25,13 +25,25 @@ const emit = defineEmits<{
   share: []
 }>()
 
-// 从播放列表中随机选取一首歌曲
-const getRandomSong = () => {
+// 从播放列表中随机选取一首歌曲（排除当前歌曲）
+const getRandomSong = (excludeCurrent = false) => {
   const playlist = playListState.playList
   if (!playlist || playlist.length === 0) return null
 
-  const randomIndex = Math.floor(Math.random() * playlist.length)
-  return playlist[randomIndex]
+  // 如果只有一首歌或者不需要排除当前歌曲，直接随机返回
+  if (!excludeCurrent || playlist.length === 1) {
+    const randomIndex = Math.floor(Math.random() * playlist.length)
+    return playlist[randomIndex]
+  }
+
+  // 排除当前歌曲，随机选择其他歌曲
+  let newSong
+  do {
+    const randomIndex = Math.floor(Math.random() * playlist.length)
+    newSong = playlist[randomIndex]
+  } while (newSong?.id === currentSong.value?.id)
+
+  return newSong
 }
 
 // 当前显示的音乐信息
@@ -133,6 +145,25 @@ watch(
   { immediate: true } // 立即执行一次以处理初始值
 )
 
+// 切换到下一首随机歌曲
+const nextSong = () => {
+  const song = getRandomSong(true) // true 表示排除当前歌曲
+  
+  if (song) {
+    currentSong.value = {
+      ...song,
+      name: song.name,
+      artist: song.ar?.map((a: any) => a.name).join(' / ') || '未知艺术家',
+      album: song.al?.name || '未知专辑',
+      duration: formatDuration(song.dt || 0),
+      releaseDate: song.publishTime ? new Date(song.publishTime).toLocaleDateString() : '未知',
+      playCount: song.recommendReason || `${song.pop || 0}✨`,
+      coverImage: song.al?.picUrl || '',
+      backgroundImage: song.al?.picUrl || '',
+    }
+  }
+}
+
 onMounted(() => {
   // 如果父组件传入了属性，立即初始化
   if (props.name || props.coverImage) {
@@ -186,6 +217,16 @@ onMounted(() => {
           >
             <v-icon start icon="mdi-play" />
             播放
+          </v-btn>
+          <v-btn
+            icon
+            variant="tonal"
+            color="white"
+            size="large"
+            class="ml-2"
+            @click="nextSong"
+          >
+            <v-icon icon="mdi-skip-next" />
           </v-btn>
         </div>
       </div>

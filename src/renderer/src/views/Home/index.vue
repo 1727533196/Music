@@ -1,5 +1,5 @@
 <script setup lang="ts" name="Home">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import ArtistBanner from './components/ArtistBanner.vue'
 import SongsSection from './components/SongsSection.vue'
 import VideoSection from './components/VideoSection.vue'
@@ -9,6 +9,8 @@ import usePlayList from '@/layout/BaseAside/usePlayList'
 import { playListState } from '@/layout/BaseAside/usePlayList'
 import { useMusicAction } from '@/store/music'
 import type { GetMusicDetailData } from '@/api/musicList'
+import { personalized, recommendSongList, type Recommend } from '@/api/home'
+import { getRecordSong } from '@/api/musicList'
 
 // Song Info
 const songInfo = {
@@ -29,6 +31,15 @@ const dailySongs = computed(() => {
   return playListState.playList
 })
 
+// 视频数据（使用最近播放记录模拟）
+const videos = ref<any[]>([])
+
+// 专辑数据（从推荐歌单中获取）
+const albums = ref<any[]>([])
+
+// 歌单数据（Mix）
+const mixes = ref<any[]>([])
+
 // 播放歌曲 - 使用 store 中的 getMusicUrlHandler
 const handlePlay = (item: GetMusicDetailData, index?: number) => {
   console.log('item', item, index)
@@ -48,9 +59,53 @@ const handleNavigate = (direction: 'prev' | 'next') => {
   console.log('Navigate:', direction)
 }
 
-// 组件挂载时获取每日推荐歌曲
+// 组件挂载时获取数据
 onMounted(async () => {
   await getRecommendSongs()
+
+  // 获取推荐歌单
+  try {
+    const [personalizedRes, recommendRes, recordRes] = await Promise.all([
+      personalized(),
+      recommendSongList(),
+      getRecordSong(10)
+    ])
+
+    // 设置 Mix 数据（个性化推荐歌单）
+    if (personalizedRes.result) {
+      mixes.value = personalizedRes.result.slice(0, 6).map(item => ({
+        id: item.id,
+        name: item.name,
+        cover: item.picUrl,
+        description: `${item.trackCount}首`,
+        playCount: item.playCount
+      }))
+    }
+
+    // 设置 Album 数据（每日推荐歌单）
+    if (recommendRes.recommend) {
+      albums.value = recommendRes.recommend.slice(0, 6).map((item: Recommend) => ({
+        id: item.id,
+        name: item.name,
+        cover: item.picUrl,
+        artist: item.creator?.nickname || '未知',
+        trackCount: item.trackCount
+      }))
+    }
+
+    // 设置 Video 数据（使用最近播放的歌曲封面作为视频缩略图）
+    if (recordRes.data && recordRes.data.list) {
+      videos.value = recordRes.data.list.slice(0, 3).map((item: any) => ({
+        id: item.data.id,
+        title: item.data.name,
+        thumbnail: item.data.al?.picUrl || '',
+        artist: item.data.ar?.map((a: any) => a.name).join(' / ') || '未知艺术家',
+        playTime: new Date(item.data.time).toLocaleDateString()
+      }))
+    }
+  } catch (error) {
+    console.error('Failed to load home data:', error)
+  }
 })
 </script>
 
@@ -75,27 +130,26 @@ onMounted(async () => {
             @like="handleLike"
             @navigate="handleNavigate"
           />
-        </div>
-
-        <!-- Right Column: Video & Others -->
-        <div class="right-column">
-          <VideoSection
-            title="Video"
-            :videos="videos"
-            @play="handlePlay"
-            @navigate="handleNavigate"
-          />
-
           <AlbumsSection
-            title="Albums"
+            title="推荐专辑"
             :albums="albums"
             @play="handlePlay"
             @like="handleLike"
             @navigate="handleNavigate"
           />
+        </div>
+
+        <!-- Right Column: Video & Others -->
+        <div class="right-column">
+          <VideoSection
+            title="精选视频"
+            :videos="videos"
+            @play="handlePlay"
+            @navigate="handleNavigate"
+          />
 
           <MixSection
-            title="Mix"
+            title="精选歌单"
             :mixes="mixes"
             @play="handlePlay"
             @like="handleLike"
@@ -124,7 +178,9 @@ onMounted(async () => {
   min-height: 600px;
 
   .left-column {
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     padding-right: 8px;
 
     &::-webkit-scrollbar {
@@ -147,7 +203,6 @@ onMounted(async () => {
   }
 
   .right-column {
-    overflow-y: auto;
     padding-left: 8px;
 
     &::-webkit-scrollbar {
