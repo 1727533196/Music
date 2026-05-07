@@ -64,6 +64,7 @@ getUserAccountFn()
           <router-view v-slot="{ Component }">
             <component :key="refresh" :is="Component"></component>
           </router-view>
+          <div style="width: 100%;padding: 53px 0"></div>
         </div>
       </div>
     </div>

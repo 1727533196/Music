@@ -162,10 +162,6 @@ onMounted(async () => {
 </template>
 
 <style lang="less" scoped>
-.home-container {
-  min-height: 100vh;
-}
-
 .content-area {
   min-height: 500px;
 }
@@ -174,7 +170,6 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: 400px 1fr;
   gap: 24px;
-  height: calc(100vh - 400px);
   min-height: 600px;
 
   .left-column {

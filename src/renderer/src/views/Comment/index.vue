@@ -53,7 +53,7 @@ watch(
 )
 const getCommentMusicFn = async (id: number, page: number, append = false) => {
   if (state.loading) return
-  
+
   state.loading = true
   const { data, code } = await getCommentMusic(id, 0, page, 20, 2)
   if (code === 200) {
@@ -77,10 +77,10 @@ const loadMore = () => {
 const handleScroll = (e: Event) => {
   const target = e.target as HTMLDivElement
   if (!target) return
-  
+
   const { scrollTop, scrollHeight, clientHeight } = target
   console.log('滚动:', { scrollTop, scrollHeight, clientHeight, diff: scrollHeight - scrollTop - clientHeight })
-  
+
   // 距离底部 100px 时加载
   if (scrollHeight - scrollTop - clientHeight < 100) {
     console.log('触发加载')
@@ -118,7 +118,6 @@ watch(
 </script>
 
 <template>
-  <div class="comment">
     <div v-if="state.song !== null" class="comment-box">
       <!-- 歌曲信息卡片 -->
       <div class="info-card">
@@ -209,16 +208,10 @@ watch(
         </div>
       </div>
     </div>
-  </div>
 </template>
 
 <style scoped lang="less">
-.comment {
-  height: 100%;
-  width: 100%;
-  overflow-y: auto;
 
-  // 自定义滚动条
   &::-webkit-scrollbar {
     width: 6px;
   }
@@ -500,5 +493,4 @@ watch(
       }
     }
   }
-}
 </style>
