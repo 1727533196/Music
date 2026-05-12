@@ -144,7 +144,6 @@ onMounted(async () => {
           <VideoSection
             title="精选视频"
             :videos="videos"
-            @play="handlePlay"
             @navigate="handleNavigate"
           />
 

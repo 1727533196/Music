@@ -16,6 +16,7 @@ const steps = [
 const currentStep    = ref(0)
 const licenseAgreed  = ref(false)
 // 根据平台初始化默认安装路径
+const isMac = window.installer.platform === 'darwin'
 const isWindows = window.installer.platform === 'win32'
 const installPath = ref(isWindows ? 'C:\\Program Files' : '/Applications')
 const installing     = ref(false)
@@ -25,9 +26,12 @@ const installError   = ref('')
 const installProgress = ref(0)
 const installLog     = ref<string[]>([])
 const installedAppPath = ref('')
+const isMaximize = ref(false)
 
 // 日志区 DOM ref
 const logEl = ref<HTMLElement | null>(null)
+// 服务器警告框 DOM ref
+const serverWarningEl = ref<HTMLElement | null>(null)
 
 // 每次日志更新，自动滚动到底部
 watch(installLog, async () => {
@@ -48,6 +52,29 @@ const options = reactive({
   associateFiles:  true,
   sendUsageData:   false,
   installServer:   true,
+})
+
+// 当服务器警告框显示/隐藏时，自动滚动到可视区域
+watch(() => options.installServer, async (newValue) => {
+  if (!newValue) {
+    // 取消勾选时，等待警告框渲染后滚动到可视区域
+    await nextTick()
+    if (serverWarningEl.value) {
+      // 找到可滚动的父容器 .step-panel
+      const scrollContainer = serverWarningEl.value.closest('.step-panel') as HTMLElement
+      if (scrollContainer && serverWarningEl.value) {
+        // 计算警告框相对于滚动容器的位置
+        const containerRect = scrollContainer.getBoundingClientRect()
+        const warningRect = serverWarningEl.value.getBoundingClientRect()
+        
+        // 计算需要滚动的位置（让警告框出现在可视区顶部）
+        const scrollTop = scrollContainer.scrollTop + (warningRect.top - containerRect.top) - 20
+        
+        // 平滑滚动到目标位置
+        scrollContainer.scrollTo({ top: scrollTop, behavior: 'smooth' })
+      }
+    }
+  }
 })
 
 const optionDefs: Record<keyof typeof options, { label: string; desc: string; icon: string }> = {
@@ -73,7 +100,7 @@ const optionDefs: Record<keyof typeof options, { label: string; desc: string; ic
   },
   installServer: {
     label: '安装本地音乐服务器',
-    desc:  '将网易云音乐 API 服务器安装到本地，开机自动在后台运行，为音乐播放器提供接口支持。',
+    desc:  '内置网易云 API 服务，自动后台运行。取消勾选需手动启动服务器，否则无法播放音乐、搜索歌曲或使用在线功能。',
     icon:  'M4,1H20A1,1 0 0,1 21,2V6A1,1 0 0,1 20,7H4A1,1 0 0,1 3,6V2A1,1 0 0,1 4,1M4,9H20A1,1 0 0,1 21,10V14A1,1 0 0,1 20,15H4A1,1 0 0,1 3,14V10A1,1 0 0,1 4,9M4,17H20A1,1 0 0,1 21,18V22A1,1 0 0,1 20,23H4A1,1 0 0,1 3,22V18A1,1 0 0,1 4,17M9,5H10V3H9V5M9,13H10V11H9V13M9,21H10V19H9V21M5,3V5H8V3H5M5,11V13H8V11H5M5,19V21H8V19H5Z'
   },
 }
@@ -193,6 +220,21 @@ async function launchAndClose() {
   }
 }
 
+// ─── 窗口控制 ──────────────────────────────────────────────────────────────────
+const minimize = () => window.installer.minimize()
+const maximize = () => {
+  window.installer.maximize()
+  isMaximize.value = true
+}
+const unmaximize = () => {
+  window.installer.unmaximize()
+  isMaximize.value = false
+}
+const maximizeOrUnmaximize = () => {
+  isMaximize.value ? unmaximize() : maximize()
+}
+const close = () => window.installer.close()
+
 // ─── 生命周期 ──────────────────────────────────────────────────────────────────
 onMounted(() => {
   loadDiskInfo()
@@ -210,16 +252,19 @@ onUnmounted(() => {
     <div class="installer-window">
 
       <!-- 自定义标题栏拖动区（无边框窗口） -->
-      <div class="titlebar-drag" />
+      <div v-if="!isMac" class="titlebar-drag" />
 
-      <!-- 窗口控制按钮 -->
-      <div class="window-controls">
-        <button class="wc-btn close"   @click="window.installer.close()"    title="关闭">
-          <svg viewBox="0 0 10 10"><path d="M2 2l6 6M8 2l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        </button>
-        <button class="wc-btn minimize" @click="window.installer.minimize()" title="最小化">
-          <svg viewBox="0 0 10 10"><path d="M1 5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        </button>
+      <!-- 窗口控制按钮（仅 Windows 显示） -->
+      <div v-if="!isMac" class="window-controls">
+        <div class="handler" @click="minimize">
+          <i class="iconfont icon-weibiaoti-"></i>
+        </div>
+        <div class="handler" @click="maximizeOrUnmaximize">
+          <i :class="['iconfont', isMaximize ? 'icon-3zuidahua-3' : 'icon-3zuidahua-1']"></i>
+        </div>
+        <div style="margin-right: 13px" class="handler" @click="close">
+          <i class="iconfont icon-guanbi"></i>
+        </div>
       </div>
 
 
@@ -352,9 +397,9 @@ onUnmounted(() => {
               <p>上述版权声明和本许可声明应包含在软件的所有副本或实质性部分中。</p>
               <p>本软件"按原样"提供，不附有任何明示或暗示的担保，包括但不限于对适销性、特定用途适用性和非侵权性的担保。在任何情况下，作者或版权持有人均不对任何索赔、损害或其他责任负责，无论是在合同诉讼、侵权行为还是其他方面，无论是由软件或软件的使用或其他交易引起的、产生的或与之相关的。</p>
               <h3>隐私政策</h3>
-              <p>本应用程序会连接网易云音乐官方 API 以提供音乐播放功能。我们不会收集或存储您的个人数据到服务器。您的登录凭证仅存储在本地设备中。</p>
+              <p>本应用程序会连接网易云音乐官方 API 以提供音乐播放功能。我们不会收集或存储你的个人数据到服务器。你的登录凭证仅存储在本地设备中。</p>
               <h3>免责声明</h3>
-              <p>本软件为非官方第三方客户端，与网易云音乐官方无任何关联。请确保您拥有相关内容的合法访问权限。</p>
+              <p>本软件为非官方第三方客户端，与网易云音乐官方无任何关联。请确保你拥有相关内容的合法访问权限。</p>
               </div>
               <label class="agree-row">
               <span class="checkbox-custom" :class="{ checked: licenseAgreed }" @click="licenseAgreed = !licenseAgreed">
@@ -438,6 +483,16 @@ onUnmounted(() => {
                   <div class="toggle-thumb"/>
                 </div>
               </div>
+              </div>
+              
+              <!-- 服务器未安装的警告提示 -->
+              <div v-if="!options.installServer" ref="serverWarningEl" class="server-warning">
+                <svg viewBox="0 0 24 24" class="warning-icon">
+                  <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                </svg>
+                <div class="warning-text">
+                  <strong>注意：</strong>未安装本地服务器将无法使用在线功能（播放、搜索、歌单等）。如需使用，请手动启动 NeteaseCloudMusicApi 服务。
+                </div>
               </div>
             </div><!-- end content-card -->
           </div>
@@ -609,26 +664,27 @@ onUnmounted(() => {
 }
 .window-controls {
   position: absolute;
-  top: 12px; left: 14px;
-  display: flex;
-  gap: 7px;
-  z-index: 10000;
-  -webkit-app-region: no-drag;
-}
-.wc-btn {
-  width: 13px; height: 13px;
-  border-radius: 50%;
-  border: none;
-  cursor: pointer;
+  top: 12px; right: 14px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: opacity 0.15s;
-  svg { width: 7px; height: 7px; opacity: 0; transition: opacity 0.15s; }
-  &:hover svg { opacity: 1; }
+  z-index: 10000;
+  -webkit-app-region: no-drag;
+  .handler {
+    display: flex;
+    margin-right: 20px;
+    cursor: pointer;
+    color: rgba(255,255,255,.6);
+    &:hover {
+      color: rgb(30, 204, 148);
+    }
+    .iconfont {
+      font-size: 14px;
+    }
+    .icon-weibiaoti- {
+      font-size: 25px;
+    }
+  }
 }
-.wc-btn.close    { background: #ff5f57; color: #7a1610; }
-.wc-btn.minimize { background: #febc2e; color: #7a5c00; }
 
 /* ── 主窗口 ── */
 .installer-window {
@@ -889,6 +945,39 @@ onUnmounted(() => {
     box-shadow:0 1px 3px rgba(0,0,0,.5);
   }
   &.on .toggle-thumb { left:21px; background:#fff; }
+}
+
+/* ── 服务器未安装警告 ── */
+.server-warning {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: rgba(251, 191, 36, .08);
+  border: 1px solid rgba(251, 191, 36, .25);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  animation: warningFadeIn .3s ease;
+  .warning-icon {
+    width: 20px;
+    height: 20px;
+    fill: #fbbf24;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .warning-text {
+    font-size: 12px;
+    color: rgba(251, 191, 36, .9);
+    line-height: 1.6;
+    strong {
+      font-weight: 600;
+      color: #fbbf24;
+    }
+  }
+}
+@keyframes warningFadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ── 安装进度 ── */

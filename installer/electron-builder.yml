@@ -38,7 +38,7 @@ mac:
       to: 'payload/音乐.app'
       filter:
         - '**/*'
-    - from: '../../NeteaseCloudMusicApi-4.28.0/bin/ncm-server'
+    - from: '../../NeteaseCloudMusicApi/bin/ncm-server'
       to: 'server/ncm-server'
 
 dmg:
@@ -60,21 +60,21 @@ dmg:
 win:
   icon: ../build/icon.ico
   executableName: 音乐安装程序
+  target:
+    - target: portable
+      arch:
+        - x64
   extraResources:
     - from: '../dist/win-unpacked'
       to: 'payload/音乐'
       filter:
         - '**/*'
-    - from: '../../NeteaseCloudMusicApi-4.28.0/bin/ncm-server.exe'
+    - from: '../../NeteaseCloudMusicApi/bin/ncm-server.exe'
       to: 'server/ncm-server.exe'
 
-nsis:
-  artifactName: 音乐-${version}-installer-setup.exe
-  shortcutName: 音乐
-  uninstallDisplayName: 音乐
-  oneClick: false
-  allowToChangeInstallationDirectory: true
-  createDesktopShortcut: always
+portable:
+  artifactName: 音乐-${version}-installer-portable.exe
+  requestExecutionLevel: user
 
 # ── 其他 ─────────────────────────────────────────────────────────────────────
 npmRebuild: false

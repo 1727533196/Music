@@ -7,6 +7,8 @@ import {contextBridge, ipcRenderer} from 'electron'
 const installerAPI = {
   // ── 窗口控制 ──────────────────────────────────────────────────────────────
   minimize: () => ipcRenderer.send('installer:minimize'),
+  maximize: () => ipcRenderer.send('installer:maximize'),
+  unmaximize: () => ipcRenderer.send('installer:unmaximize'),
   close:    () => ipcRenderer.send('installer:close'),
 
   // ── 目录选择 ──────────────────────────────────────────────────────────────
@@ -41,7 +43,19 @@ const installerAPI = {
     ipcRenderer.invoke('installer:launch-app', appPath),
 
   // ── 平台信息 ──────────────────────────────────────────────────────────────
-  platform: process.platform as NodeJS.Platform
+  platform: process.platform as NodeJS.Platform,
+
+  // ── 日志监听 ──────────────────────────────────────────────────────────────
+  onLog: (cb: (msg: string) => void) => {
+    const handler = (_evt: Electron.IpcRendererEvent, msg: string) => cb(msg)
+    ipcRenderer.on('installer:log', handler)
+    return () => ipcRenderer.removeListener('installer:log', handler)
+  },
+  onLogError: (cb: (msg: string) => void) => {
+    const handler = (_evt: Electron.IpcRendererEvent, msg: string) => cb(msg)
+    ipcRenderer.on('installer:log-error', handler)
+    return () => ipcRenderer.removeListener('installer:log-error', handler)
+  }
 }
 
 contextBridge.exposeInMainWorld('installer', installerAPI)

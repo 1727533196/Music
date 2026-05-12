@@ -13,6 +13,9 @@ export default defineConfig({
       outDir: resolve(__dirname, 'out/main'),
       lib: {
         entry: resolve(__dirname, 'src/main/index.ts')
+      },
+      rollupOptions: {
+        external: ['original-fs']
       }
     }
   },

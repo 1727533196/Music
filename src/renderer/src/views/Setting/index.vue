@@ -89,12 +89,6 @@ const handleShortcutTrigger = (value) => {
       font-weight: 400;
     }
   }
-
-  .version-section {
-    margin-top: 40px;
-    padding-top: 24px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-  }
 }
 
 // 响应式设计
