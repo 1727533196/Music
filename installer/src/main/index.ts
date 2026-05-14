@@ -1,17 +1,25 @@
-import {app, BrowserWindow, dialog, ipcMain, shell} from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 
-import {dirname, join, relative} from 'path'
+import { dirname, join, relative } from 'path'
 // 使用 original-fs 绕过 Electron 的 asar 虚拟化
-import {copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, appendFileSync} from 'original-fs'
-import {exec, execSync, spawn} from 'child_process'
-import {electronApp, is, optimizer} from '@electron-toolkit/utils'
+import {
+  appendFileSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  statSync
+} from 'original-fs'
+import { exec, execSync, spawn } from 'child_process'
+import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 
 // 日志文件路径
 const LOG_DIR = app.getPath('userData')
 const LOG_FILE = join(LOG_DIR, 'installer-debug.log')
 
 function log(...args: any[]) {
-  const msg = args.map(a => String(a)).join(' ')
+  const msg = args.map((a) => String(a)).join(' ')
   const line = `[${new Date().toISOString()}] ${msg}\n`
 
   // 写入日志文件
@@ -28,7 +36,7 @@ function log(...args: any[]) {
 }
 
 function logError(...args: any[]) {
-  const msg = args.map(a => String(a)).join(' ')
+  const msg = args.map((a) => String(a)).join(' ')
   const line = `[${new Date().toISOString()}] ERROR: ${msg}\n`
 
   // 写入日志文件
@@ -72,15 +80,15 @@ function createInstallerWindow(): void {
     minHeight: 560,
     resizable: true,
     show: false,
-    frame: isMac,          // macOS 使用系统原生标题栏
+    frame: isMac, // macOS 使用系统原生标题栏
     autoHideMenuBar: true,
     center: true,
-    titleBarStyle: isMac ? 'hiddenInset' : undefined,  // macOS 隐藏原生按钮但仍保留拖动区
+    titleBarStyle: isMac ? 'hiddenInset' : undefined, // macOS 隐藏原生按钮但仍保留拖动区
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
-      nodeIntegration: false,
+      nodeIntegration: false
       // devTools: true // 确保控制台功能可用
     }
   })
@@ -107,7 +115,13 @@ function createInstallerWindow(): void {
 ipcMain.on('installer:minimize', () => installerWindow?.minimize())
 ipcMain.on('installer:maximize', () => installerWindow?.maximize())
 ipcMain.on('installer:unmaximize', () => installerWindow?.unmaximize())
-ipcMain.on('installer:close',    () => { installerWindow?.close(); app.quit() })
+ipcMain.on('installer:close', () => {
+  installerWindow?.close()
+  app.quit()
+})
+
+// ─── 获取默认安装目录 ──────────────────────────────────────────────────────────
+ipcMain.handle('installer:default-dir', () => getDefaultInstallDir())
 
 // ─── 选择安装目录 ──────────────────────────────────────────────────────────────
 ipcMain.handle('installer:choose-dir', async () => {
@@ -129,21 +143,26 @@ ipcMain.handle('installer:disk-info', (_evt, targetPath: string) => {
     if (process.platform === 'darwin' || process.platform === 'linux') {
       const output = execSync(`df -k "${targetPath}" 2>/dev/null || df -k /`).toString()
       const lines = output.trim().split('\n')
-      // 取最后一行（实际数据行）
+      // 取最后一行（实际数据行），df -k 列: Filesystem 1K-blocks Used Available Use% Mounted
       const parts = lines[lines.length - 1].trim().split(/\s+/)
-      const available = parseInt(parts[3]) * 1024 // 转换为字节
-      return { available, required }
+      const total = parseInt(parts[1]) * 1024
+      const available = parseInt(parts[3]) * 1024
+      return { available, total, required }
     } else if (process.platform === 'win32') {
       const drive = targetPath.substring(0, 2)
-      const output = execSync(`wmic logicaldisk where "DeviceID='${drive}'" get FreeSpace /value`).toString()
-      const match = output.match(/FreeSpace=(\d+)/)
-      const available = match ? parseInt(match[1]) : 0
-      return { available, required }
+      const output = execSync(
+        `wmic logicaldisk where "DeviceID='${drive}'" get FreeSpace,Size /value`
+      ).toString()
+      const freeMatch = output.match(/FreeSpace=(\d+)/)
+      const sizeMatch = output.match(/Size=(\d+)/)
+      const available = freeMatch ? parseInt(freeMatch[1]) : 0
+      const total = sizeMatch ? parseInt(sizeMatch[1]) : 0
+      return { available, total, required }
     }
   } catch {
     // 获取失败返回默认值
   }
-  return { available: 50 * 1024 * 1024 * 1024, required }
+  return { available: 50 * 1024 * 1024 * 1024, total: 100 * 1024 * 1024 * 1024, required }
 })
 
 // ─── 核心安装逻辑 ──────────────────────────────────────────────────────────────
@@ -151,8 +170,6 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
   const send = (step: string, progress: number) => {
     evt.sender.send('installer:progress', { step, progress })
   }
-  console.log('123123')
-
   try {
     const { installDir, createShortcut, autoStart, associateFiles, installServer } = opts
     const appName = process.platform === 'win32' ? '音乐' : '音乐.app'
@@ -209,7 +226,10 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
 
         try {
           log('[删除旧版本] 执行 icacls 命令授予完全控制权...')
-          execSync(`icacls "${destAppPath}" /grant Everyone:F /T`, { shell: 'cmd.exe', timeout: 30000 })
+          execSync(`icacls "${destAppPath}" /grant Everyone:F /T`, {
+            shell: 'cmd.exe',
+            timeout: 30000
+          })
           log('[删除旧版本] icacls 命令执行成功')
         } catch (err: unknown) {
           logError(`[删除旧版本] icacls 命令失败: ${err instanceof Error ? err.message : err}`)
@@ -237,7 +257,9 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
             rmSync(destAppPath, { recursive: true, force: true })
             log('[删除旧版本] macOS: rmSync 成功')
           } catch (err2: unknown) {
-            logError(`[删除旧版本] macOS rmSync 也失败: ${err2 instanceof Error ? err2.message : err2}`)
+            logError(
+              `[删除旧版本] macOS rmSync 也失败: ${err2 instanceof Error ? err2.message : err2}`
+            )
             throw new Error(`无法删除旧版本：${err instanceof Error ? err.message : err}`)
           }
         }
@@ -265,7 +287,9 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
                 deletedCount++
               } catch (fileErr: unknown) {
                 logError(`[删除旧版本] 无法删除文件: ${file}`)
-                logError(`[删除旧版本] 错误: ${fileErr instanceof Error ? fileErr.message : fileErr}`)
+                logError(
+                  `[删除旧版本] 错误: ${fileErr instanceof Error ? fileErr.message : fileErr}`
+                )
                 failedFiles.push(file)
               }
             }
@@ -277,14 +301,20 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
                 rmSync(destAppPath, { recursive: true, force: true })
                 log('[删除旧版本] Windows: 目录删除成功')
               } catch (dirErr: unknown) {
-                logError(`[删除旧版本] Windows: 目录删除失败: ${dirErr instanceof Error ? dirErr.message : dirErr}`)
+                logError(
+                  `[删除旧版本] Windows: 目录删除失败: ${dirErr instanceof Error ? dirErr.message : dirErr}`
+                )
               }
             } else {
               logError(`[删除旧版本] Windows: 有 ${failedFiles.length} 个文件无法删除`)
-              throw new Error(`无法删除以下文件:\n${failedFiles.slice(0, 5).join('\n')}${failedFiles.length > 5 ? '\n...' : ''}`)
+              throw new Error(
+                `无法删除以下文件:\n${failedFiles.slice(0, 5).join('\n')}${failedFiles.length > 5 ? '\n...' : ''}`
+              )
             }
           } catch (err3: unknown) {
-            logError(`[删除旧版本] Windows 分步删除失败: ${err3 instanceof Error ? err3.message : err3}`)
+            logError(
+              `[删除旧版本] Windows 分步删除失败: ${err3 instanceof Error ? err3.message : err3}`
+            )
             throw new Error(`无法删除旧版本：${err instanceof Error ? err.message : err}`)
           }
         }
@@ -305,11 +335,15 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
       try {
         execSync(`chmod -R 755 "${destAppPath}"`)
         execSync(`xattr -cr "${destAppPath}" 2>/dev/null || true`)
-      } catch { /* 忽略权限错误 */ }
+      } catch {
+        /* 忽略权限错误 */
+      }
     } else if (process.platform === 'win32') {
       try {
         execSync(`attrib -R "${destAppPath}\\*.*" /S /D`, { shell: 'cmd.exe' })
-      } catch { /* 忽略 */ }
+      } catch {
+        /* 忽略 */
+      }
     }
 
     // ── Step 6: 注册文件关联 ─────────────────────────────────────────────────
@@ -318,16 +352,27 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
       await delay(300)
       if (process.platform === 'darwin') {
         try {
-          execSync(`/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "${destAppPath}" 2>/dev/null || true`)
-        } catch { /* 忽略 */ }
+          execSync(
+            `/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "${destAppPath}" 2>/dev/null || true`
+          )
+        } catch {
+          /* 忽略 */
+        }
       } else if (process.platform === 'win32') {
         const exePath = join(destAppPath, '音乐.exe')
         const formats = ['mp3', 'flac', 'aac', 'm4a', 'ogg', 'wav']
         for (const ext of formats) {
           try {
-            execSync(`reg add "HKCU\\Software\\Classes\\.${ext}" /ve /d "音乐.${ext}" /f`, { shell: 'cmd.exe' })
-            execSync(`reg add "HKCU\\Software\\Classes\\音乐.${ext}\\shell\\open\\command" /ve /d "\\"${exePath}\\" \\"%1\\"" /f`, { shell: 'cmd.exe' })
-          } catch { /* 忽略单个格式失败 */ }
+            execSync(`reg add "HKCU\\Software\\Classes\\.${ext}" /ve /d "音乐.${ext}" /f`, {
+              shell: 'cmd.exe'
+            })
+            execSync(
+              `reg add "HKCU\\Software\\Classes\\音乐.${ext}\\shell\\open\\command" /ve /d "\\"${exePath}\\" \\"%1\\"" /f`,
+              { shell: 'cmd.exe' }
+            )
+          } catch {
+            /* 忽略单个格式失败 */
+          }
         }
       }
     }
@@ -341,17 +386,26 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
         if (existsSync(desktopPath)) rmSync(desktopPath, { recursive: true, force: true })
         try {
           execSync(`ln -s "${destAppPath}" "${desktopPath}"`)
-        } catch { /* 忽略 */ }
+        } catch {
+          /* 忽略 */
+        }
       } else if (process.platform === 'win32') {
         const exePath = join(destAppPath, '音乐.exe')
         const lnkPath = join(app.getPath('desktop'), '音乐.lnk')
         try {
           // 用 PowerShell 创建 .lnk 快捷方式
-          execSync(
-            `powershell -command "$s=(New-Object -COM WScript.Shell).CreateShortcut('${lnkPath}');$s.TargetPath='${exePath}';$s.WorkingDirectory='${destAppPath}';$s.Save()"`,
-            { shell: 'cmd.exe' }
-          )
-        } catch { /* 忽略 */ }
+          // 用 -EncodedCommand 避免路径含空格/中文/特殊字符时的引号问题
+          const psScript = [
+            `$s=(New-Object -COM WScript.Shell).CreateShortcut('${lnkPath.replace(/'/g, "''")}')`,
+            `$s.TargetPath='${exePath.replace(/'/g, "''")}';$s.WorkingDirectory='${destAppPath.replace(/'/g, "''")}';$s.Save()`
+          ].join(';')
+          const encoded = Buffer.from(psScript, 'utf16le').toString('base64')
+          execSync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, {
+            shell: 'cmd.exe'
+          })
+        } catch {
+          /* 忽略 */
+        }
       }
     }
 
@@ -364,8 +418,13 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
       } else if (process.platform === 'win32') {
         const exePath = join(destAppPath, '音乐.exe')
         try {
-          execSync(`reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "音乐" /t REG_SZ /d "\\"${exePath}\\"" /f`, { shell: 'cmd.exe' })
-        } catch { /* 忽略 */ }
+          execSync(
+            `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "音乐" /t REG_SZ /d "\\"${exePath}\\"" /f`,
+            { shell: 'cmd.exe' }
+          )
+        } catch {
+          /* 忽略 */
+        }
       }
     }
 
@@ -401,14 +460,14 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
     }
 
     // ── Step 10: 完成 ───────────────────────────────────────────────────────
-    send('正在写入安装记录...', 96)
+    send('正在写入安装记录...', 99)
     await delay(200)
     send('安装完成 ✓', 100)
     await delay(300)
 
     return { success: true, appPath: destAppPath }
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = err instanceof Error ? translateError(err) : String(err)
     return { success: false, error: message }
   }
 })
@@ -422,7 +481,9 @@ ipcMain.handle('installer:launch-app', (_evt, appPath: string) => {
       const exePath = join(appPath, '音乐.exe')
       spawn(exePath, [], { detached: true, stdio: 'ignore' }).unref()
     }
-    setTimeout(() => { app.quit() }, 500)
+    setTimeout(() => {
+      app.quit()
+    }, 500)
     return true
   } catch {
     return false
@@ -430,13 +491,65 @@ ipcMain.handle('installer:launch-app', (_evt, appPath: string) => {
 })
 
 // ─── 工具函数 ──────────────────────────────────────────────────────────────────
+
+/** 将系统/Node.js 英文错误信息翻译为中文 */
+function translateError(err: Error): string {
+  const msg = err.message
+  // Node.js 系统错误码映射
+  const codeMap: Record<string, string> = {
+    EACCES: '权限不足，无法访问该路径',
+    EPERM: '操作被拒绝，权限不足',
+    ENOENT: '找不到指定的文件或目录',
+    EEXIST: '文件或目录已存在',
+    ENOSPC: '磁盘空间不足',
+    EMFILE: '打开的文件数量过多',
+    EBUSY: '文件正被占用，请关闭相关程序后重试',
+    ENOTDIR: '路径中某个节点不是目录',
+    EISDIR: '目标是一个目录，无法对其执行文件操作',
+    ENOTEMPTY: '目录不为空，无法删除',
+    ENOMEM: '内存不足',
+    ETIMEDOUT: '操作超时',
+    ECONNREFUSED: '连接被拒绝',
+    UNKNOWN: '未知系统错误'
+  }
+  // 优先匹配错误码
+  const nodeErr = err as NodeJS.ErrnoException
+  if (nodeErr.code && codeMap[nodeErr.code]) {
+    return `${codeMap[nodeErr.code]}（${nodeErr.code}）`
+  }
+  // 对常见英文关键词做模糊替换
+  return msg
+    .replace(/permission denied/gi, '权限不足')
+    .replace(/operation not permitted/gi, '操作不被允许')
+    .replace(/no such file or directory/gi, '找不到文件或目录')
+    .replace(/file already exists/gi, '文件已存在')
+    .replace(/no space left on device/gi, '磁盘空间不足')
+    .replace(/resource busy or locked/gi, '文件正被占用')
+    .replace(/file is busy/gi, '文件正被占用')
+    .replace(/access is denied/gi, '访问被拒绝')
+    .replace(/the process cannot access/gi, '文件正被其他程序占用')
+    .replace(/being used by another process/gi, '文件正被其他程序占用')
+    .replace(/timed? ?out/gi, '操作超时')
+    .replace(/not found/gi, '未找到')
+    .replace(/cannot find/gi, '找不到')
+    .replace(/failed to/gi, '无法')
+    .replace(/disk quota exceeded/gi, '磁盘配额已满')
+    .replace(/insufficient privilege/gi, '权限不足')
+}
+
 function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function getDefaultInstallDir(): string {
   if (process.platform === 'darwin') return '/Applications'
-  if (process.platform === 'win32') return 'C:\\Program Files'
+  if (process.platform === 'win32') {
+    // 优先用环境变量（在管理员模式下也能正确指向当前用户目录）
+    const localAppData = process.env['LOCALAPPDATA']
+    if (localAppData) return join(localAppData, '音乐')
+    // 兜底：Program Files
+    return 'C:\\Program Files\\音乐'
+  }
   return '/opt'
 }
 
@@ -470,11 +583,15 @@ function getSourceAppSize(): number {
       const kb = parseInt(out.split('\t')[0])
       if (!isNaN(kb)) return kb * 1024
     } else if (process.platform === 'win32') {
-      const out = execSync(`powershell -command "(Get-ChildItem '${srcPath}' -Recurse | Measure-Object -Property Length -Sum).Sum"`).toString()
+      const out = execSync(
+        `powershell -command "(Get-ChildItem '${srcPath}' -Recurse | Measure-Object -Property Length -Sum).Sum"`
+      ).toString()
       const bytes = parseInt(out.trim())
       if (!isNaN(bytes)) return bytes
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return 220 * 1024 * 1024 // 默认 220MB
 }
 
@@ -646,7 +763,9 @@ function setupAutoLaunch(appPath: string): void {
 </plist>`
     require('fs').writeFileSync(plistPath, plistContent, 'utf-8')
     execSync(`launchctl load "${plistPath}" 2>/dev/null || true`)
-  } catch { /* 忽略 */ }
+  } catch {
+    /* 忽略 */
+  }
 }
 
 // ─── 服务器安装函数 ────────────────────────────────────────────────────────────
@@ -731,7 +850,9 @@ async function installNcmServer(): Promise<void> {
         copyFileSync(srcBin, destBin)
         log(`[server-install] ✓ 强制替换成功`)
       } catch (retryErr: unknown) {
-        logError(`[server-install] ❌ 强制替换也失败: ${retryErr instanceof Error ? retryErr.message : retryErr}`)
+        logError(
+          `[server-install] ❌ 强制替换也失败: ${retryErr instanceof Error ? retryErr.message : retryErr}`
+        )
         throw err
       }
     } else {
@@ -815,7 +936,9 @@ function setupServerAutoLaunch(): void {
       )
       log(`[server-autolaunch] ✓ 注册表项已创建`)
     } catch (err: unknown) {
-      logError(`[server-autolaunch] ⚠️ Windows注册表配置失败: ${err instanceof Error ? err.message : err}`)
+      logError(
+        `[server-autolaunch] ⚠️ Windows注册表配置失败: ${err instanceof Error ? err.message : err}`
+      )
     }
   }
 
@@ -854,20 +977,23 @@ function launchNcmServer(): void {
       // 使用 cmd /c start /B 启动，完全异步且独立
       // /c: 执行命令后终止 cmd
       // start /B: 后台启动新进程，不创建窗口
-      exec(`start /B "" "${destBin}" > "${stdoutLogPath}" 2> "${stderrLogPath}"`, {
-        cwd: destDir,
-        shell: 'cmd.exe',
-        windowsHide: true
-      }, (error) => {
-        if (error) {
-          logError(`[server-launch] 启动命令执行错误: ${error.message}`)
-        } else {
-          log(`[server-launch] ✓ 服务器启动命令已发送`)
+      exec(
+        `start /B "" "${destBin}" > "${stdoutLogPath}" 2> "${stderrLogPath}"`,
+        {
+          cwd: destDir,
+          shell: 'cmd.exe',
+          windowsHide: true
+        },
+        (error) => {
+          if (error) {
+            logError(`[server-launch] 启动命令执行错误: ${error.message}`)
+          } else {
+            log(`[server-launch] ✓ 服务器启动命令已发送`)
+          }
         }
-      })
+      )
 
       log(`[server-launch] 提示: 服务器将完全独立运行，关闭安装器不会影响服务器`)
-
     } else {
       // macOS/Linux: 使用 nohup 启动
       log(`[server-launch] macOS/Linux: 使用 nohup 启动服务器...`)
@@ -919,7 +1045,6 @@ function launchNcmServer(): void {
         log(`[server-launch] 无法读取日志: ${err instanceof Error ? err.message : err}`)
       }
     }, 2000)
-
   } catch (err: unknown) {
     logError(`[server-launch] ❌ 启动异常: ${err instanceof Error ? err.message : err}`)
     if (err instanceof Error && 'stack' in err) {
@@ -960,4 +1085,3 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   app.quit()
 })
-

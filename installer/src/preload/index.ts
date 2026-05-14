@@ -12,13 +12,17 @@ const installerAPI = {
   close:    () => ipcRenderer.send('installer:close'),
 
   // ── 目录选择 ──────────────────────────────────────────────────────────────
+  /** 获取主进程计算的默认安装目录 */
+  getDefaultDir: (): Promise<string> =>
+    ipcRenderer.invoke('installer:default-dir'),
+
   /** 弹出系统目录选择对话框，返回选中路径或 null */
   chooseDir: (): Promise<string | null> =>
     ipcRenderer.invoke('installer:choose-dir'),
 
   // ── 磁盘信息 ──────────────────────────────────────────────────────────────
-  /** 获取指定路径所在磁盘的可用空间（字节）和本次安装所需空间（字节）*/
-  getDiskInfo: (path: string): Promise<{ available: number; required: number }> =>
+  /** 获取指定路径所在磁盘的可用空间（字节）、总空间（字节）和本次安装所需空间（字节）*/
+  getDiskInfo: (path: string): Promise<{ available: number; total: number; required: number }> =>
     ipcRenderer.invoke('installer:disk-info', path),
 
   // ── 核心安装 ──────────────────────────────────────────────────────────────

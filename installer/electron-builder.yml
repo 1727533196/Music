@@ -65,7 +65,7 @@ win:
       arch:
         - x64
   extraResources:
-    - from: '../dist/win-unpacked'
+    - from: '../dist/win-arm64-unpacked'
       to: 'payload/音乐'
       filter:
         - '**/*'
@@ -73,8 +73,8 @@ win:
       to: 'server/ncm-server.exe'
 
 portable:
-  artifactName: 音乐-${version}-installer-portable.exe
-  requestExecutionLevel: user
+  artifactName: 音乐-安装包.exe
+  requestExecutionLevel: admin
 
 # ── 其他 ─────────────────────────────────────────────────────────────────────
 npmRebuild: false
