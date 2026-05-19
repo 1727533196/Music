@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import {
   CurrentItem,
+  getCloudlyric,
   getDynamicCover,
   getIntelliganceList,
   getLyric,
@@ -13,6 +14,7 @@ import {
 import { watch, ref, reactive } from 'vue'
 import { parseLrc, parseYrc } from '@lrc-player/parse'
 import { randomNum, Yrc } from '@/utils'
+import { useUserInfo } from '@/store/index'
 
 export type Lyric = { time: number | boolean; text: string; line: number }
 interface State {
@@ -53,6 +55,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
     index: 0,
     searchList: []
   })
+  const store = useUserInfo()
   watch(
     () => state.index,
     (value, oldValue) => {
@@ -82,7 +85,18 @@ export const useMusicAction = defineStore('musicActionId', () => {
     }
   }
   // 获取歌词
-  const getLyricHandler = async (id: number) => {
+  const getLyricHandler = async (item) => {
+    const { id, pc } = item
+    if (pc?.privateCloud && store.profile.userId) {
+      const {lrc} = await getCloudlyric(store.profile.userId, id)
+      console.log('lrc', lrc)
+      state.lyric = parseYrc(lrc)
+      state.lrcMode = 0
+      if (state.lyric.length === 1) {
+        state.lyric = []
+      }
+      return
+    }
     const { lrc, yrc } = await getLyric(id)
     // 首先对歌词进行格式化处理
     // {time: number(s), text: string}
@@ -133,7 +147,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
   const getMusicUrlHandler = async (item: GetMusicDetailData, i?: number) => {
     try {
       state.songs = item
-      getLyricHandler(item.id)
+      getLyricHandler(item)
       getDynamicCoverHandler(item.id)
       updateScrobble(item.id, state.runtimeList?.id)
       const [{ data }, { songs }] = await Promise.all([
