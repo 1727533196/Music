@@ -49,6 +49,11 @@ const installerAPI = {
   // ── 平台信息 ──────────────────────────────────────────────────────────────
   platform: process.platform as NodeJS.Platform,
 
+  // ── 外部链接 ──────────────────────────────────────────────────────────────
+  /** 在默认浏览器中打开链接 */
+  openUrl: (url: string): Promise<boolean> =>
+    ipcRenderer.invoke('installer:open-url', url),
+
   // ── 日志监听 ──────────────────────────────────────────────────────────────
   onLog: (cb: (msg: string) => void) => {
     const handler = (_evt: Electron.IpcRendererEvent, msg: string) => cb(msg)

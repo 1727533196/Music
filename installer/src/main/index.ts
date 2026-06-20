@@ -52,6 +52,32 @@ function logError(...args: any[]) {
   }
 }
 
+// ─── 临时目录清理（portable 模式自解压目录） ──────────────────────────────────
+function scheduleCleanupOnExit(): void {
+  const exeDir = dirname(process.execPath)
+  // 只在临时目录下运行时才清理（portable 模式特征）
+  if (!exeDir.includes('Temp') && !exeDir.includes('tmp')) return
+
+  const batPath = join(app.getPath('temp'), `_cleanup_${Date.now()}.bat`)
+  const batContent = [
+    '@echo off',
+    'ping 127.0.0.1 -n 3 >nul',
+    `rmdir /s /q "${exeDir}" 2>nul`,
+    `del "%~f0" 2>nul`
+  ].join('\r\n')
+
+  try {
+    require('fs').writeFileSync(batPath, batContent, 'utf-8')
+    spawn('cmd.exe', ['/c', 'start', '/B', '', batPath], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    }).unref()
+  } catch {
+    // 清理失败不阻塞
+  }
+}
+
 function initLogger() {
   // 确保日志目录存在
   try {
@@ -116,6 +142,7 @@ ipcMain.on('installer:minimize', () => installerWindow?.minimize())
 ipcMain.on('installer:maximize', () => installerWindow?.maximize())
 ipcMain.on('installer:unmaximize', () => installerWindow?.unmaximize())
 ipcMain.on('installer:close', () => {
+  scheduleCleanupOnExit()
   installerWindow?.close()
   app.quit()
 })
@@ -131,7 +158,14 @@ ipcMain.handle('installer:choose-dir', async () => {
     title: '选择安装位置'
   })
   if (result.canceled || result.filePaths.length === 0) return null
-  return result.filePaths[0]
+  let selected = result.filePaths[0]
+  // 如果用户只选了盘符根目录（如 D:\），自动补上产品名
+  const appName = '音乐'
+  const lastPart = selected.split(/[\\/]/).pop() || ''
+  if (lastPart !== appName) {
+    selected = join(selected, appName)
+  }
+  return selected
 })
 
 // ─── 获取磁盘信息 ──────────────────────────────────────────────────────────────
@@ -472,6 +506,12 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
   }
 })
 
+// ─── 打开外部链接 ──────────────────────────────────────────────────────────────
+ipcMain.handle('installer:open-url', (_evt, url: string) => {
+  shell.openExternal(url)
+  return true
+})
+
 // ─── 安装完成后启动主应用 ──────────────────────────────────────────────────────
 ipcMain.handle('installer:launch-app', (_evt, appPath: string) => {
   try {
@@ -481,6 +521,7 @@ ipcMain.handle('installer:launch-app', (_evt, appPath: string) => {
       const exePath = join(appPath, '音乐.exe')
       spawn(exePath, [], { detached: true, stdio: 'ignore' }).unref()
     }
+    scheduleCleanupOnExit()
     setTimeout(() => {
       app.quit()
     }, 500)
@@ -1083,5 +1124,6 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  scheduleCleanupOnExit()
   app.quit()
 })

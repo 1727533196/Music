@@ -65,7 +65,7 @@ win:
       arch:
         - x64
   extraResources:
-    - from: '../dist/win-arm64-unpacked'
+    - from: '../dist/win-unpacked'
       to: 'payload/音乐'
       filter:
         - '**/*'
