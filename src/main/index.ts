@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { join } from 'path'
+import { dirname, join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import setupWindowEvents from './module'
@@ -42,6 +42,11 @@ function createWindow(): void {
   }
 
   setupWindowEvents(mainWindow)
+}
+
+// 生产模式下将 userData 放在应用同目录，避免在 AppData 创建文件夹
+if (!is.dev) {
+  app.setPath('userData', join(dirname(app.getPath('exe')), 'data'))
 }
 
 // 当 Electron 初始化完成并准备好创建浏览器窗口时调用
