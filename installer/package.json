@@ -1,0 +1,37 @@
+{
+  "name": "music-installer",
+  "version": "1.0.0",
+  "description": "音乐桌面应用 — 图形化安装程序",
+  "main": "./out/main/index.js",
+  "author": "YSH",
+  "private": true,
+  "scripts": {
+    "dev":           "electron-vite dev --config electron.vite.config.ts",
+    "build":         "electron-vite build --config electron.vite.config.ts",
+    "pack:mac":      "npm run build && electron-builder --mac --config electron-builder.yml",
+    "pack:win":      "npm run build && electron-builder --win --config electron-builder.yml",
+    "pack:all":      "npm run build && electron-builder --mac --win --config electron-builder.yml",
+    "typecheck":     "vue-tsc --noEmit -p tsconfig.web.json --composite false"
+  },
+  "dependencies": {
+    "@electron-toolkit/preload": "^3.0.0",
+    "@electron-toolkit/utils":   "^3.0.0",
+    "electron-updater":          "^6.1.7"
+  },
+  "devDependencies": {
+    "@electron-toolkit/tsconfig": "^1.0.1",
+    "@vitejs/plugin-vue":         "^5.0.5",
+    "electron":                   "^31.0.2",
+    "electron-builder":           "^24.13.3",
+    "electron-vite":              "^2.3.0",
+    "less":                       "^4.2.0",
+    "typescript":                 "^5.5.2",
+    "vite":                       "^5.3.1",
+    "vue":                        "^3.5.13",
+    "vue-tsc":                    "^2.0.22"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["electron", "esbuild"]
+  }
+}
+

@@ -14,7 +14,7 @@ interface SettingsState {
 export const useSettings = defineStore('settingsId', () => {
   const state: SettingsState = reactive({
     baseUrl: import.meta.env.VITE_URL,
-    lyricBg: 'rhythm',
+    lyricBg: 'shader',
     bold: true,
     font: 'Avenir, Helvetica, Arial, sans-serif'
   })

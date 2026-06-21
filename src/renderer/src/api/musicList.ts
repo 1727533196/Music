@@ -255,3 +255,7 @@ export const getUserRecord = (uid: number, type: number = 1) =>
 // 云盘歌曲信息匹配纠正
 export const updateCloudMatch = (uid: number, sid: string, asid: string) =>
   request(`/cloud/match?uid=${uid}&sid=${sid}&asid=${asid}`, 'get')
+
+// 云盘歌词
+export const getCloudlyric = (uid: number, sid: string) =>
+  request(`/cloud/lyric/get?uid=${uid}&sid=${sid}`, 'get')

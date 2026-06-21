@@ -18,7 +18,12 @@
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux"
+    "build:linux": "npm run build && electron-builder --linux",
+    "installer:dev": "cd installer && pnpm install --ignore-scripts && pnpm dev",
+    "server:build:mac": "cd ../NeteaseCloudMusicApi && npm install --ignore-scripts && npx pkg . -t node18-macos-arm64 -C GZip -o bin/ncm-server --no-bytecode",
+    "server:build:win": "cd ../NeteaseCloudMusicApi && npm install --ignore-scripts && npx pkg . -t node18-win-x64 -C GZip -o bin/ncm-server.exe --no-bytecode",
+    "installer:build:mac": "npm run server:build:mac && npm run build:mac && cd installer && pnpm install --ignore-scripts && pnpm pack:mac",
+    "installer:build:win": "npm run server:build:win && npm run build:win && cd installer && pnpm install --ignore-scripts && pnpm pack:win"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.0",

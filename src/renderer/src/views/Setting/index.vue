@@ -6,6 +6,7 @@ import NetworkSettings from './components/NetworkSettings.vue'
 import FontSettings from './components/FontSettings.vue'
 import SystemSettings from './components/SystemSettings.vue'
 import ShortcutSettings from './components/ShortcutSettings.vue'
+import ServerSettings from './components/ServerSettings.vue'
 import {useMusicAction} from "@/store/music";
 
 const music = useMusicAction()
@@ -48,6 +49,9 @@ const handleShortcutTrigger = (value) => {
     <!-- 网络设置 -->
     <NetworkSettings />
 
+    <!-- 本地服务器设置（仅 Electron 环境） -->
+    <ServerSettings v-if="isElectron()" />
+
     <!-- 字体设置 -->
     <FontSettings />
 
@@ -88,12 +92,6 @@ const handleShortcutTrigger = (value) => {
       margin: 0;
       font-weight: 400;
     }
-  }
-
-  .version-section {
-    margin-top: 40px;
-    padding-top: 24px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
   }
 }
 

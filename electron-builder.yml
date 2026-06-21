@@ -5,6 +5,7 @@ directories:
 files:
   - '!**/.vscode/*'
   - '!src/*'
+  - '!installer/**'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
@@ -30,6 +31,10 @@ mac:
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
+  # 只生成 DMG，跳过 ZIP（避免 7zip 压缩200MB+耗时很长）
+  target:
+    - target: dmg
+      arch: arm64
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:

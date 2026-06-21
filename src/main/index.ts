@@ -12,13 +12,13 @@ function createWindow(): void {
     minWidth: 950,
     height: 750,
     width: 1150,
-    show: false, // 初始时不显示窗口
+    show: true, // 直接显示窗口，避免无边框窗口在某些系统上无法显示
     titleBarStyle: 'hiddenInset',
-    autoHideMenuBar: true, // 自动隐藏菜单栏
-    ...(process.platform === 'linux' ? { icon } : {}), // 如果是 Linux 平台，则设置图标
+    autoHideMenuBar: true,
+    ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'), // 预加载脚本路径
-      sandbox: false // 禁用沙盒模式
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false
     },
     frame: false
   })
