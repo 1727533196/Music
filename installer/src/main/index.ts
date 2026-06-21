@@ -8,14 +8,15 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync
 } from 'original-fs'
 import { exec, execSync, spawn } from 'child_process'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 
-// 日志文件路径
-const LOG_DIR = app.getPath('userData')
+// 日志文件路径 — 用临时目录，避免在 AppData 产生 music-installer 文件夹
+const LOG_DIR = join(app.getPath('temp'), 'music-installer-logs')
 const LOG_FILE = join(LOG_DIR, 'installer-debug.log')
 
 function log(...args: any[]) {
@@ -58,20 +59,13 @@ function scheduleCleanupOnExit(): void {
   // 只在临时目录下运行时才清理（portable 模式特征）
   if (!exeDir.includes('Temp') && !exeDir.includes('tmp')) return
 
-  const batPath = join(app.getPath('temp'), `_cleanup_${Date.now()}.bat`)
-  const batContent = [
-    '@echo off',
-    'ping 127.0.0.1 -n 3 >nul',
-    `rmdir /s /q "${exeDir}" 2>nul`,
-    `del "%~f0" 2>nul`
-  ].join('\r\n')
-
+  // 用 PowerShell 延迟 3 秒后删除临时解压目录（等待安装器进程完全退出）
+  const psScript =
+    `Start-Sleep -Seconds 3; Remove-Item -Path '${exeDir}' -Recurse -Force -ErrorAction SilentlyContinue`
   try {
-    require('fs').writeFileSync(batPath, batContent, 'utf-8')
-    spawn('cmd.exe', ['/c', 'start', '/B', '', batPath], {
+    spawn('powershell', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', psScript], {
       detached: true,
-      stdio: 'ignore',
-      windowsHide: true
+      stdio: 'ignore'
     }).unref()
   } catch {
     // 清理失败不阻塞
@@ -183,20 +177,24 @@ ipcMain.handle('installer:disk-info', (_evt, targetPath: string) => {
       const available = parseInt(parts[3]) * 1024
       return { available, total, required }
     } else if (process.platform === 'win32') {
-      const drive = targetPath.substring(0, 2)
+      const drive = targetPath.substring(0, 1) // D
       const output = execSync(
-        `wmic logicaldisk where "DeviceID='${drive}'" get FreeSpace,Size /value`
+        `powershell -NoProfile -Command "Get-Volume -DriveLetter ${drive} | Select-Object SizeRemaining,Size | ConvertTo-Json"`,
+        { timeout: 15000, windowsHide: true }
       ).toString()
-      const freeMatch = output.match(/FreeSpace=(\d+)/)
-      const sizeMatch = output.match(/Size=(\d+)/)
-      const available = freeMatch ? parseInt(freeMatch[1]) : 0
-      const total = sizeMatch ? parseInt(sizeMatch[1]) : 0
-      return { available, total, required }
+      try {
+        const json = JSON.parse(output.trim())
+        const available: number = json.SizeRemaining ?? 0
+        const total: number = json.Size ?? 0
+        return { available, total, required }
+      } catch {
+        // 解析失败
+      }
     }
   } catch {
     // 获取失败返回默认值
   }
-  return { available: 50 * 1024 * 1024 * 1024, total: 100 * 1024 * 1024 * 1024, required }
+  return { available: 0, total: 0, required }
 })
 
 // ─── 核心安装逻辑 ──────────────────────────────────────────────────────────────
@@ -207,7 +205,8 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
   try {
     const { installDir, createShortcut, autoStart, associateFiles, installServer } = opts
     const appName = process.platform === 'win32' ? '音乐' : '音乐.app'
-    const destAppPath = join(installDir, appName)
+    // 如果安装目录已经以产品名结尾（安装器 UI 已补齐），不再重复拼接
+    const destAppPath = installDir.endsWith(appName) ? installDir : join(installDir, appName)
 
     log('=== 安装开始 ===')
     log(`安装目录: ${installDir}`)
@@ -232,8 +231,44 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
     log(`确保目录存在: ${installDir}`)
     ensureDir(installDir)
 
-    // ─ Step 3: 如果旧版本存在则删除 ───────────────────────────────────────
+    // ─ Step 3: 如果旧版本存在先杀服务器再删除（保留用户数据 data/）───
     if (existsSync(destAppPath)) {
+      // 先杀掉可能正在运行的旧进程，避免文件被锁
+      if (process.platform === 'win32') {
+        try {
+          // 进程名不带 .exe（Windows Get-Process 返回的是 ncm-server）
+          execSync('taskkill /F /IM ncm-server.exe 2>nul & taskkill /F /IM ncm-server 2>nul', { shell: 'cmd.exe', windowsHide: true })
+          log('[删除旧版本] 已尝试终止旧服务器进程')
+        } catch { /* 进程不存在则忽略 */ }
+        await delay(500)
+        try {
+          execSync('taskkill /F /IM 音乐.exe 2>nul', { shell: 'cmd.exe', windowsHide: true })
+          log('[删除旧版本] 已尝试终止旧主应用进程')
+        } catch { /* 进程不存在则忽略 */ }
+        await delay(500)
+      } else {
+        try {
+          execSync('pkill -f ncm-server 2>/dev/null || true')
+          execSync('pkill -f 音乐 2>/dev/null || true')
+        } catch { /* 进程不存在则忽略 */ }
+        await delay(500)
+      }
+
+      // 备份用户数据目录（保留登录态/配置/缓存）
+      const dataDir = join(destAppPath, 'data')
+      const dataBackup = join(app.getPath('temp'), `music-data-backup-${Date.now()}`)
+      let hasBackup = false
+      if (existsSync(dataDir)) {
+        log('[删除旧版本] 备份用户数据目录...')
+        try {
+          ensureDir(dirname(dataBackup))
+          renameSync(dataDir, dataBackup)
+          hasBackup = true
+          log('[删除旧版本] ✓ 用户数据已备份到临时目录')
+        } catch (err: unknown) {
+          logError(`[删除旧版本] 备份用户数据失败: ${err instanceof Error ? err.message : err}`)
+        }
+      }
       log(`发现旧版本，准备删除: ${destAppPath}`)
       send('正在移除旧版本...', 20)
       await delay(400)
@@ -354,6 +389,18 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
         }
       }
       log('旧版本已删除')
+
+      // 恢复用户数据
+      if (hasBackup && existsSync(dataBackup)) {
+        log('[删除旧版本] 恢复用户数据目录...')
+        try {
+          ensureDir(destAppPath)
+          renameSync(dataBackup, dataDir)
+          log('[删除旧版本] ✓ 用户数据已恢复')
+        } catch (err: unknown) {
+          logError(`[删除旧版本] 恢复用户数据失败: ${err instanceof Error ? err.message : err}`)
+        }
+      }
     }
 
     // ── Step 4: 复制主应用 ──────────────────────────────────────────────────
@@ -469,21 +516,21 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
       await delay(300)
 
       log('[服务器] 步骤1: 复制服务器文件...')
-      await installNcmServer()
+      await installNcmServer(installDir)
       log('[服务器] 步骤1完成')
 
       send('正在配置服务器开机启动...', 95)
       await delay(200)
 
       log('[服务器] 步骤2: 配置开机启动...')
-      setupServerAutoLaunch()
+      setupServerAutoLaunch(installDir)
       log('[服务器] 步骤2完成')
 
       send('正在启动服务器...', 97)
       await delay(200)
 
       log('[服务器] 步骤3: 启动服务器进程...')
-      launchNcmServer()
+      launchNcmServer(installDir)
       log('[服务器] 步骤3完成')
 
       // 等待服务器启动
@@ -822,7 +869,12 @@ function getServerBinPath(): string {
 }
 
 /** 服务器安装目标目录 */
-function getServerInstallDir(): string {
+function getServerInstallDir(installDir?: string): string {
+  // 如果指定了安装目录，服务器放在主应用同级的 server/ 下
+  if (installDir) {
+    return join(installDir, 'server')
+  }
+  // 兜底：独立启动时用 AppData
   if (process.platform === 'darwin') {
     return join(app.getPath('home'), 'Library', 'Application Support', '音乐', 'server')
   } else if (process.platform === 'win32') {
@@ -832,7 +884,7 @@ function getServerInstallDir(): string {
 }
 
 /** 将服务器二进制复制到安装目录 */
-async function installNcmServer(): Promise<void> {
+async function installNcmServer(installDir: string): Promise<void> {
   const srcBin = getServerBinPath()
   log(`[server-install] 源文件路径: ${srcBin}`)
 
@@ -843,7 +895,7 @@ async function installNcmServer(): Promise<void> {
 
   log(`[server-install] ✓ 源文件存在`)
 
-  const destDir = getServerInstallDir()
+  const destDir = getServerInstallDir(installDir)
   log(`[server-install] 目标目录: ${destDir}`)
 
   ensureDir(destDir)
@@ -924,10 +976,10 @@ async function installNcmServer(): Promise<void> {
 }
 
 /** 配置服务器开机自启 */
-function setupServerAutoLaunch(): void {
+function setupServerAutoLaunch(installDir: string): void {
   log('[server-autolaunch] 开始配置开机启动...')
 
-  const destDir = getServerInstallDir()
+  const destDir = getServerInstallDir(installDir)
   const binName = process.platform === 'win32' ? 'ncm-server.exe' : 'ncm-server'
   const destBin = join(destDir, binName)
 
@@ -987,10 +1039,10 @@ function setupServerAutoLaunch(): void {
 }
 
 /** 立即启动服务器(后台运行) */
-function launchNcmServer(): void {
+function launchNcmServer(installDir: string): void {
   log('[server-launch] ========== 开始启动服务器 ==========')
 
-  const destDir = getServerInstallDir()
+  const destDir = getServerInstallDir(installDir)
   const binName = process.platform === 'win32' ? 'ncm-server.exe' : 'ncm-server'
   const destBin = join(destDir, binName)
 
@@ -1006,8 +1058,8 @@ function launchNcmServer(): void {
 
   try {
     if (process.platform === 'win32') {
-      // Windows: 使用 cmd start /B 异步启动，完全独立，不阻塞 UI
-      log(`[server-launch] Windows: 使用 cmd start /B 启动服务器...`)
+      // Windows: 使用 spawn 直接启动，比 start /B 更可靠
+      log(`[server-launch] Windows: 使用 spawn 启动服务器...`)
 
       const stdoutLogPath = join(destDir, 'ncm-server-stdout.log')
       const stderrLogPath = join(destDir, 'ncm-server-stderr.log')
@@ -1015,26 +1067,34 @@ function launchNcmServer(): void {
       log(`[server-launch] 标准输出日志: ${stdoutLogPath}`)
       log(`[server-launch] 错误输出日志: ${stderrLogPath}`)
 
-      // 使用 cmd /c start /B 启动，完全异步且独立
-      // /c: 执行命令后终止 cmd
-      // start /B: 后台启动新进程，不创建窗口
-      exec(
-        `start /B "" "${destBin}" > "${stdoutLogPath}" 2> "${stderrLogPath}"`,
-        {
-          cwd: destDir,
-          shell: 'cmd.exe',
-          windowsHide: true
-        },
-        (error) => {
-          if (error) {
-            logError(`[server-launch] 启动命令执行错误: ${error.message}`)
-          } else {
-            log(`[server-launch] ✓ 服务器启动命令已发送`)
-          }
-        }
-      )
+      try {
+        const { openSync, closeSync } = require('fs')
+        const stdoutFd = openSync(stdoutLogPath, 'a')
+        const stderrFd = openSync(stderrLogPath, 'a')
 
-      log(`[server-launch] 提示: 服务器将完全独立运行，关闭安装器不会影响服务器`)
+        const child = spawn(destBin, [], {
+          cwd: destDir,
+          detached: true,
+          stdio: ['ignore', stdoutFd, stderrFd],
+          windowsHide: true
+        })
+
+        child.on('error', (err: Error) => {
+          logError(`[server-launch] ❌ spawn 失败: ${err.message}`)
+          try { closeSync(stdoutFd); closeSync(stderrFd) } catch {}
+        })
+
+        child.on('close', (code: number | null) => {
+          log(`[server-launch] 服务器进程已退出, 退出码: ${code}`)
+          try { closeSync(stdoutFd); closeSync(stderrFd) } catch {}
+        })
+
+        child.unref()
+        log(`[server-launch] ✓ 服务器进程已启动 (PID: ${child.pid})`)
+        log(`[server-launch] 提示: 服务器将完全独立运行，关闭安装器不会影响服务器`)
+      } catch (err: unknown) {
+        logError(`[server-launch] ❌ 启动异常: ${err instanceof Error ? err.message : err}`)
+      }
     } else {
       // macOS/Linux: 使用 nohup 启动
       log(`[server-launch] macOS/Linux: 使用 nohup 启动服务器...`)
@@ -1106,6 +1166,9 @@ interface InstallOptions {
 }
 
 // ─── App 生命周期 ──────────────────────────────────────────────────────────────
+// 将 userData 重定向到临时目录，避免在 AppData 创建 music-installer
+app.setPath('userData', join(app.getPath('temp'), 'music-installer-data'))
+
 app.whenReady().then(() => {
   // 初始化日志
   initLogger()
