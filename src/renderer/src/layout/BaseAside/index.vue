@@ -17,6 +17,7 @@ import { deletePlay } from '../../api/play'
 import { getUserPlayListFn } from '../../utils/userInfo'
 import { ElMessage } from 'element-plus'
 import Item from './item.vue'
+import { isMacOs } from '@/utils'
 
 const store = useUserInfo()
 const current = ref<ListItem>()
@@ -152,7 +153,7 @@ const openDialog = () => {
 <template>
   <SongListCreator v-model="dialog" />
   <div class="aside">
-    <div class="avatar-box">
+    <div :style="{ marginTop: isMacOs() ? '10px' : 0 }" class="avatar-box">
       <template v-if="store.isLogin">
         <div
           @click="gotoDetail"

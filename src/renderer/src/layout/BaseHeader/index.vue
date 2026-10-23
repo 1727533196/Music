@@ -5,7 +5,7 @@ import { handle } from '@/layout/BaseHeader/handle'
 import { useFlags } from '@/store/flags'
 import { useRoute, useRouter } from 'vue-router'
 import { computed } from 'vue'
-import { isElectron } from '@/utils'
+import { isElectron, isMacOs } from '@/utils'
 
 const flags = useFlags()
 const store = useUserInfo()
@@ -56,7 +56,7 @@ const gotoSetting = () => {
         <div class="handler" @click="gotoSetting">
           <el-icon size="20"><Setting /></el-icon>
         </div>
-        <template v-if="isElectron()">
+        <template v-if="isElectron() && !isMacOs()">
           <div class="handler" @click="minimize">
             <i class="iconfont icon-weibiaoti-"></i>
           </div>

@@ -300,7 +300,14 @@ export const isElectron = () => {
   // darwin: macOS 操作系统
   // linux: Linux 操作系统
   // win32: Windows 操作系统（即使在 64 位系统上也是返回这个值）
-  return ['linux', 'win32'].includes(window.electron?.process.platform || '')
+  return ['linux', 'win32', 'darwin'].includes(window.electron?.process.platform || '')
+}
+
+export const isMacOs = () => {
+  // darwin: macOS 操作系统
+  // linux: Linux 操作系统
+  // win32: Windows 操作系统（即使在 64 位系统上也是返回这个值）
+  return ['darwin'].includes(window.electron?.process.platform || '')
 }
 
 export const isString = (value: any): value is string => {
