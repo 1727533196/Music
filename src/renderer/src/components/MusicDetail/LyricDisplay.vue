@@ -1,188 +1,281 @@
 <script lang="ts" setup>
-import { toggleImg, Yrc } from '@/utils'
-import { Lyric } from '@/store/music'
-import { computed, nextTick, onMounted, useTemplateRef, watch } from 'vue'
+import type { Yrc } from '@/utils'
+import type { Lyric } from '@/store/music'
+import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
 import gsap from 'gsap'
-import { useRouter } from 'vue-router'
-import { useFlags } from '@/store/flags'
 
 interface Props {
   lyric: Lyric[] | Yrc[]
   lrcMode: 1 | 0
   title: string
   bg?: string
-  isBlur?: boolean
   ar: any[]
   videoPlayUrl: string | null
+  active?: boolean
 }
-const props = withDefaults(defineProps<Props>(), {
-  isBlur: true
+const props = defineProps<Props>()
+const coverContainer = useTemplateRef<HTMLDivElement>('coverContainer')
+const videoCover = useTemplateRef<HTMLVideoElement>('videoCover')
+const displayedCoverSrc = ref('')
+const coverFailed = ref(false)
+const coverSrc = computed(() => {
+  if (!props.bg) return ''
+  const url = new URL(props.bg, window.location.href)
+  if (url.protocol === 'http:' || url.protocol === 'https:')
+    url.searchParams.set('param', '600y600')
+  return url.href
 })
-const router = useRouter()
-const flash = useFlags()
-const videoCover = useTemplateRef('videoCover')
 
-nextTick(() => {
-  const bgEl = document.querySelector('.cover-container') as HTMLDivElement
-  const coverEl = document.querySelector('.img-cover') as HTMLDivElement
-
+const syncVideo = () => {
+  const video = videoCover.value
+  if (!video) return
+  if (props.active && props.videoPlayUrl && window.$audio?.isPlay) {
+    void video.play().catch(() => {})
+  } else video.pause()
+}
+onMounted(() => {
   watch(
-    () => $audio.isPlay,
-    (value) => {
-      if (!props.videoPlayUrl) {
-        return
-      }
-      if (!value) {
-        videoCover.value.pause()
-      } else {
-        videoCover.value.play()
-      }
-    }
-  )
-  watch(
-    () => props.bg,
-    async (val) => {
-      if (!bgEl || !val) return // 如果找不到元素，直接返回
-      // 创建一个 GSAP 时间轴
-      const tl = gsap.timeline()
-      // 使用时间轴先缩小元素
-      tl.to(bgEl, {
-        height: '10vh',
-        width: '10vh',
-        duration: 0.3, // 缩小动画时长，单位为秒
-        ease: 'power1.out', // 缓动函数
-        transformOrigin: 'center' // 确保缩放围绕中心
+    coverSrc,
+    (src, _previous, onCleanup) => {
+      const cover = coverContainer.value!
+      let cancelled = false
+      let animation: gsap.core.Timeline | undefined
+      const image = new Image()
+      onCleanup(() => {
+        cancelled = true
+        animation?.kill()
+        image.onload = image.onerror = null
       })
 
-      toggleImg(val, '600y600').then((img) => {
-        tl.to(bgEl, {
+      if (!src || !props.active || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        displayedCoverSrc.value = src
+        coverFailed.value = false
+        gsap.set(cover, { clearProps: 'width,height' })
+        return
+      }
+
+      // 旧图先缩到 10vh，等新封面加载好后再换图放大。
+      const loaded = new Promise<boolean>((resolve) => {
+        image.onload = () => resolve(true)
+        image.onerror = () => resolve(false)
+        image.src = src
+      })
+      const tl = gsap.timeline()
+      animation = tl
+      tl.to(cover, {
+        height: '10vh',
+        width: '10vh',
+        duration: 0.3,
+        ease: 'power1.out',
+        transformOrigin: 'center'
+      })
+      void loaded.then((success) => {
+        if (cancelled) return
+        tl.to(cover, {
           height: '45vh',
           width: '45vh',
-          duration: 0.3, // 放大动画时长，单位为秒
-          ease: 'power1.out', // 缓动函数
-          transformOrigin: 'center', // 确保缩放围绕中心
-          // 在动画开始时设置背景图片
+          duration: 0.3,
+          ease: 'power1.out',
+          transformOrigin: 'center',
           onStart: () => {
-            if (!props.videoPlayUrl) {
-              ;(coverEl as HTMLDivElement).style.backgroundImage = `url(${img.src})`
-            }
+            displayedCoverSrc.value = src
+            coverFailed.value = !success
           }
         })
       })
     },
     { immediate: true }
   )
-})
-const arNames = computed(() => {
-  let result = ''
-  props.ar.forEach((item, index) => {
-    result += props.ar.length - 1 !== index ? item.name + '/' : item.name
+
+  watch([() => props.active, () => props.videoPlayUrl, () => window.$audio?.isPlay], syncVideo, {
+    flush: 'post',
+    immediate: true
   })
-  return result
 })
 </script>
 
 <template>
-  <div :style="{ 'backdrop-filter': isBlur ? 'blur(0px)' : 'none' }" class="shadow">
-    <div class="lyric-and-bg-container">
-      <div
-        class="cover-container"
-        :style="{ transform: props.lyric.length ? '' : 'translateX(0)' }"
-      >
-        <div
-          @click="
-            () => {
-              flash.isOpenDetail = false
-              router.push({
-                path: `/search`,
-                query: {
-                  key: props.title + '-' + arNames
-                }
-              })
-            }
-          "
-          class="title"
-        >
-          {{ props.title }} -
-          <span v-for="(item, index) in props.ar"
-            >{{ item.name }} <span v-if="props.ar.length - 1 !== index">/</span></span
+  <div class="listening-layout" :class="{ 'no-lyrics': !props.lyric.length }">
+    <div class="now-playing-column">
+      <div class="cover-frame">
+        <div ref="coverContainer" class="cover-container">
+          <video
+            ref="videoCover"
+            class="video-cover"
+            loop
+            muted
+            playsinline
+            v-show="props.videoPlayUrl"
+            :src="props.videoPlayUrl || undefined"
+            :poster="coverSrc"
+            @loadeddata="syncVideo"
+          />
+          <div
+            v-show="!props.videoPlayUrl"
+            :style="{
+              backgroundImage:
+                displayedCoverSrc && !coverFailed
+                  ? `url(${JSON.stringify(displayedCoverSrc)})`
+                  : undefined
+            }"
+            role="img"
+            :aria-label="`${props.title || '歌曲'}的专辑封面`"
+            class="img-cover"
+          />
+          <div
+            v-if="!props.videoPlayUrl && (!displayedCoverSrc || coverFailed)"
+            class="cover-placeholder"
+            aria-label="暂无专辑封面"
           >
+            <v-icon icon="mdi-music-note" size="72" />
+          </div>
         </div>
-        <video
-          ref="videoCover"
-          class="video-cover"
-          autoplay
-          loop
-          muted
-          v-show="props.videoPlayUrl"
-          :src="props.videoPlayUrl"
-        ></video>
-        <div v-show="!props.videoPlayUrl" class="img-cover" />
       </div>
-
-      <div class="lyric-container" v-show="props.lyric.length"></div>
+      <!-- 保持 Teleport 目标常驻，详情与底栏共用同一个音频实例。 -->
+      <div class="music-detail-bottom" />
+    </div>
+    <div class="lyrics-column" v-show="props.lyric.length">
+      <!-- 歌词实例只挂载一次，空歌词时也保留此节点。 -->
+      <div class="lyric-container" v-show="props.lyric.length" aria-label="同步歌词" />
     </div>
   </div>
 </template>
 
 <style scoped lang="less">
-.shadow {
-  backdrop-filter: blur(8px);
-  position: absolute;
-  top: 0;
-  left: 0;
+.listening-layout {
+  --artwork-size: clamp(220px, min(38vh, 31vw), 410px);
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  align-items: center;
+  gap: clamp(56px, 8vw, 144px);
+  max-width: 1500px;
+  height: 100%;
+  margin: 0 auto;
+  padding: 88px clamp(48px, 7.5vw, 140px) 38px;
+}
+.listening-layout.no-lyrics {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+}
+.now-playing-column {
+  width: var(--artwork-size);
+  max-width: 100%;
+  min-width: 0;
+  justify-self: center;
+}
+.cover-frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  place-items: center;
+  width: 100%;
+  height: var(--artwork-size);
+  aspect-ratio: 1;
+}
+.cover-container {
+  transition: 0.8s;
+  position: relative;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  .lyric-and-bg-container {
-    display: flex;
-    margin-top: 17vh;
-    justify-content: space-around;
-    align-items: center;
-    height: 58vh;
-    transition: 1s;
-    .cover-container {
-      width: 45vh;
-      transform-origin: center;
-      transition: 0.8s;
-    }
-    .title {
-      font-size: 25px;
-      font-weight: 500;
-      width: 100%;
-      cursor: pointer;
-      .textOverflow(1);
-    }
-    .video-cover {
-      height: 100%;
-      width: 100%;
-      border-radius: 5px;
-    }
-    .img-cover {
-      height: 100%;
-      width: 100%;
-      border-radius: 5px;
-      transition: 0.8s;
-      .bgSetting();
-    }
-    .img-cover:hover {
-      background-color: rgba(0, 0, 0, 0.3);
-    }
-    .lyric-container {
-      height: 145%;
-      width: 40vw;
-      border-radius: 5px;
-      overflow: auto;
-      mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
-      -webkit-mask-image: linear-gradient(
-        to bottom,
-        transparent,
-        black 10%,
-        black 90%,
-        transparent
-      );
-      position: relative;
-    }
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 22px 58px rgba(0, 0, 0, 0.23),
+    0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.img-cover {
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  transition: background-image 0.8s;
+}
+.img-cover,
+.video-cover,
+.cover-placeholder {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.video-cover {
+  position: absolute;
+  inset: 0;
+}
+.cover-placeholder {
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.3);
+}
+.music-detail-bottom {
+  position: relative;
+  width: 100%;
+  min-height: 258px;
+  margin-top: 25px;
+}
+.lyrics-column {
+  position: relative;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+.lyric-container {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  border-radius: 5px;
+  overflow: auto;
+  mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+}
+@media (max-height: 700px) and (min-width: 761px) {
+  .listening-layout {
+    --artwork-size: min(40vh, 30vw);
+    padding-top: 76px;
+    padding-bottom: 20px;
+  }
+  .music-detail-bottom {
+    margin-top: 18px;
+    min-height: 245px;
+  }
+}
+@media (max-width: 1000px) {
+  .listening-layout {
+    gap: 44px;
+    padding-inline: 46px;
+  }
+}
+@media (max-width: 760px) {
+  .listening-layout {
+    --artwork-size: min(30vh, 270px);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding: 92px 24px 28px;
+    gap: 24px;
+  }
+}
+@media (max-width: 560px) {
+  .listening-layout {
+    --artwork-size: min(27vh, 240px);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(160px, 1fr);
+    padding: 84px 30px 12px;
+    gap: 16px;
+  }
+  .now-playing-column {
+    width: min(100%, 350px);
+  }
+  .cover-frame {
+    width: var(--artwork-size);
+    margin: 0 auto;
+  }
+  .music-detail-bottom {
+    margin-top: 18px;
+    min-height: 240px;
   }
 }
 </style>

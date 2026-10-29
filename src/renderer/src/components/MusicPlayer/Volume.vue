@@ -9,6 +9,11 @@ const props = defineProps<Props>()
 const model = ref(0)
 const store = useUserInfo()
 
+// 详情页和底栏切换时，音量滑块保持与共享状态一致。
+watch(() => store.volume, (value) => {
+  model.value = value * 100
+}, { immediate: true })
+
 watch(() => props.audio, (value) => {
   const volume = Number(localStorage.getItem('volume') || 1)
   model.value = volume * 100

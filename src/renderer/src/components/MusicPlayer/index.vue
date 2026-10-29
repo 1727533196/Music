@@ -7,6 +7,7 @@ import { GetMusicDetailData } from '@/api/musicList'
 import DetailLeft from '@/components/MusicPlayer/DetailLeft.vue'
 import DetailCenter from '@/components/MusicPlayer/DetailCenter.vue'
 import DetailRight from '@/components/MusicPlayer/DetailRight.vue'
+import DetailControls from '@/components/MusicPlayer/DetailControls.vue'
 import { ListenerName, useListener } from '@/components/MusicPlayer/listener'
 import usePlayList, { playListState } from '@/layout/BaseAside/usePlayList'
 import '@lrc-player/core/dist/style.css'
@@ -283,7 +284,7 @@ const setOrderHandler = () => {
 // 执行切换事件，随后暂停time监听器，等待歌曲加载完成后会打开
 const cutSongHandler = () => {
   const type = music.state.lrcMode === 1 ? 'lrc' : 'yrc'
-  if(music.state.lyric?.length) {
+  if (music.state.lyric?.length) {
     player.updateAudioLrc(music.state.lyric, type)
   }
   executeListener('cutSong')
@@ -316,7 +317,7 @@ defineExpose(exposeObj)
 </script>
 
 <template>
-  <div class="bottom-container">
+  <div class="bottom-container" :class="{ 'detail-player': flags.isOpenDetail }">
     <audio
       @timeupdate="timeupdate"
       @ended="end"
@@ -326,19 +327,30 @@ defineExpose(exposeObj)
       :src="props.src"
       preload="auto"
     />
-    <DetailLeft :songs="props.songs" />
-    <DetailCenter
-      :orderStatus="orderStatus"
+    <DetailControls
+      v-show="flags.isOpenDetail"
+      :songs="props.songs"
       :isPlay="isPlay"
-      :orderStatusVal="music.state.orderStatusVal"
       @play="play"
       @pause="pause"
       @cutSong="(val) => emit('cutSong', val)"
       @setOrderHandler="setOrderHandler"
     />
-    <DetailRight :currentTime="music.state.currentTime" :songs="props.songs" :audio="audio" />
+    <div v-show="!flags.isOpenDetail" class="compact-player">
+      <DetailLeft :songs="props.songs" />
+      <DetailCenter
+        :orderStatus="orderStatus"
+        :isPlay="isPlay"
+        :orderStatusVal="music.state.orderStatusVal"
+        @play="play"
+        @pause="pause"
+        @cutSong="(val) => emit('cutSong', val)"
+        @setOrderHandler="setOrderHandler"
+      />
+      <DetailRight :currentTime="music.state.currentTime" :songs="props.songs" :audio="audio" />
+    </div>
   </div>
-  <div class="plan-container">
+  <div v-if="!flags.isOpenDetail" class="plan-container">
     <ProgressBar :songs="props.songs" />
   </div>
 </template>
@@ -370,5 +382,18 @@ defineExpose(exposeObj)
   height: 100%;
   padding: 0 15px;
   backdrop-filter: blur(60px) saturate(210%);
+}
+.bottom-container.detail-player {
+  display: block;
+  height: auto;
+  padding: 0;
+  backdrop-filter: none;
+}
+.compact-player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
 }
 </style>
