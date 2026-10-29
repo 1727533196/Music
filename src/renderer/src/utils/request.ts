@@ -44,23 +44,23 @@ http.interceptors.request.use(
 
 http.interceptors.response.use(
   (response) => {
-    const {
-      status,
-      data: { code }
-    } = response
+    const { status } = response
     const url = response.config.url?.split('?')[0]!
-    console.log('code', code, status, status !== 200 && code !== 200)
+    // 此接口有的服务版本返回 { status, body: { code, ... } }。
+    const data =
+      url === '/playlist/tracks' && response.data?.body ? response.data.body : response.data
+    const code = data?.code
     // 判断 status 和 code 是否为数字类型，只有是数字时才进行严格相等判断
     const isStatusError = typeof status === 'number' && status !== 200
     const isCodeError = typeof code === 'number' && code !== 200
     if (!ignoreState.includes(url) && (isStatusError || isCodeError)) {
-      ElMessage.error(response.data.message || `请求出现错误，当前状态码为${code || status}`)
-      return Promise.reject(response.data)
+      ElMessage.error(data?.message || data?.msg || `请求出现错误，当前状态码为${code || status}`)
+      return Promise.reject(data)
     }
-    return response.data
+    return data
   },
   (error) => {
-    const data = error.response.data
+    const data = error.response?.data ?? error
     ElMessage.error(data.message || data.msg || error.message)
 
     return Promise.reject(data)

@@ -1,4 +1,5 @@
 import request from '../utils/request'
+import { deleteSong } from './play'
 
 export type PlayList = Omit<GetPlayListDetailRes['playlist'], 'tracks'>
 
@@ -192,7 +193,7 @@ export const getMusicDetail = (ids: string) =>
 
 // 对歌单添加或删除歌曲
 export const addOrDelPlaylist = (op: 'add' | 'del', pid: number, tracks: number) =>
-  request('/playlist/tracks', { op, pid, tracks })
+  deleteSong(op, pid, tracks)
 
 // 喜欢音乐
 export const likeMusicApi = (id: number, like: boolean = true) =>
@@ -220,8 +221,13 @@ export const getArtistAlbum = (id: number, limit?: number) =>
 // 获取专辑内容
 export const getAlbumContent = (id: number) => request(`/album?id=${id}`, 'get')
 
-// 获取歌曲评论
-// 0: 歌曲 1: mv 2: 歌单 3: 专辑 4: 电台节目 5: 视频 6: 动态 7: 电台
+// 获取歌曲评论数量，仅取一条评论以减少返回数据。
+export const getMusicCommentCount = (id: number) =>
+  request<{ id: number; limit: number }, { total: number }>('/comment/music', 'get', {
+    params: { id, limit: 1 }
+  }).then(({ total }) => total)
+
+// 获取评论，0: 歌曲 1: mv 2: 歌单 3: 专辑 4: 电台节目 5: 视频 6: 动态 7: 电台
 export const getCommentMusic = (
   id: number,
   type: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7,

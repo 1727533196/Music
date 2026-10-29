@@ -8,9 +8,10 @@ import FluidBackground from '@/components/FluidBackground/index.vue'
 
 interface Props {
   bg: string
+  active?: boolean
 }
 
-const props    = defineProps<Props>()
+const props    = withDefaults(defineProps<Props>(), { active: true })
 const music    = useMusicAction()
 const settings = useSettings()
 
@@ -64,6 +65,7 @@ onMounted(() => {
     <FluidBackground
       v-if="settings.state.lyricBg === 'shader'"
       :main-color="bestColors"
+      :active="props.active"
     />
     <div v-show="settings.state.lyricBg !== 'shader'">
       <div id="gradual1" />

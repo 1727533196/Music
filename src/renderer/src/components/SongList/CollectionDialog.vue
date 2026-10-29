@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 interface PlayList {
@@ -12,36 +12,43 @@ interface PlayList {
 interface Props {
   modelValue: boolean
   playlist: PlayList[]
+  loading?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  playlist: () => []
+  playlist: () => [],
+  loading: false
 })
 
 const emit = defineEmits(['update:modelValue', 'confirm'])
 
 const dialogVisible = computed({
   get: () => props.modelValue,
-  set: (val) => emit('update:modelValue', val)
+  set: (val) => {
+    if (!props.loading) emit('update:modelValue', val)
+  }
 })
 
 const selectedPlaylist = ref<PlayList | null>(null)
 
 const handleConfirm = () => {
+  if (props.loading) return
   if (!selectedPlaylist.value) {
     ElMessage.warning('请选择一个歌单')
     return
   }
   emit('confirm', selectedPlaylist.value)
-  dialogVisible.value = false
-  selectedPlaylist.value = null
 }
 
-const handleClose = () => {
-  selectedPlaylist.value = null
-}
+watch(
+  () => props.modelValue,
+  (visible) => {
+    if (!visible) selectedPlaylist.value = null
+  }
+)
 
 const selectPlaylist = (playlist: PlayList) => {
+  if (props.loading) return
   selectedPlaylist.value = playlist
 }
 </script>
@@ -91,6 +98,7 @@ const selectPlaylist = (playlist: PlayList) => {
             <v-list-item
               v-for="playlist in playlist"
               :key="playlist.id"
+              :disabled="loading"
               rounded="lg"
               class="playlist-item"
               :class="{ 'selected': selectedPlaylist?.id === playlist.id }"
@@ -133,6 +141,7 @@ const selectPlaylist = (playlist: PlayList) => {
         <v-btn
           variant="text"
           color="medium-emphasis"
+          :disabled="loading"
           @click="dialogVisible = false"
           class="mr-2"
         >
@@ -143,7 +152,8 @@ const selectPlaylist = (playlist: PlayList) => {
           variant="flat"
           size="large"
           min-width="120"
-          :disabled="!selectedPlaylist"
+          :disabled="!selectedPlaylist || loading"
+          :loading="loading"
           @click="handleConfirm"
           class="confirm-btn"
         >

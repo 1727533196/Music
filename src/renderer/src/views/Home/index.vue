@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import ArtistBanner from './components/ArtistBanner.vue'
 import SongsSection from './components/SongsSection.vue'
-import VideoSection from './components/VideoSection.vue'
+import RecentSection from './components/RecentSection.vue'
 import AlbumsSection from './components/AlbumsSection.vue'
 import MixSection from './components/MixSection.vue'
 import usePlayList from '@/layout/BaseAside/usePlayList'
@@ -11,16 +11,8 @@ import { useMusicAction } from '@/store/music'
 import type { GetMusicDetailData } from '@/api/musicList'
 import { personalized, recommendSongList, type Recommend } from '@/api/home'
 import { getRecordSong } from '@/api/musicList'
-
-// Song Info
-const songInfo = {
-  name: "Modernism",
-  artist: "Some Nice Girls",
-  album: "Album Name Here",
-  duration: "3:45",
-  releaseDate: "2019.08.21",
-  playCount: "1,234,567"
-}
+import { playListMock as dailyQueue } from '@/views/DailyRecommend/dailyRecommendSongsConfig'
+import { playListMock as recentQueue } from '@/views/LatelyPlay/config'
 
 // 使用现有的 usePlayList hook
 const { getRecommendSongs } = usePlayList()
@@ -31,8 +23,8 @@ const dailySongs = computed(() => {
   return playListState.playList
 })
 
-// 视频数据（使用最近播放记录模拟）
-const videos = ref<any[]>([])
+// 最近播放的歌曲
+const recentSongs = ref<GetMusicDetailData[]>([])
 
 // 专辑数据（从推荐歌单中获取）
 const albums = ref<any[]>([])
@@ -40,10 +32,32 @@ const albums = ref<any[]>([])
 // 歌单数据（Mix）
 const mixes = ref<any[]>([])
 
-// 播放歌曲 - 使用 store 中的 getMusicUrlHandler
-const handlePlay = (item: GetMusicDetailData, index?: number) => {
-  console.log('item', item, index)
-  music.getMusicUrlHandler(item)
+// 同步当前区域的播放队列，确保下一首和自动连播仍在这组歌曲中。
+const playFromList = (
+  item: GetMusicDetailData,
+  songs: GetMusicDetailData[],
+  source: typeof dailyQueue,
+  name: string
+) => {
+  const tracks = songs.length ? [...songs] : [item]
+  const index = Math.max(
+    0,
+    tracks.findIndex((song) => song.id === item.id)
+  )
+  const queue = { ...source, name, tracks, trackCount: tracks.length }
+  music.updateRuntimeList(
+    queue,
+    tracks.map((song) => song.id)
+  )
+  music.getMusicUrlHandler(item, index)
+}
+
+const handlePlay = (item: GetMusicDetailData) => {
+  playFromList(item, dailySongs.value, dailyQueue, '每日推荐')
+}
+
+const handleRecentPlay = (item: GetMusicDetailData) => {
+  playFromList(item, recentSongs.value, recentQueue, '最近播放')
 }
 
 // 喜欢歌曲
@@ -53,10 +67,6 @@ const handleLike = (item: GetMusicDetailData) => {
 
 const handleShare = () => {
   console.log('Share')
-}
-
-const handleNavigate = (direction: 'prev' | 'next') => {
-  console.log('Navigate:', direction)
 }
 
 // 组件挂载时获取数据
@@ -73,7 +83,7 @@ onMounted(async () => {
 
     // 设置 Mix 数据（个性化推荐歌单）
     if (personalizedRes.result) {
-      mixes.value = personalizedRes.result.slice(0, 6).map(item => ({
+      mixes.value = personalizedRes.result.slice(0, 6).map((item) => ({
         id: item.id,
         name: item.name,
         cover: item.picUrl,
@@ -93,16 +103,7 @@ onMounted(async () => {
       }))
     }
 
-    // 设置 Video 数据（使用最近播放的歌曲封面作为视频缩略图）
-    if (recordRes.data && recordRes.data.list) {
-      videos.value = recordRes.data.list.slice(0, 3).map((item: any) => ({
-        id: item.data.id,
-        title: item.data.name,
-        thumbnail: item.data.al?.picUrl || '',
-        artist: item.data.ar?.map((a: any) => a.name).join(' / ') || '未知艺术家',
-        playTime: new Date(item.data.time).toLocaleDateString()
-      }))
-    }
+    recentSongs.value = (recordRes.data?.list || []).slice(0, 3).map((item: any) => item.data)
   } catch (error) {
     console.error('Failed to load home data:', error)
   }
@@ -112,110 +113,52 @@ onMounted(async () => {
 <template>
   <div class="home-container">
     <!-- Song Banner -->
-    <ArtistBanner
-      @play="handlePlay"
-      @like="handleLike"
-      @share="handleShare"
-    />
+    <ArtistBanner @play="handlePlay" @like="handleLike" @share="handleShare" />
 
-    <!-- Content Area -->
-    <div class="content-area pa-6">
-      <div class="content-grid">
-        <!-- Left Column: Songs -->
-        <div class="left-column">
-          <SongsSection
-            title="每日推荐"
-            :songs="dailySongs"
-            @play="handlePlay"
-            @like="handleLike"
-            @navigate="handleNavigate"
-          />
-          <AlbumsSection
-            title="推荐专辑"
-            :albums="albums"
-            @play="handlePlay"
-            @like="handleLike"
-            @navigate="handleNavigate"
-          />
-        </div>
-
-        <!-- Right Column: Video & Others -->
-        <div class="right-column">
-          <VideoSection
-            title="精选视频"
-            :videos="videos"
-            @navigate="handleNavigate"
-          />
-
-          <MixSection
-            title="精选歌单"
-            :mixes="mixes"
-            @play="handlePlay"
-            @like="handleLike"
-            @navigate="handleNavigate"
-          />
-        </div>
+    <div class="content-area">
+      <div class="listening-row">
+        <SongsSection title="每日推荐" :songs="dailySongs" @play="handlePlay" />
+        <RecentSection :songs="recentSongs" @play="handleRecentPlay" />
       </div>
+      <MixSection title="精选歌单" :mixes="mixes" @like="handleLike" />
+      <AlbumsSection title="每日歌单" :albums="albums" @like="handleLike" />
     </div>
   </div>
 </template>
 
 <style lang="less" scoped>
 .content-area {
-  min-height: 500px;
-}
+  --discovery-text: #f2eff5;
+  --discovery-muted: #9a96a3;
+  --discovery-accent: #e8bdd1;
+  container-type: inline-size;
+  padding: 16px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
 
-.content-grid {
-  display: grid;
-  grid-template-columns: 400px 1fr;
-  gap: 24px;
-  min-height: 600px;
+  .listening-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr);
+    gap: 32px;
 
-  .left-column {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding-right: 8px;
-
-    &::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    &::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 4px;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 4px;
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.3);
-      }
+    > * {
+      min-width: 0;
     }
   }
+}
 
-  .right-column {
-    padding-left: 8px;
+@container (max-width: 900px) {
+  .content-area .listening-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+}
 
-    &::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    &::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 4px;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 4px;
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.3);
-      }
-    }
+@media (max-width: 700px) {
+  .content-area {
+    padding-inline: 16px;
+    gap: 28px;
   }
 }
 </style>

@@ -22,13 +22,10 @@ export default () => {
     }
   }
   const deleteSongHandler = async (id: number, playId: number, index) => {
-    const { code, message } = await deleteSong({
-      op: 'del',
-      pid: playId,
-      tracks: id
-    })
-    if (code && code !== 200) {
-      ElMessage.error(message)
+    try {
+      await deleteSong('del', playId, id)
+    } catch {
+      // 请求层已显示服务端的具体错误，失败时不刷新列表。
       return
     }
     const { getPlayListDetailFn } = usePlayList()

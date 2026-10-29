@@ -65,17 +65,18 @@ const handleAlbumClick = (album: Album) => {
 </script>
 
 <template>
-  <div class="albums-section mb-8">
+  <div class="albums-section discovery-section">
     <!-- Section Header -->
-    <div class="d-flex align-center justify-space-between mb-4">
-      <h2 class="text-h5 font-weight-bold">{{ title }}</h2>
-      
-      <div v-if="showNavigation" class="d-flex" style="gap: 8px">
+    <div class="section-header">
+      <h2>{{ title }}</h2>
+
+      <div v-if="showNavigation && totalPages > 1" class="section-navigation">
         <v-btn
           icon
           variant="tonal"
           size="small"
           :disabled="currentPage === 0"
+          :aria-label="`上一页${title}`"
           @click="handleNavigate('prev')"
         >
           <v-icon icon="mdi-chevron-left" />
@@ -85,53 +86,51 @@ const handleAlbumClick = (album: Album) => {
           variant="tonal"
           size="small"
           :disabled="currentPage >= totalPages - 1 || totalPages === 0"
+          :aria-label="`下一页${title}`"
           @click="handleNavigate('next')"
         >
           <v-icon icon="mdi-chevron-right" />
         </v-btn>
       </div>
     </div>
-    
+
     <!-- Album Grid -->
-    <div v-if="currentAlbums && currentAlbums.length > 0" class="album-grid">
-      <div
-        v-for="album in currentAlbums"
-        :key="album.id"
-        class="album-item"
-      >
+    <div v-if="currentAlbums && currentAlbums.length > 0" class="album-grid discovery-grid">
+      <div v-for="album in currentAlbums" :key="album.id" class="album-item discovery-item">
         <v-card
-          rounded="lg"
+          rounded="0"
           elevation="0"
-          class="album-card"
+          class="album-card discovery-card"
           @click="handleAlbumClick(album)"
         >
-          <div class="album-cover">
+          <div class="album-cover discovery-cover">
             <v-img :src="album.cover" cover class="cover-img" />
-            
+
             <v-btn
               icon
               variant="tonal"
               color="pink"
               size="small"
-              class="album-heart"
+              class="album-heart discovery-heart"
+              :aria-label="`收藏${album.name}`"
               @click.stop="emit('like', album)"
             >
               <v-icon icon="mdi-heart" />
             </v-btn>
           </div>
-          
-          <div class="album-info pa-2">
-            <div class="album-name text-subtitle-2 font-weight-bold text-truncate">
+
+          <div class="album-info discovery-info">
+            <div class="album-name discovery-name" :title="album.name">
               {{ album.name }}
             </div>
-            <div v-if="album.artist" class="album-artist text-caption text-medium-emphasis text-truncate">
+            <div v-if="album.artist" class="album-artist discovery-description">
               {{ album.artist }}
             </div>
           </div>
         </v-card>
       </div>
     </div>
-    
+
     <!-- Empty State -->
     <div v-else class="empty-state text-center py-8">
       <v-icon icon="mdi-album-off" size="64" color="grey" />
@@ -141,68 +140,5 @@ const handleAlbumClick = (album: Album) => {
 </template>
 
 <style lang="less" scoped>
-.albums-section {
-  .album-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 16px;
-  }
-
-  .empty-state {
-    min-height: 200px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .album-item {
-    .album-card {
-      transition: all 0.3s;
-      cursor: pointer;
-      background: transparent;
-      
-      &:hover {
-        transform: translateY(-4px);
-        
-        .album-heart {
-          opacity: 1;
-        }
-      }
-      
-      .album-cover {
-        position: relative;
-        aspect-ratio: 1;
-        
-        .cover-img {
-          border-radius: 8px;
-        }
-        
-        .album-heart {
-          position: absolute;
-          top: 8px;
-          right: 8px;
-          opacity: 0;
-          transition: opacity 0.3s;
-          
-          .v-icon {
-            font-size: 18px;
-          }
-        }
-      }
-      
-      .album-info {
-        .album-name {
-          font-size: 13px;
-          line-height: 1.4;
-        }
-        
-        .album-artist {
-          font-size: 11px;
-          margin-top: 2px;
-        }
-      }
-    }
-  }
-}
+@import './discovery-cards.less';
 </style>

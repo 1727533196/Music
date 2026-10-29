@@ -58,6 +58,8 @@
 import { onMounted, onUnmounted, ref, watch, reactive, nextTick } from 'vue'
 import * as THREE from 'three'
 const props = defineProps({
+  // 父层负责告知遮挡/页面切换状态；滚出视口由组件自身判断。
+  active: { type: Boolean, default: true },
   /**
    * 主色调数组，每个颜色为 [R, G, B] 格式
    * 示例：[[255, 160, 210], [160, 120, 255]]
@@ -151,7 +153,13 @@ const config = reactive({
 const MAX_BLOBS    = 10
 const instanceSeed = Math.random() * 100.0
 const container    = ref(null)
-let scene, camera, renderer, clock, uniforms, animFrameId
+let scene, camera, renderer, clock, uniforms
+let animFrameId = null
+let initFrameId = null
+let intersectionObserver
+let intersecting = false
+let disposed = false
+let animationTime = 0
 let targetColors = [] // 目标颜色数组
 let blobPhaseOffset = 0 // 色球相位偏移（只影响色球位置，不影响流场）
 let targetBlobPhaseOffset = 0 // 目标色球相位偏移
@@ -166,16 +174,56 @@ function normalizeColors(arr) {
   return Array.from({ length: MAX_BLOBS }, (_, i) => parseRGB(base[i % base.length]))
 }
 
+function shouldAnimate() {
+  return !disposed && props.active && intersecting && !document.hidden
+}
+
+function stopAnimation() {
+  if (animFrameId !== null) cancelAnimationFrame(animFrameId)
+  animFrameId = null
+  if (clock?.running) clock.stop()
+}
+
+function syncAnimation() {
+  if (!renderer || !clock) return
+  if (!shouldAnimate()) {
+    stopAnimation()
+  } else if (animFrameId === null) {
+    // start 重置 Clock 的内部时间；独立累计动画时间，恢复时既不归零也不快进。
+    clock.start()
+    animate()
+  }
+}
+
+watch(() => props.active, syncAnimation)
+
 onMounted(async () => {
   await nextTick()
-  await new Promise(r => requestAnimationFrame(r))
+  if (disposed) return
+  await new Promise(resolve => { initFrameId = requestAnimationFrame(resolve) })
+  initFrameId = null
+  if (disposed) return
   init()
-  animate()
+  if (typeof IntersectionObserver === 'function') {
+    intersectionObserver = new IntersectionObserver(([entry]) => {
+      intersecting = entry.isIntersecting
+      syncAnimation()
+    })
+    intersectionObserver.observe(container.value)
+  } else {
+    intersecting = true
+  }
+  document.addEventListener('visibilitychange', syncAnimation)
   window.addEventListener('resize', onWindowResize)
+  syncAnimation()
 })
 
 onUnmounted(() => {
-  cancelAnimationFrame(animFrameId)
+  disposed = true
+  if (initFrameId !== null) cancelAnimationFrame(initFrameId)
+  stopAnimation()
+  intersectionObserver?.disconnect()
+  document.removeEventListener('visibilitychange', syncAnimation)
   window.removeEventListener('resize', onWindowResize)
   disposeScene()
 })
@@ -223,7 +271,7 @@ function init() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   renderer.setSize(w, h)
   container.value.appendChild(renderer.domElement)
-  clock = new THREE.Clock(true)
+  clock = new THREE.Clock(false)
 
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(
@@ -271,6 +319,11 @@ function init() {
 }
 
 function disposeScene() {
+  scene?.traverse(object => {
+    object.geometry?.dispose()
+    const materials = Array.isArray(object.material) ? object.material : [object.material]
+    materials.forEach(material => material?.dispose())
+  })
   if (renderer) {
     renderer.dispose()
     renderer.domElement?.parentNode?.removeChild(renderer.domElement)
@@ -288,9 +341,10 @@ function onWindowResize() {
 }
 
 function animate() {
-  animFrameId = requestAnimationFrame(animate)
-  if (!renderer || !scene || !camera || !uniforms || !clock) return
-  uniforms.iTime.value = clock.getElapsedTime()
+  animFrameId = null
+  if (!shouldAnimate() || !renderer || !scene || !camera || !uniforms || !clock) return
+  animationTime += clock.getDelta()
+  uniforms.iTime.value = animationTime
 
   // 颜色过渡动画：每帧向目标颜色插值
   updateColorTransition()
@@ -299,6 +353,7 @@ function animate() {
   updateBlobPhaseTransition()
 
   renderer.render(scene, camera)
+  animFrameId = requestAnimationFrame(animate)
 }
 
 function updateBlobPhaseTransition() {

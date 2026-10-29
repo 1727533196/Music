@@ -77,17 +77,18 @@ const formatPlayCount = (count?: number) => {
 </script>
 
 <template>
-  <div class="mix-section mb-8">
+  <div class="mix-section discovery-section">
     <!-- Section Header -->
-    <div class="d-flex align-center justify-space-between mb-4">
-      <h2 class="text-h5 font-weight-bold">{{ title }}</h2>
-      
-      <div v-if="showNavigation" class="d-flex" style="gap: 8px">
+    <div class="section-header">
+      <h2>{{ title }}</h2>
+
+      <div v-if="showNavigation && totalPages > 1" class="section-navigation">
         <v-btn
           icon
           variant="tonal"
           size="small"
           :disabled="currentPage === 0"
+          :aria-label="`上一页${title}`"
           @click="handleNavigate('prev')"
         >
           <v-icon icon="mdi-chevron-left" />
@@ -97,58 +98,56 @@ const formatPlayCount = (count?: number) => {
           variant="tonal"
           size="small"
           :disabled="currentPage >= totalPages - 1 || totalPages === 0"
+          :aria-label="`下一页${title}`"
           @click="handleNavigate('next')"
         >
           <v-icon icon="mdi-chevron-right" />
         </v-btn>
       </div>
     </div>
-    
+
     <!-- Mix Grid -->
-    <div v-if="currentMixes && currentMixes.length > 0" class="mix-grid">
-      <div
-        v-for="mix in currentMixes"
-        :key="mix.id"
-        class="mix-item"
-      >
+    <div v-if="currentMixes && currentMixes.length > 0" class="mix-grid discovery-grid">
+      <div v-for="mix in currentMixes" :key="mix.id" class="mix-item discovery-item">
         <v-card
-          rounded="lg"
+          rounded="0"
           elevation="0"
-          class="mix-card"
+          class="mix-card discovery-card"
           @click="handleMixClick(mix)"
         >
-          <div class="mix-cover">
+          <div class="mix-cover discovery-cover">
             <v-img :src="mix.cover" cover class="cover-img" />
-            
+
             <div class="play-count-badge">
               <v-icon icon="mdi-play" size="x-small" />
               <span>{{ formatPlayCount(mix.playCount) }}</span>
             </div>
-            
+
             <v-btn
               icon
               variant="tonal"
               color="pink"
               size="small"
-              class="mix-heart"
+              class="mix-heart discovery-heart"
+              :aria-label="`收藏${mix.name}`"
               @click.stop="emit('like', mix)"
             >
               <v-icon icon="mdi-heart" />
             </v-btn>
           </div>
-          
-          <div class="mix-info pa-2">
-            <div class="mix-name text-subtitle-2 font-weight-bold text-truncate">
+
+          <div class="mix-info discovery-info">
+            <div class="mix-name discovery-name" :title="mix.name">
               {{ mix.name }}
             </div>
-            <div v-if="mix.description" class="mix-description text-caption text-medium-emphasis text-truncate">
+            <div v-if="mix.description" class="mix-description discovery-description">
               {{ mix.description }}
             </div>
           </div>
         </v-card>
       </div>
     </div>
-    
+
     <!-- Empty State -->
     <div v-else class="empty-state text-center py-8">
       <v-icon icon="mdi-playlist-music-off" size="64" color="grey" />
@@ -158,86 +157,5 @@ const formatPlayCount = (count?: number) => {
 </template>
 
 <style lang="less" scoped>
-.mix-section {
-  .mix-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 16px;
-  }
-
-  .empty-state {
-    min-height: 200px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .mix-item {
-    .mix-card {
-      transition: all 0.3s;
-      cursor: pointer;
-      background: transparent;
-      
-      &:hover {
-        transform: translateY(-4px);
-        
-        .mix-heart {
-          opacity: 1;
-        }
-      }
-      
-      .mix-cover {
-        position: relative;
-        aspect-ratio: 1;
-        
-        .cover-img {
-          border-radius: 8px;
-        }
-        
-        .play-count-badge {
-          position: absolute;
-          top: 8px;
-          left: 8px;
-          padding: 2px 6px;
-          background: rgba(0, 0, 0, 0.6);
-          border-radius: 4px;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          font-size: 11px;
-          color: white;
-          
-          .v-icon {
-            font-size: 12px;
-          }
-        }
-        
-        .mix-heart {
-          position: absolute;
-          top: 8px;
-          right: 8px;
-          opacity: 0;
-          transition: opacity 0.3s;
-          
-          .v-icon {
-            font-size: 18px;
-          }
-        }
-      }
-      
-      .mix-info {
-        .mix-name {
-          font-size: 13px;
-          line-height: 1.4;
-        }
-        
-        .mix-description {
-          font-size: 11px;
-          margin-top: 2px;
-        }
-      }
-    }
-  }
-}
+@import './discovery-cards.less';
 </style>

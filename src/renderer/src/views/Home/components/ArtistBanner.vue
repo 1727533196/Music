@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue'
+import { ref, watch, onMounted, computed, onUnmounted } from 'vue'
 import { findBestColors, toggleImg } from '@/utils'
 import { colorExtraction } from '@/components/MusicDetail/useMusic'
 import FluidBackground from '@/components/FluidBackground/index.vue'
 import { playListState } from '@/layout/BaseAside/usePlayList'
+import { useFlags } from '@/store/flags'
 
 interface Props {
   // 如果传入了这些属性，则使用传入的值；否则从播放列表随机选取
@@ -18,6 +19,18 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const flags = useFlags()
+const backgroundActive = ref(!flags.isOpenDetail)
+let backgroundStopTimer: ReturnType<typeof setTimeout> | undefined
+watch(() => flags.isOpenDetail, open => {
+  clearTimeout(backgroundStopTimer)
+  if (!open) backgroundActive.value = true
+  else {
+    // 详情页完全盖住首页后再暂停，保留进入过渡中的流动效果。
+    backgroundStopTimer = setTimeout(() => { backgroundActive.value = false }, 400)
+  }
+})
+onUnmounted(() => clearTimeout(backgroundStopTimer))
 
 const emit = defineEmits<{
   play: []
@@ -179,6 +192,7 @@ onMounted(() => {
       <FluidBackground
         :main-color="mainColors"
         :brightness="0.8"
+        :active="backgroundActive"
         class="fluid-bg"
       />
     </div>

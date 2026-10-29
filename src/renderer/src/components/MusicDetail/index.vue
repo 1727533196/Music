@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, onUnmounted } from 'vue'
+import { computed, onMounted, ref, onUnmounted, watch } from 'vue'
 import { useMusicAction } from '@/store/music'
 import LyricDisplay from './LyricDisplay.vue'
 import FlowBg from './FlowBg.vue'
@@ -11,6 +11,16 @@ const props = defineProps<Props>()
 const emit = defineEmits(['update:modelValue'])
 const music = useMusicAction()
 const correctHeight = ref<number>(0)
+const backgroundActive = ref(props.modelValue)
+let backgroundStopTimer: ReturnType<typeof setTimeout> | undefined
+watch(() => props.modelValue, open => {
+  clearTimeout(backgroundStopTimer)
+  if (open) backgroundActive.value = true
+  else {
+    // 与详情页的 0.4s 退出过渡保持一致，过渡结束后才暂停。
+    backgroundStopTimer = setTimeout(() => { backgroundActive.value = false }, 400)
+  }
+})
 
 const bg = computed(() => {
   return music.state.songs?.al?.picUrl || ''
@@ -35,6 +45,7 @@ onMounted(() => {
   correctHeight.value = document.body?.clientHeight
 })
 onUnmounted(() => {
+  clearTimeout(backgroundStopTimer)
   window.onresize = null
 })
 </script>
@@ -44,7 +55,7 @@ onUnmounted(() => {
     <el-icon :size="45" @click="closeDetail" class="close np-drag"><ArrowDown /></el-icon>
     <div class="box" :style="{ height: correctHeight + 'px' }">
       <div class="scroll-box" :style="{ height: correctHeight * 2 + 'px' }">
-        <FlowBg :bg="bg" />
+        <FlowBg :bg="bg" :active="backgroundActive" />
         <div class="music-detail-container">
           <LyricDisplay
             :lyric="music.state.lyric"

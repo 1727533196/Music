@@ -12,6 +12,7 @@ import ContextMenu from '@/components/ContextMenu/index.vue'
 import { checkMusic, deleteSong } from '@/api/play'
 import { ElMessage } from 'element-plus'
 import { getUserPlayListFn } from '@/utils/userInfo'
+import { getSongCommentLabel, loadSongCommentCount } from '@/utils/songComments'
 import CorrectSongDialog from './CorrectSongDialog.vue'
 import CollectionDialog from './CollectionDialog.vue'
 import CopyrightDialog from './components/CopyrightDialog.vue'
@@ -33,7 +34,7 @@ export interface Columns {
 const playlistMenuItems = (song: GetMusicDetailData) => {
   const result = [
     { label: '添加歌曲', value: 'collection' },
-    { label: '评论', value: 'comment' },
+    { label: getSongCommentLabel(song.id), value: 'comment' },
     { label: '删除歌曲', value: 'delete' }
   ]
   if (song?.pc?.privateCloud || ['/cloud'].includes(route.path)) {
@@ -81,6 +82,7 @@ const filterList = ref(props.list)
 const copyrightVisible = ref(false)
 const searchKeyword = ref('')
 const collectionDialogVisible = ref(false)
+const collectionLoading = ref(false)
 const correctDialogVisible = ref(false)
 const currentMenuSongItem = ref<null | GetMusicDetailData>(null)
 
@@ -254,19 +256,28 @@ const menuList = computed(() => {
   return store.userPlayListInfo.filter((item) => !item.subscribed)
 })
 
-const collectionHandler = async (menu) => {
+const collectionHandler = async (menu: { id: number }) => {
+  if (collectionLoading.value) return
+  const songId = currentMenuSongItem.value?.id
+  if (!songId || !menu.id) {
+    ElMessage.warning('请重新选择要添加的歌曲和歌单')
+    return
+  }
+  collectionLoading.value = true
   try {
-    await deleteSong('add', menu.id, currentMenuSongItem.value?.id!)
+    await deleteSong('add', menu.id, songId)
     collectionDialogVisible.value = false
-    ElMessage.success({
-      message: '添加成功'
-    })
-    getUserPlayListFn()
-  } catch {}
+    ElMessage.success('添加成功')
+    void getUserPlayListFn().catch(() => {})
+  } catch {
+    // 请求层显示错误，保留选择以便重试。
+  } finally {
+    collectionLoading.value = false
+  }
 }
 
-const handleCollectionConfirm = (playlist) => {
-  collectionHandler(playlist)
+const handleCollectionConfirm = (playlist: { id: number }) => {
+  void collectionHandler(playlist)
 }
 </script>
 
@@ -275,6 +286,7 @@ const handleCollectionConfirm = (playlist) => {
   <CollectionDialog
     v-model="collectionDialogVisible"
     :playlist="menuList"
+    :loading="collectionLoading"
     @confirm="handleCollectionConfirm"
   />
 
@@ -325,6 +337,7 @@ const handleCollectionConfirm = (playlist) => {
           v-for="(data, i) in filterList"
           :key="data.id"
           :items="playlistMenuItems(data)"
+          @open="loadSongCommentCount(data.id)"
           @select="(e) => handlePlaylistMenuSelect(e, data, i)"
         >
           <div

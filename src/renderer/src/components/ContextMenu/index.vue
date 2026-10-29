@@ -12,7 +12,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['select'])
+const emit = defineEmits(['select', 'open'])
 
 const visible = ref(false)
 const x = ref(0)
@@ -32,6 +32,7 @@ const showMenu = (e) => {
     id: menuId.value,
     hideMenu
   })
+  emit('open')
 }
 
 const hideMenu = () => {
