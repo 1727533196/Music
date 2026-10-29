@@ -53,6 +53,7 @@ export type getMusicUrlData = {
   size: number
   url: string
   time: number
+  expi?: number // 链接有效期，单位为秒
 }
 
 interface GetMusicUrlRes {

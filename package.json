@@ -11,6 +11,7 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "test:player": "node --test scripts/tests/music-player-resume.test.cjs",
     "start": "electron-vite preview",
     "dev": "electron-vite dev --watch",
     "build": "electron-vite build",

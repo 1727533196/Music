@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, reactive, UnwrapRef, watch } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, reactive, UnwrapRef, watch } from 'vue'
 import { useUserInfo } from '@/store'
 import { useMusicAction } from '@/store/music'
 import ProgressBar from '@/components/MusicPlayer/ProgressBar.vue'
@@ -12,6 +12,8 @@ import usePlayList, { playListState } from '@/layout/BaseAside/usePlayList'
 import '@lrc-player/core/dist/style.css'
 import Player from '@lrc-player/core'
 import { useFlags } from '@/store/flags'
+import { reloadAudioSource } from '@/utils/musicSource'
+import { ElMessage } from 'element-plus'
 
 const orderStatus = ['icon-xihuan5', 'icon-xunhuan', 'icon-suijibofang', 'icon-danquxunhuan']
 type userAudio = {
@@ -50,13 +52,45 @@ const player = new Player({
   click
 })
 function click(time: number, index: number) {
-  audio.value!.currentTime = time
+  setPlaybackTime(time)
 }
 function seeked() {
+  if (timeState.stop || !isPlay.value || !music.state.lyric?.length) return
   player.syncIndex()
 }
 let originPlay: HTMLMediaElement['play']
 let originPause: HTMLMediaElement['pause']
+let pendingPlay: Promise<undefined> | null = null
+let playController: AbortController | null = null
+let resumeTime: number | null = null
+let playbackRevision = 0
+
+function cancelPendingPlay() {
+  playbackRevision++
+  playController?.abort()
+  playController = null
+  pendingPlay = null
+}
+
+watch(
+  () => props.songs.id,
+  () => {
+    cancelPendingPlay()
+    resumeTime = null
+  }
+)
+
+function setPlaybackTime(time: number) {
+  if (resumeTime !== null) {
+    resumeTime = time
+    music.state.currentTime = time
+  }
+  try {
+    audio.value!.currentTime = time
+  } catch (error) {
+    console.error('设置time时出现了错误: ', error, ',time: ', time)
+  }
+}
 
 onMounted(() => {
   player.mount(document.querySelector('.lyric-container') as HTMLDivElement, audio.value)
@@ -73,38 +107,95 @@ onMounted(() => {
     }
   })
 })
-function play(lengthen: boolean = false) {
-  let volume = store.volume
-  if (music.state.load) {
-    cutSongHandler()
-    music.state.load = false
-  }
-  player.play()
-  audio.value!.volume = 0
-  originPlay.call(audio.value).catch((err) => {
-    console.error('调用origin.play方法时抛出了错误：', err)
-  })
+onUnmounted(() => {
+  cancelPendingPlay()
+  clearInterval(timer)
+  player.uninstall()
+})
+
+function play(lengthen: boolean = false): Promise<undefined> {
+  if (pendingPlay) return pendingPlay
+  playbackRevision++
+  clearInterval(timer)
+  finishTransition?.()
+  const controller = new AbortController()
+  playController = controller
   isPlay.value = true
-  timeState.stop = false
-
-  console.log('music.state.load', music.state.load)
-
-  // 开始时直接改变就可以，让逐字歌词跟得上
-  transitionIsPlay.value = true
-  return transitionVolume(volume, true, lengthen).then(() => {})
+  const task = startPlayback(lengthen, controller.signal).finally(() => {
+    if (playController === controller) {
+      pendingPlay = null
+      playController = null
+    }
+  })
+  pendingPlay = task
+  return task
 }
+
+async function startPlayback(lengthen: boolean, signal: AbortSignal): Promise<undefined> {
+  const element = audio.value!
+  const songId = music.state.songs.id
+  const isCurrent = () => !signal.aborted && music.state.songs.id === songId
+  try {
+    const expired = music.isMusicUrlExpired()
+    const restoring = expired || resumeTime !== null
+    if (restoring) {
+      resumeTime ??= element.currentTime
+      timeState.stop = true
+      element.oncanplay = null
+      if (expired && !(await music.refreshMusicUrl(signal))) return
+      if (!isCurrent()) return
+      await nextTick()
+      if (!isCurrent()) return
+      await reloadAudioSource(element, () => resumeTime ?? element.currentTime, signal)
+      if (!isCurrent()) return
+    }
+    if (music.state.load) {
+      cutSongHandler()
+      music.state.load = false
+    }
+    element.volume = 0
+    await originPlay.call(element)
+    if (!isCurrent()) return
+    resumeTime = null
+    timeState.stop = false
+    music.state.currentTime = element.currentTime
+    if (music.state.lyric?.length) {
+      // 暂停期间也可能调整进度，恢复时统一按当前音频时间校准歌词。
+      player.syncIndex()
+    }
+    transitionIsPlay.value = true
+    await transitionVolume(store.volume, true, lengthen)
+  } catch (error) {
+    if (!isCurrent()) return
+    isPlay.value = false
+    transitionIsPlay.value = false
+    player.pause()
+    originPause.call(element)
+    if (resumeTime !== null) music.state.musicUrlExpiresAt = 0
+    console.error('恢复播放失败:', error)
+    ElMessage.error('播放失败，请稍后重试')
+  }
+  return undefined
+}
+
 function pause(isNeed: boolean = true, lengthen: boolean = false) {
+  cancelPendingPlay()
+  const revision = playbackRevision
+  audio.value!.oncanplay = null
   let volume = store.volume
   // 是否需要更新暂停标识， 什么时候不需要，就比如切换下一首歌的时候:
   // 这个时候会先调用pause暂停上一首进行过渡，然后在调用play播放，这个时候就不需要更新暂停标识
   isNeed && (isPlay.value = false)
   return transitionVolume(volume, false, lengthen).then(() => {
+    if (revision !== playbackRevision) return undefined
     player.pause()
     // 暂停时应该等待音量过渡完成在改变，让逐字歌词也有一个暂停过渡效果
     transitionIsPlay.value = false
+    return undefined
   })
 }
-let timer: NodeJS.Timer
+let timer: ReturnType<typeof setInterval>
+let finishTransition: (() => void) | undefined
 // 当过渡完成时会返回Promise
 function transitionVolume(
   volume: number,
@@ -112,9 +203,11 @@ function transitionVolume(
   lengthen: boolean = false
 ): Promise<undefined> {
   clearInterval(timer)
+  finishTransition?.()
   const playVolume = lengthen ? 40 : 15
   const pauseVolume = lengthen ? 20 : 10
   return new Promise((resolve) => {
+    finishTransition = () => resolve(undefined)
     if (target) {
       timer = setInterval(() => {
         audio.value!.volume = Math.min(audio.value!.volume + volume / playVolume, volume)
@@ -152,6 +245,8 @@ const timeupdate = () => {
 }
 
 const reset = (val: boolean) => {
+  cancelPendingPlay()
+  resumeTime = null
   music.state.currentTime = 0
   isPlay.value = val
   transitionIsPlay.value = val
@@ -209,11 +304,7 @@ Object.defineProperty(exposeObj, 'time', {
     return audio.value!.currentTime
   },
   set(time: number) {
-    try {
-      audio.value!.currentTime = time
-    } catch (e) {
-      console.error('设置time时出现了错误: ', e, ',time: ', time)
-    }
+    setPlaybackTime(time)
   }
 })
 Object.defineProperty(exposeObj, 'oldTime', {

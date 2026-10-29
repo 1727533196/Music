@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import {computed, h, nextTick, ref, watch} from 'vue'
-import {useRoute, useRouter} from 'vue-router'
-import {lookup} from '@/utils'
+import { computed, h, nextTick, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { lookup } from '@/utils'
 import { GetMusicDetailData, PlayList } from '@/api/musicList'
 import { useUserInfo } from '@/store'
 import useMusic from '@/components/MusicPlayer/useMusic'
@@ -9,9 +9,9 @@ import { useMusicAction } from '@/store/music'
 import Pagination from '@/components/Pagination/index.vue'
 import NotFound from '@/assets/not-found.png'
 import ContextMenu from '@/components/ContextMenu/index.vue'
-import {checkMusic, deleteSong} from '@/api/play'
-import {ElMessage} from "element-plus";
-import {getUserPlayListFn} from "@/utils/userInfo";
+import { checkMusic, deleteSong } from '@/api/play'
+import { ElMessage } from 'element-plus'
+import { getUserPlayListFn } from '@/utils/userInfo'
 import CorrectSongDialog from './CorrectSongDialog.vue'
 import CollectionDialog from './CollectionDialog.vue'
 import CopyrightDialog from './components/CopyrightDialog.vue'
@@ -34,7 +34,7 @@ const playlistMenuItems = (song: GetMusicDetailData) => {
   const result = [
     { label: '添加歌曲', value: 'collection' },
     { label: '评论', value: 'comment' },
-    { label: '删除歌曲', value: 'delete' },
+    { label: '删除歌曲', value: 'delete' }
   ]
   if (song?.pc?.privateCloud || ['/cloud'].includes(route.path)) {
     result.push({ label: '纠正信息', value: 'correct' })
@@ -42,21 +42,21 @@ const playlistMenuItems = (song: GetMusicDetailData) => {
   return result
 }
 interface Props {
-  list: GetMusicDetailData[];
-  songs: GetMusicDetailData;
-  columns: Columns[];
-  loading?: boolean;
-  ids?: number[];
-  listInfo?: PlayList | any;
-  scroll?: boolean;
-  isPaging?: boolean;
-  total?: number;
-  pageSize?: number;
-  currentPage?: number;
-  isLoadingEndflyback?: boolean;
-  lazy?: boolean;
-  isNeedTitle?: boolean;
-  isSearch?: boolean;
+  list: GetMusicDetailData[]
+  songs: GetMusicDetailData
+  columns: Columns[]
+  loading?: boolean
+  ids?: number[]
+  listInfo?: PlayList | any
+  scroll?: boolean
+  isPaging?: boolean
+  total?: number
+  pageSize?: number
+  currentPage?: number
+  isLoadingEndflyback?: boolean
+  lazy?: boolean
+  isNeedTitle?: boolean
+  isSearch?: boolean
 }
 const props = withDefaults(defineProps<Props>(), {
   listInfo: {},
@@ -66,7 +66,7 @@ const props = withDefaults(defineProps<Props>(), {
   currentPage: 1,
   isLoadingEndflyback: false,
   lazy: true,
-  isNeedTitle: true,
+  isNeedTitle: true
 })
 const emit = defineEmits(['play', 'current-change', 'update:modelValue'])
 
@@ -101,7 +101,7 @@ const handlePlaylistMenuSelect = (item: { label: string; value: string }, row, i
       router.push({
         path: '/comment',
         query: {
-          id: row.id,
+          id: row.id
         }
       })
       break
@@ -131,11 +131,7 @@ const playHandler = async (item: GetMusicDetailData, index: number) => {
   id.value = item.id
   emit('play', item, index)
 
-  if (
-    music.state.runtimeList?.id !== music.state.currentItem?.id &&
-    props.ids &&
-    props.listInfo
-  ) {
+  if (music.state.runtimeList?.id !== music.state.currentItem?.id && props.ids && props.listInfo) {
     music.updateRuntimeList({ tracks: props.list, ...props.listInfo }, props.ids)
   }
 }
@@ -198,39 +194,50 @@ const setItemRef = (el: any, id: number) => {
     itemRefs.value[id] = el.$el || el
   }
 }
-watch(() => props.loading, async (value) => {
-  if(!value && route.query.position && music.state.searchList.length > 0) {
-    const target = music.state.searchList.find(item => props.list.find(listItem => item.id === listItem.id))
-    console.log('target', target)
+watch(
+  () => props.loading,
+  async (value) => {
+    if (!value && route.query.position && music.state.searchList.length > 0) {
+      const target = music.state.searchList.find((item) =>
+        props.list.find((listItem) => item.id === listItem.id)
+      )
+      console.log('target', target)
 
-    if (target) {
-      nextTick(() => {
-        const targetEl = itemRefs.value[target.id]
-        targetEl.classList.add('position-target')
-        const scrollEl = document.querySelector('.body')
-        if (targetEl && scrollEl) {
-          scrollEl.scrollTo({
-            top: targetEl.getBoundingClientRect().top - (scrollEl.clientHeight / 2.35),
-            behavior: 'smooth',
-          })
-          targetEl.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'
-          targetEl.animate([
-            {backgroundColor: 'rgba(255, 255, 255, 0.06)'},
-            {backgroundColor: 'rgba(255, 255, 255, 0)'}
-          ], {
-            duration: 1300,
-            easing: "ease-in-out",
-            delay: 3000,
-          }).finished.then(() => {
-            targetEl.style.backgroundColor = ''
-          })
-        }
-      })
+      if (target) {
+        nextTick(() => {
+          const targetEl = itemRefs.value[target.id]
+          targetEl.classList.add('position-target')
+          const scrollEl = document.querySelector('.body')
+          if (targetEl && scrollEl) {
+            scrollEl.scrollTo({
+              top: targetEl.getBoundingClientRect().top - scrollEl.clientHeight / 2.35,
+              behavior: 'smooth'
+            })
+            targetEl.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'
+            targetEl
+              .animate(
+                [
+                  { backgroundColor: 'rgba(255, 255, 255, 0.06)' },
+                  { backgroundColor: 'rgba(255, 255, 255, 0)' }
+                ],
+                {
+                  duration: 1300,
+                  easing: 'ease-in-out',
+                  delay: 3000
+                }
+              )
+              .finished.then(() => {
+                targetEl.style.backgroundColor = ''
+              })
+          }
+        })
+      }
     }
+  },
+  {
+    immediate: true
   }
-}, {
-  immediate: true
-})
+)
 
 watch(
   () => props.list,
@@ -240,8 +247,11 @@ watch(
 )
 
 const menuList = computed(() => {
-  console.log('store.userPlayListInfo', store.userPlayListInfo.filter(item => !item.subscribed))
-  return store.userPlayListInfo.filter(item => !item.subscribed)
+  console.log(
+    'store.userPlayListInfo',
+    store.userPlayListInfo.filter((item) => !item.subscribed)
+  )
+  return store.userPlayListInfo.filter((item) => !item.subscribed)
 })
 
 const collectionHandler = async (menu) => {
@@ -249,12 +259,10 @@ const collectionHandler = async (menu) => {
     await deleteSong('add', menu.id, currentMenuSongItem.value?.id!)
     collectionDialogVisible.value = false
     ElMessage.success({
-      message: '添加成功',
+      message: '添加成功'
     })
     getUserPlayListFn()
-  } catch {
-
-  }
+  } catch {}
 }
 
 const handleCollectionConfirm = (playlist) => {
@@ -276,16 +284,9 @@ const handleCollectionConfirm = (playlist) => {
     :userId="store.profile.userId!"
   />
 
-  <div
-    class="song-list-container"
-    :style="{ overflowY: scroll ? 'auto' : 'visible' }"
-  >
+  <div class="song-list-container" :style="{ overflowY: scroll ? 'auto' : 'visible' }">
     <!-- 搜索框 -->
-    <div
-      v-if="isSearch"
-      class="search-container"
-      :style="{ display: loading ? 'none' : '' }"
-    >
+    <div v-if="isSearch" class="search-container" :style="{ display: loading ? 'none' : '' }">
       <VTextField
         density="compact"
         placeholder="搜索此列表歌曲"
@@ -300,19 +301,12 @@ const handleCollectionConfirm = (playlist) => {
     </div>
 
     <!-- 版权提示对话框 -->
-    <CopyrightDialog
-      v-model="copyrightVisible"
-      @confirm="closeCopyrightVisible"
-    />
+    <CopyrightDialog v-model="copyrightVisible" @confirm="closeCopyrightVisible" />
 
     <!-- 主要内容 -->
     <template v-if="loading || filterList.length">
       <!-- 标题行 -->
-      <div
-        v-if="isNeedTitle"
-        class="title-container"
-        :style="{ display: loading ? 'none' : '' }"
-      >
+      <div v-if="isNeedTitle" class="title-container" :style="{ display: loading ? 'none' : '' }">
         <div
           v-for="config in columns"
           v-show="!config.hidden"
@@ -326,10 +320,7 @@ const handleCollectionConfirm = (playlist) => {
       </div>
 
       <!-- 歌曲列表 -->
-      <div
-        class="list-container"
-        :style="{ display: loading ? 'none' : '' }"
-      >
+      <div class="list-container" :style="{ display: loading ? 'none' : '' }">
         <ContextMenu
           v-for="(data, i) in filterList"
           :key="data.id"
@@ -374,11 +365,7 @@ const handleCollectionConfirm = (playlist) => {
               </template>
               <template v-else-if="config.type === 'index'">
                 <!-- 索引 -->
-                {{
-                  formatCount(
-                    isPaging ? pageSize * (currentPage - 1) + (i + 1) : i + 1
-                  )
-                }}
+                {{ formatCount(isPaging ? pageSize * (currentPage - 1) + (i + 1) : i + 1) }}
               </template>
               <template v-else-if="config.type === 'title'">
                 <!-- 歌曲标题 -->
@@ -396,30 +383,41 @@ const handleCollectionConfirm = (playlist) => {
                     </div>
                     <div class="name-container">
                       <div class="tag-box">
-                        <el-tag effect="plain" style="margin-right: 5px;" v-if="data.fee === 1" type="primary">vip</el-tag>
-                        <el-tag effect="plain" style="margin-right: 5px;" v-if="data?.pc?.privateCloud" type="success">云盘</el-tag>
+                        <el-tag
+                          effect="plain"
+                          style="margin-right: 5px"
+                          v-if="data.fee === 1"
+                          type="primary"
+                          >vip</el-tag
+                        >
+                        <el-tag
+                          effect="plain"
+                          style="margin-right: 5px"
+                          v-if="data?.pc?.privateCloud"
+                          type="success"
+                          >云盘</el-tag
+                        >
                       </div>
                       <div class="ar-box">
                         <template v-if="!data.ar">
                           {{ data.artist }}
                         </template>
                         <template v-else>
-                        <span
-                          v-for="(ar, index) in data.ar"
-                          :key="ar.id || index"
-                          :style="{
-                            cursor: ar.id ? 'pointer' : 'default',
-                            color: ar.id ? '' : 'rgba(150, 150, 150, 0.60)',
-                          }"
-                          @click="ar.id && singerDetail(ar.id)"
-                          class="ar"
-                        >
-                          {{ ar.name || data.artist || '未知艺人' }}
                           <span
-                            v-if="index < data.ar.length - 1"
-                            style="color: #969696"
-                          > / </span>
-                        </span>
+                            v-for="(ar, index) in data.ar"
+                            :key="ar.id || index"
+                            :style="{
+                              cursor: ar.id ? 'pointer' : 'default',
+                              color: ar.id ? '' : 'rgba(150, 150, 150, 0.60)'
+                            }"
+                            @click="ar.id && singerDetail(ar.id)"
+                            class="ar"
+                          >
+                            {{ ar.name || data.artist || '未知艺人' }}
+                            <span v-if="index < data.ar.length - 1" style="color: #969696">
+                              /
+                            </span>
+                          </span>
                         </template>
                       </div>
                     </div>
@@ -461,11 +459,7 @@ const handleCollectionConfirm = (playlist) => {
     />
 
     <!-- 加载状态 -->
-    <div
-      class="loading"
-      :style="{ display: loading ? 'block' : 'none' }"
-      v-loading="loading"
-    />
+    <div class="loading" :style="{ display: loading ? 'block' : 'none' }" v-loading="loading" />
   </div>
 </template>
 
@@ -498,7 +492,11 @@ const handleCollectionConfirm = (playlist) => {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, rgba(var(--v-theme-primary), 0.1) 0%, rgba(var(--v-theme-primary), 0.05) 100%);
+      background: linear-gradient(
+        135deg,
+        rgba(var(--v-theme-primary), 0.1) 0%,
+        rgba(var(--v-theme-primary), 0.05) 100%
+      );
       border-radius: 50%;
       border: 2px solid rgba(var(--v-theme-primary), 0.2);
       box-shadow: 0 8px 32px rgba(var(--v-theme-primary), 0.15);
@@ -509,7 +507,8 @@ const handleCollectionConfirm = (playlist) => {
       }
 
       @keyframes float {
-        0%, 100% {
+        0%,
+        100% {
           transform: translateY(0);
         }
         50% {
@@ -626,18 +625,28 @@ const handleCollectionConfirm = (playlist) => {
       }
       .name-box {
         display: flex;
+        flex: 1;
+        min-width: 0;
         flex-direction: column;
         justify-content: space-around;
+
         .name-container {
           display: flex;
           align-items: center;
           color: @text;
           .tag-box {
-
+            flex-shrink: 0;
+            white-space: nowrap;
           }
           .ar-box {
             position: relative;
             top: 2px;
+            flex: 1;
+            min-width: 0;
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
             .ar:hover {
               color: #85b9e6;
             }

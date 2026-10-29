@@ -10,6 +10,12 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()]
   },
   renderer: {
+    server: {
+      watch: {
+        usePolling: process.platform === 'darwin',
+        interval: 300
+      }
+    },
     resolve: {
       alias: {
         '@': resolve('src/renderer/src')

@@ -15,16 +15,18 @@ import { watch, ref, reactive } from 'vue'
 import { parseLrc, parseYrc } from '@lrc-player/parse'
 import { randomNum, Yrc } from '@/utils'
 import { useUserInfo } from '@/store/index'
+import { getMusicUrlExpiresAt } from '@/utils/musicSource'
 
 export type Lyric = { time: number | boolean; text: string; line: number }
 interface State {
   musicUrl: string
+  musicUrlExpiresAt: number
   songs: any
   currentItem: Partial<GetPlayListDetailRes['playlist']> | null
   runtimeList: CurrentItem | null
   runtimeIds: number[]
   lyric: (Lyric[] & { notSupportedScroll?: boolean }) | (Yrc[] & { notSupportedScroll?: boolean })
-  currentTime: 0
+  currentTime: number
   lrcMode: 0 | 1
   bgColor: Array<Array<string>>
   videoPlayUrl: string | null
@@ -40,6 +42,7 @@ interface State {
 export const useMusicAction = defineStore('musicActionId', () => {
   let state: State = reactive({
     musicUrl: '', // 用户当前播放器播放的音乐url
+    musicUrlExpiresAt: 0,
     songs: {}, // 用户当前播放器播放的音乐
     currentItem: null, // 用户当前选中的歌单列表，会随着用户选中的菜单变化
     runtimeList: null, // 用户当前正在播放音乐的列表
@@ -143,9 +146,39 @@ export const useMusicAction = defineStore('musicActionId', () => {
       })
     }
   }
+  let sourceRequestId = 0
+  const isMusicUrlExpired = () =>
+    !state.musicUrlExpiresAt || Date.now() >= state.musicUrlExpiresAt
+
+  // 同一首歌只替换音频地址，不重置进度、歌词和播放记录。
+  const refreshMusicUrl = async (signal: AbortSignal): Promise<boolean> => {
+    const songId = state.songs.id
+    const previousUrl = state.musicUrl
+    const requestId = sourceRequestId
+    const requestedAt = Date.now()
+    const { data } = await getMusicUrl(songId)
+    if (
+      signal.aborted ||
+      requestId !== sourceRequestId ||
+      state.songs.id !== songId ||
+      state.musicUrl !== previousUrl
+    ) {
+      return false
+    }
+    if (!data[0]?.url) {
+      throw new Error('未获取到可播放的歌曲链接')
+    }
+    state.musicUrl = data[0].url
+    state.musicUrlExpiresAt = getMusicUrlExpiresAt(data[0].expi, requestedAt)
+    return true
+  }
+
   // 获取音乐url并播放
   const getMusicUrlHandler = async (item: GetMusicDetailData, i?: number) => {
+    const requestId = ++sourceRequestId
+    const requestedAt = Date.now()
     try {
+      $audio.el.oncanplay = null
       state.songs = item
       getLyricHandler(item)
       getDynamicCoverHandler(item.id)
@@ -154,11 +187,14 @@ export const useMusicAction = defineStore('musicActionId', () => {
         getMusicUrl(item.id),
         getMusicDetail(item.id.toString())
       ])
+      if (requestId !== sourceRequestId) return
       state.songs.dt = data[0].time
       state.index = i === undefined ? state.index : i
       $audio.reset(true)
       await $audio.pause(false)
+      if (requestId !== sourceRequestId) return
       state.musicUrl = data[0].url || ''
+      state.musicUrlExpiresAt = getMusicUrlExpiresAt(data[0].expi, requestedAt)
       $audio.cutSongHandler()
       // 监听audio是否加载完毕
       localStorage.setItem('MUSIC_CONFIG', JSON.stringify({ ...state, load: true }))
@@ -170,6 +206,8 @@ export const useMusicAction = defineStore('musicActionId', () => {
         coverUrl: item.al.picUrl
       })
       $audio.el.oncanplay = async () => {
+        $audio.el.oncanplay = null
+        if (requestId !== sourceRequestId) return
         try {
           await $audio.play()
           // localStorage.setItem('MUSIC_CONFIG', JSON.stringify({
@@ -261,10 +299,6 @@ export const useMusicAction = defineStore('musicActionId', () => {
 
       // 拖动进度条 (macOS Big Sur+ 支持)
       navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (details.fastSeek && 'fastSeek' in $audio.el) {
-          $audio.el.fastSeek(details.seekTime)
-          return
-        }
         window.$audio.time = details.seekTime
       })
     }
@@ -302,6 +336,8 @@ export const useMusicAction = defineStore('musicActionId', () => {
     updateRuntimeList,
     getLyricHandler,
     getMusicUrlHandler,
+    isMusicUrlExpired,
+    refreshMusicUrl,
     orderTarget,
     playEnd,
     cutSongHandler,
