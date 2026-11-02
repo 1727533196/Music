@@ -1,5 +1,5 @@
-import request from "@/utils/request";
-import type {GetMusicDetailData} from "@/api/musicList";
+import request from '@/utils/request'
+import type { GetMusicDetailData, PlayList } from '@/api/musicList'
 
 export type Banner = {
   encodeId: string
@@ -36,7 +36,7 @@ interface PersonalizedRes {
 }
 export interface Recommend {
   alg: string
-  copywriter: ""
+  copywriter: ''
   createTime: number
   creator: {
     nickname: string
@@ -62,20 +62,37 @@ interface RecommendSongListRes {
 interface RecommendSongRes {
   code: number
   data: {
-    dailySongs: GetMusicDetailData[],
+    dailySongs: GetMusicDetailData[]
     recommendReasons: Array<{
       reason: string
       songId: number
     }>
   }
 }
+interface HighQualityPlaylistsRes {
+  code: number
+  more: boolean
+  lasttime?: number
+  playlists: Array<
+    Pick<PlayList, 'id' | 'name' | 'coverImgUrl' | 'trackCount' | 'playCount' | 'updateTime'>
+  >
+}
 export const banner = () => request<null, BannerRes>('/banner')
 
 // 获取推荐歌单
 export const personalized = () => request<null, PersonalizedRes>('/personalized', 'get')
 
+// 获取精品歌单，供首页精选区域使用
+export const getHighQualityPlaylists = (limit = 6, before?: number) =>
+  request<{ limit: number; before?: number }, HighQualityPlaylistsRes>(
+    '/top/playlist/highquality',
+    { limit, before },
+    'get'
+  )
+
 // 获取每日推荐歌单
-export const recommendSongList = () => request<null, RecommendSongListRes>('/recommend/resource', 'get')
+export const recommendSongList = () =>
+  request<null, RecommendSongListRes>('/recommend/resource', 'get')
 
 // 获取每日推荐歌曲
 export const recommendSong = () => request<null, RecommendSongRes>('/recommend/songs', 'get')

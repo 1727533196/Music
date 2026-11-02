@@ -1,105 +1,140 @@
 <script setup lang="ts">
-import {computed, ref, watch} from 'vue'
-import {useUserInfo} from "@/store";
+import { computed, ref, watch } from 'vue'
+import { useUserInfo } from '@/store'
+import PlayerGlyph from './PlayerGlyph.vue'
 
 interface Props {
-  audio: HTMLAudioElement
+  audio?: HTMLAudioElement
 }
 const props = defineProps<Props>()
 const model = ref(0)
 const store = useUserInfo()
+const savedVolume = localStorage.getItem('volume')
+const initialVolume = savedVolume === null ? store.volume : Number(savedVolume)
+if (Number.isFinite(initialVolume)) store.volume = Math.min(1, Math.max(0, initialVolume))
+const lastVolume = ref(store.volume > 0 ? store.volume : 1)
 
 // 详情页和底栏切换时，音量滑块保持与共享状态一致。
-watch(() => store.volume, (value) => {
-  model.value = value * 100
-}, { immediate: true })
+watch(
+  () => store.volume,
+  (value) => {
+    model.value = value * 100
+    if (value > 0) lastVolume.value = value
+  },
+  { immediate: true }
+)
 
-watch(() => props.audio, (value) => {
-  const volume = Number(localStorage.getItem('volume') || 1)
-  model.value = volume * 100
-  window.$audio.el.volume = volume
-  store.volume = volume
-})
-const volumeHandler = (target: boolean) => {
-  const volume = Number(localStorage.getItem('volume') || 1)
-  model.value = target ? 0 : volume * 100
+watch(
+  () => props.audio,
+  (value) => {
+    if (value) value.volume = Math.min(1, Math.max(0, store.volume))
+  },
+  { immediate: true }
+)
+const setVolume = (value: number) => {
+  if (!Number.isFinite(value)) return
+  const next = Math.min(1, Math.max(0, value))
+  if (next > 0) lastVolume.value = next
+  model.value = next * 100
+  store.volume = next
+  localStorage.setItem('volume', String(next))
+  const audio = props.audio || window.$audio?.el
+  if (audio) audio.volume = next
 }
-let timer: NodeJS.Timeout
+const volumeHandler = (target: boolean) => {
+  setVolume(target ? 0 : lastVolume.value)
+}
 const input = () => {
-  window.$audio.el.volume = volume.value
-  clearTimeout(timer)
-  timer = setTimeout(() => {
-      localStorage.setItem('volume', String(volume.value))
-  }, 50)
+  setVolume(volume.value)
 }
 const change = () => {
-  store.volume = volume.value
+  setVolume(volume.value)
 }
 const volume = computed(() => {
   return model.value / 100
 })
-
 </script>
 
 <template>
-    <div class="volume-box">
-        <i
-          v-if="volume !== 0"
-          @click="volumeHandler(true)"
-          class="iconfont icon-yinliang"/>
-        <i
-          v-else
-          @click="volumeHandler(false)"
-          class="iconfont icon-jingyin"/>
-        <el-slider
-          v-model="model"
-          @change="change"
-          @input="input"
-          :show-tooltip="false"
-          :show-stops="false"
-          style="width: 80px;overflow: hidden"
-        />
-    </div>
+  <div class="volume-box">
+    <button
+      type="button"
+      class="volume-button"
+      :title="volume ? '静音' : '取消静音'"
+      :aria-label="volume ? '静音' : '取消静音'"
+      :aria-pressed="volume === 0"
+      @click="volumeHandler(volume !== 0)"
+    >
+      <PlayerGlyph :name="volume ? 'speaker' : 'mute'" />
+    </button>
+    <el-slider
+      v-model="model"
+      @change="change"
+      @input="input"
+      :show-tooltip="false"
+      :show-stops="false"
+      style="width: 80px; overflow: hidden"
+    />
+  </div>
 </template>
 
 <style scoped lang="less">
 .volume-box {
-    width: 150px;
-    display: flex;
+  width: 150px;
+  display: flex;
+  align-items: center;
+  .volume-button {
+    display: inline-flex;
     align-items: center;
-    .icon-yinliang {
-        font-size: 18px;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    margin-right: 8px;
+    transition:
+      opacity 150ms ease,
+      background-color 150ms ease;
+    svg {
+      width: 22px;
+      height: 22px;
     }
-    .iconfont {
-        cursor: pointer;
-        //transform: translateY(-50%);
-        //position: absolute;
-        //top: 50%;
-        color: @text;
-        margin-right: 8px;
+    &:hover {
+      background: rgba(255, 255, 255, 0.08);
     }
-    .iconfont:hover {
-        color: white;
+    &:focus-visible {
+      outline: 2px solid rgba(255, 255, 255, 0.8);
+      outline-offset: 3px;
     }
+  }
 }
 
 :deep(.el-slider) {
-    //width: 130px !important;
+  //width: 130px !important;
 }
 :deep(.el-slider__button-wrapper) {
-    cursor: pointer !important;
+  cursor: pointer !important;
 }
 :deep(.el-slider__button) {
-    display: none;
+  display: none;
 }
 :deep(.el-slider__bar) {
-    background-color: rgb(236,65,65);
-    height: 5px;
-    border-radius: 3px;
+  background-color: rgb(236, 65, 65);
+  height: 5px;
+  border-radius: 3px;
 }
 :deep(.el-slider__runway) {
-    height: 5px;
-    background-color: rgba(255,255,255, 0.1);
+  height: 5px;
+  background-color: rgba(255, 255, 255, 0.1);
 }
-
+@media (prefers-reduced-motion: reduce) {
+  .volume-button {
+    transition: none;
+  }
+}
 </style>

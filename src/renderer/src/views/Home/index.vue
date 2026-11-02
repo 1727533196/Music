@@ -9,7 +9,7 @@ import usePlayList from '@/layout/BaseAside/usePlayList'
 import { playListState } from '@/layout/BaseAside/usePlayList'
 import { useMusicAction } from '@/store/music'
 import type { GetMusicDetailData } from '@/api/musicList'
-import { personalized, recommendSongList, type Recommend } from '@/api/home'
+import { getHighQualityPlaylists, recommendSongList } from '@/api/home'
 import { getRecordSong } from '@/api/musicList'
 import { playListMock as dailyQueue } from '@/views/DailyRecommend/dailyRecommendSongsConfig'
 import { playListMock as recentQueue } from '@/views/LatelyPlay/config'
@@ -26,11 +26,100 @@ const dailySongs = computed(() => {
 // 最近播放的歌曲
 const recentSongs = ref<GetMusicDetailData[]>([])
 
-// 专辑数据（从推荐歌单中获取）
+// 每日推荐歌单
 const albums = ref<any[]>([])
 
-// 歌单数据（Mix）
-const mixes = ref<any[]>([])
+// 精品歌单
+interface FeaturedMix {
+  id: number
+  name: string
+  cover: string
+  description: string
+  playCount: number
+}
+const MIX_FETCH_SIZE = 6
+// 接口游标与展示页分开，调整窗口后缓存中的歌单仍可连续翻阅。
+const mixItems = ref<FeaturedMix[]>([])
+const mixPageSize = ref(6)
+const mixHasMore = ref(true)
+let mixCursor: number | undefined
+let mixLayoutVersion = 0
+const mixPage = ref(1)
+const mixLoading = ref(false)
+const mixError = ref(false)
+const mixes = computed(() => {
+  const start = (mixPage.value - 1) * mixPageSize.value
+  return mixItems.value.slice(start, start + mixPageSize.value)
+})
+const mixHasNextPage = computed(
+  () => mixItems.value.length > mixPage.value * mixPageSize.value || mixHasMore.value
+)
+
+const updateMixPageSize = (size: number) => {
+  if (mixPageSize.value === size) return
+  mixLayoutVersion++
+  mixPageSize.value = size
+  mixPage.value = 1
+}
+
+const loadMixPage = async (page = 1) => {
+  if (mixLoading.value || page < 1) return
+  const pageSize = mixPageSize.value
+  const layoutVersion = mixLayoutVersion
+  const start = (page - 1) * pageSize
+  const end = start + pageSize
+  if (mixItems.value.length >= end || (!mixHasMore.value && mixItems.value.length > start)) {
+    mixPage.value = page
+    mixError.value = false
+    return
+  }
+  if (!mixHasMore.value) return
+
+  mixLoading.value = true
+  mixError.value = false
+  try {
+    while (mixItems.value.length < end && mixHasMore.value) {
+      const before = mixCursor
+      const { playlists, more, lasttime } = await getHighQualityPlaylists(MIX_FETCH_SIZE, before)
+      const items = playlists || []
+      const knownIds = new Set(mixItems.value.map((item) => item.id))
+      const added = items.filter((item) => {
+        if (knownIds.has(item.id)) return false
+        knownIds.add(item.id)
+        return true
+      })
+      mixItems.value.push(
+        ...added.map((item) => ({
+          id: item.id,
+          name: item.name,
+          cover: item.coverImgUrl,
+          description: `${item.trackCount}首`,
+          playCount: item.playCount
+        }))
+      )
+      const cursor = Number(lasttime || items[items.length - 1]?.updateTime)
+      const hasCursor = Number.isFinite(cursor) && cursor > 0 && (!before || cursor < before)
+      mixCursor = hasCursor ? cursor : undefined
+      mixHasMore.value = Boolean(more && added.length && hasCursor)
+      // 请求期间窗口变化时，只缓存数据，保留新布局的首页。
+      if (layoutVersion !== mixLayoutVersion) return
+    }
+    // 已到末尾时保留当前页面，避免翻到一页空白。
+    if (mixItems.value.length > start) {
+      mixPage.value = page
+    }
+  } catch (error) {
+    mixError.value = true
+    // 请求层显示错误，保留当前页以便用户再次点击重试。
+    console.error('Failed to load 精选歌单:', error)
+  } finally {
+    mixLoading.value = false
+  }
+}
+
+const navigateMixes = (direction: 'prev' | 'next') => {
+  void loadMixPage(mixPage.value + (direction === 'prev' ? -1 : 1))
+}
 
 // 同步当前区域的播放队列，确保下一首和自动连播仍在这组歌曲中。
 const playFromList = (
@@ -71,42 +160,29 @@ const handleShare = () => {
 
 // 组件挂载时获取数据
 onMounted(async () => {
-  await getRecommendSongs()
-
-  // 获取推荐歌单
-  try {
-    const [personalizedRes, recommendRes, recordRes] = await Promise.all([
-      personalized(),
-      recommendSongList(),
-      getRecordSong(10)
-    ])
-
-    // 设置 Mix 数据（个性化推荐歌单）
-    if (personalizedRes.result) {
-      mixes.value = personalizedRes.result.slice(0, 6).map((item) => ({
-        id: item.id,
-        name: item.name,
-        cover: item.picUrl,
-        description: `${item.trackCount}首`,
-        playCount: item.playCount
-      }))
-    }
-
-    // 设置 Album 数据（每日推荐歌单）
-    if (recommendRes.recommend) {
-      albums.value = recommendRes.recommend.slice(0, 6).map((item: Recommend) => ({
+  // 各区域独立更新，日推或播放记录请求失败时仍可展示精品歌单。
+  const results = await Promise.allSettled([
+    getRecommendSongs(),
+    loadMixPage(),
+    recommendSongList().then(({ recommend }) => {
+      albums.value = (recommend || []).map((item) => ({
         id: item.id,
         name: item.name,
         cover: item.picUrl,
         artist: item.creator?.nickname || '未知',
         trackCount: item.trackCount
       }))
+    }),
+    getRecordSong(10).then(({ data }) => {
+      recentSongs.value = (data?.list || []).slice(0, 3).map((item: any) => item.data)
+    })
+  ])
+  const sections = ['每日推荐歌曲', '精选歌单', '每日歌单', '最近播放']
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      console.error(`Failed to load ${sections[index]}:`, result.reason)
     }
-
-    recentSongs.value = (recordRes.data?.list || []).slice(0, 3).map((item: any) => item.data)
-  } catch (error) {
-    console.error('Failed to load home data:', error)
-  }
+  })
 })
 </script>
 
@@ -120,7 +196,18 @@ onMounted(async () => {
         <SongsSection title="每日推荐" :songs="dailySongs" @play="handlePlay" />
         <RecentSection :songs="recentSongs" @play="handleRecentPlay" />
       </div>
-      <MixSection title="精选歌单" :mixes="mixes" @like="handleLike" />
+      <MixSection
+        title="精选歌单"
+        :mixes="mixes"
+        :page="mixPage"
+        :has-next-page="mixHasNextPage"
+        :loading="mixLoading"
+        :error="mixError"
+        @navigate="navigateMixes"
+        @retry="loadMixPage(mixPage)"
+        @page-size-change="updateMixPageSize"
+        @like="handleLike"
+      />
       <AlbumsSection title="每日歌单" :albums="albums" @like="handleLike" />
     </div>
   </div>

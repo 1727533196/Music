@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useDiscoveryPageSize } from './useDiscoveryPageSize'
 
 interface Mix {
   id: number
@@ -14,47 +15,38 @@ interface Props {
   title: string
   mixes: Mix[]
   showNavigation?: boolean
+  page?: number
+  hasNextPage?: boolean
+  loading?: boolean
+  error?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  showNavigation: true
+  showNavigation: true,
+  page: 1,
+  hasNextPage: false,
+  loading: false,
+  error: false
 })
 
 const emit = defineEmits<{
   play: [mix: Mix]
   like: [mix: Mix]
   navigate: [direction: 'prev' | 'next']
+  retry: []
+  pageSizeChange: [size: number]
 }>()
 
 const router = useRouter()
-
-// 每页显示的歌单数量
-const ITEMS_PER_PAGE = 6
-
-// 当前页码
-const currentPage = ref(0)
-
-// 总页数
-const totalPages = computed(() => {
-  if (!props.mixes || props.mixes.length === 0) return 0
-  return Math.ceil(props.mixes.length / ITEMS_PER_PAGE)
-})
-
-// 当前页显示的歌单
-const currentMixes = computed(() => {
-  if (!props.mixes || props.mixes.length === 0) return []
-  const start = currentPage.value * ITEMS_PER_PAGE
-  const end = start + ITEMS_PER_PAGE
-  return props.mixes.slice(start, end)
-})
+const sectionRef = ref<HTMLElement | null>(null)
+const pageSize = useDiscoveryPageSize(sectionRef)
+watch(pageSize, (size) => emit('pageSizeChange', size), { immediate: true })
 
 // 处理导航
 const handleNavigate = (direction: 'prev' | 'next') => {
-  if (direction === 'prev' && currentPage.value > 0) {
-    currentPage.value--
-  } else if (direction === 'next' && currentPage.value < totalPages.value - 1) {
-    currentPage.value++
-  }
+  if (props.loading) return
+  if (direction === 'prev' && props.page <= 1) return
+  if (direction === 'next' && !props.hasNextPage) return
   emit('navigate', direction)
 }
 
@@ -77,17 +69,20 @@ const formatPlayCount = (count?: number) => {
 </script>
 
 <template>
-  <div class="mix-section discovery-section">
+  <div ref="sectionRef" class="mix-section discovery-section" :aria-busy="loading">
     <!-- Section Header -->
     <div class="section-header">
       <h2>{{ title }}</h2>
 
-      <div v-if="showNavigation && totalPages > 1" class="section-navigation">
+      <div v-if="showNavigation" class="section-navigation">
+        <span class="page-status" role="status" aria-live="polite" aria-atomic="true">
+          {{ loading ? '加载中…' : `第 ${page} 页` }}
+        </span>
         <v-btn
           icon
           variant="tonal"
           size="small"
-          :disabled="currentPage === 0"
+          :disabled="loading || page <= 1"
           :aria-label="`上一页${title}`"
           @click="handleNavigate('prev')"
         >
@@ -97,7 +92,7 @@ const formatPlayCount = (count?: number) => {
           icon
           variant="tonal"
           size="small"
-          :disabled="currentPage >= totalPages - 1 || totalPages === 0"
+          :disabled="loading || !hasNextPage"
           :aria-label="`下一页${title}`"
           @click="handleNavigate('next')"
         >
@@ -107,8 +102,8 @@ const formatPlayCount = (count?: number) => {
     </div>
 
     <!-- Mix Grid -->
-    <div v-if="currentMixes && currentMixes.length > 0" class="mix-grid discovery-grid">
-      <div v-for="mix in currentMixes" :key="mix.id" class="mix-item discovery-item">
+    <div v-if="mixes && mixes.length > 0" class="mix-grid discovery-grid">
+      <div v-for="mix in mixes" :key="mix.id" class="mix-item discovery-item">
         <v-card
           rounded="0"
           elevation="0"
@@ -149,6 +144,13 @@ const formatPlayCount = (count?: number) => {
     </div>
 
     <!-- Empty State -->
+    <div v-else-if="loading" class="empty-state text-center py-8">
+      <div class="text-body-1 text-medium-emphasis">加载中…</div>
+    </div>
+    <div v-else-if="error" class="empty-state text-center py-8">
+      <div class="text-body-1 text-medium-emphasis mb-4">歌单加载失败</div>
+      <v-btn variant="tonal" size="small" @click="emit('retry')">重新加载</v-btn>
+    </div>
     <div v-else class="empty-state text-center py-8">
       <v-icon icon="mdi-playlist-music-off" size="64" color="grey" />
       <div class="text-body-1 text-medium-emphasis mt-4">暂无精选歌单</div>
@@ -158,4 +160,17 @@ const formatPlayCount = (count?: number) => {
 
 <style lang="less" scoped>
 @import './discovery-cards.less';
+
+.section-navigation {
+  align-items: center;
+}
+
+.page-status {
+  min-width: 5em;
+  margin-right: 4px;
+  color: var(--discovery-muted);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
 </style>

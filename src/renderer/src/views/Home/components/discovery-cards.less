@@ -1,4 +1,5 @@
 .discovery-section {
+  --discovery-columns: 6;
   min-width: 0;
 
   .section-header {
@@ -26,7 +27,7 @@
 
   .discovery-grid {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--discovery-columns), minmax(0, 1fr));
     gap: 18px;
   }
 
@@ -137,14 +138,32 @@
 }
 
 @container (max-width: 1050px) {
-  .discovery-section .discovery-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .discovery-section {
+    --discovery-columns: 5;
   }
 }
 
-@container (max-width: 540px) {
-  .discovery-section .discovery-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@container (max-width: 850px) {
+  .discovery-section {
+    --discovery-columns: 4;
+  }
+}
+
+@container (max-width: 650px) {
+  .discovery-section {
+    --discovery-columns: 3;
+  }
+}
+
+@container (max-width: 450px) {
+  .discovery-section {
+    --discovery-columns: 2;
+  }
+}
+
+@container (max-width: 280px) {
+  .discovery-section {
+    --discovery-columns: 1;
   }
 }
 

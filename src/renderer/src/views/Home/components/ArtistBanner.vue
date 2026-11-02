@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, computed, onUnmounted } from 'vue'
+import { ref, watch, onMounted, computed, onUnmounted, useTemplateRef } from 'vue'
 import { findBestColors, toggleImg } from '@/utils'
 import { colorExtraction } from '@/components/MusicDetail/useMusic'
 import FluidBackground from '@/components/FluidBackground/index.vue'
 import { playListState } from '@/layout/BaseAside/usePlayList'
 import { useFlags } from '@/store/flags'
+import PlayerGlyph from '@/components/MusicPlayer/PlayerGlyph.vue'
 
 interface Props {
   // 如果传入了这些属性，则使用传入的值；否则从播放列表随机选取
@@ -159,10 +160,12 @@ watch(
 )
 
 // 切换到下一首随机歌曲
+const nextGlyph = useTemplateRef<InstanceType<typeof PlayerGlyph>>('nextGlyph')
 const nextSong = () => {
   const song = getRandomSong(true) // true 表示排除当前歌曲
   
   if (song) {
+    nextGlyph.value?.animate()
     currentSong.value = {
       ...song,
       name: song.name,
@@ -229,7 +232,7 @@ onMounted(() => {
             @click="emit('play', currentSong)"
             class="px-6"
           >
-            <v-icon start icon="mdi-play" />
+            <PlayerGlyph name="play" class="banner-action-glyph banner-play-glyph" />
             播放
           </v-btn>
           <v-btn
@@ -238,9 +241,11 @@ onMounted(() => {
             color="white"
             size="large"
             class="ml-2"
+            aria-label="换一首推荐歌曲"
+            title="换一首推荐歌曲"
             @click="nextSong"
           >
-            <v-icon icon="mdi-skip-next" />
+            <PlayerGlyph ref="nextGlyph" name="next" class="banner-action-glyph" />
           </v-btn>
         </div>
       </div>
@@ -278,6 +283,17 @@ onMounted(() => {
 
 <style lang="less" scoped>
 .artist-banner {
+  .banner-action-glyph {
+    display: block;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+  }
+  .banner-play-glyph {
+    width: 22px;
+    height: 22px;
+    margin-inline-end: 8px;
+  }
   position: relative;
   overflow: hidden;
   margin: 16px;

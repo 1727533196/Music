@@ -23,6 +23,7 @@ const flags = useFlags()
 const router = useRouter()
 const { likeMusic } = useMusic()
 const liking = ref(false)
+const favoriteGlyph = useTemplateRef<InstanceType<typeof PlayerGlyph>>('favoriteGlyph')
 const lastVolume = ref(user.volume > 0 ? user.volume : 1)
 const hasSong = computed(() => Boolean(props.songs?.id))
 const canPlay = computed(() => hasSong.value && Boolean(music.state.musicUrl))
@@ -89,6 +90,7 @@ const changeVolume = (event: Event) => setVolume(Number((event.target as HTMLInp
 const toggleMute = () => setVolume(volume.value > 0 ? 0 : lastVolume.value)
 const toggleLike = async () => {
   if (!hasSong.value || !user.isLogin || liking.value) return
+  favoriteGlyph.value?.animateFavorite(!isLiked.value)
   liking.value = true
   try {
     await likeMusic(props.songs.id, !isLiked.value)
@@ -118,9 +120,10 @@ const openComments = () => {
         :aria-label="isLiked ? '取消喜欢' : '喜欢这首歌'"
         :title="!user.isLogin ? '登录后收藏歌曲' : isLiked ? '取消喜欢' : '喜欢这首歌'"
         :aria-pressed="isLiked"
+        :aria-busy="liking"
         @click="toggleLike"
       >
-        <PlayerGlyph name="star" :filled="isLiked" />
+        <PlayerGlyph :key="songs?.id" ref="favoriteGlyph" name="star" :filled="isLiked" />
       </button>
     </div>
 
@@ -305,6 +308,10 @@ const openComments = () => {
   height: 32px;
 }
 .favorite-button {
+  &:disabled[aria-busy='true'] {
+    opacity: 1;
+    cursor: progress;
+  }
   width: 29px;
   height: 29px;
   border-radius: 50%;

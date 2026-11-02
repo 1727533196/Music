@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useDiscoveryPageSize } from './useDiscoveryPageSize'
 
 interface Album {
   id: number
@@ -28,8 +29,8 @@ const emit = defineEmits<{
 
 const router = useRouter()
 
-// 每页显示的专辑数量
-const ITEMS_PER_PAGE = 6
+const sectionRef = ref<HTMLElement | null>(null)
+const pageSize = useDiscoveryPageSize(sectionRef)
 
 // 当前页码
 const currentPage = ref(0)
@@ -37,15 +38,23 @@ const currentPage = ref(0)
 // 总页数
 const totalPages = computed(() => {
   if (!props.albums || props.albums.length === 0) return 0
-  return Math.ceil(props.albums.length / ITEMS_PER_PAGE)
+  return Math.ceil(props.albums.length / pageSize.value)
 })
 
 // 当前页显示的专辑
 const currentAlbums = computed(() => {
   if (!props.albums || props.albums.length === 0) return []
-  const start = currentPage.value * ITEMS_PER_PAGE
-  const end = start + ITEMS_PER_PAGE
+  const start = currentPage.value * pageSize.value
+  const end = start + pageSize.value
   return props.albums.slice(start, end)
+})
+
+watch(pageSize, () => {
+  currentPage.value = 0
+})
+
+watch(totalPages, (pages) => {
+  currentPage.value = Math.min(currentPage.value, Math.max(0, pages - 1))
 })
 
 // 处理导航
@@ -65,7 +74,7 @@ const handleAlbumClick = (album: Album) => {
 </script>
 
 <template>
-  <div class="albums-section discovery-section">
+  <div ref="sectionRef" class="albums-section discovery-section">
     <!-- Section Header -->
     <div class="section-header">
       <h2>{{ title }}</h2>
