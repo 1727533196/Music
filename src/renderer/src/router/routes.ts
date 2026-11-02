@@ -27,6 +27,11 @@ export default [
     component: () => import('@/views/Home/index.vue')
   },
   {
+    path: '/library',
+    name: 'library',
+    component: () => import('@/views/Library/index.vue')
+  },
+  {
     path: '/fm',
     name: 'fm',
     component: () => import('@/views/PrivateFm/index.vue')

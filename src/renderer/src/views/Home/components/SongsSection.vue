@@ -333,6 +333,11 @@ const handleCollectionConfirm = async (playlist: { id: number }) => {
     display: none;
   }
 }
+@container (min-width: 1100px) {
+  .song-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .song-item {
     transition: none;

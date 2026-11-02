@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import useSearch from '@/components/Search/useSearch'
 import { searchDefault, searchHotDetail, searchSuggest } from '@/api/search'
@@ -28,13 +28,44 @@ const placeholderInfo = ref({
   realkeyword: '',
   showKeyword: ''
 })
+let blurTimer: ReturnType<typeof setTimeout> | undefined
+let defaultTimer: ReturnType<typeof setTimeout> | undefined
+let disposed = false
+const closeSuggest = () => {
+  clearTimeout(blurTimer)
+  flags.isOpenSearch = false
+  showSuggest.value = false
+}
+const outsidePointer = (event: PointerEvent) => {
+  if (!searchContainerEl.value?.contains(event.target as Node)) closeSuggest()
+}
+const escapeSearch = (event: KeyboardEvent) => {
+  if (event.key !== 'Escape') return
+  closeSuggest()
+  searchContainerEl.value?.querySelector('input')?.blur()
+}
+onMounted(() => document.addEventListener('pointerdown', outsidePointer))
+onBeforeUnmount(() => {
+  disposed = true
+  clearTimeout(blurTimer)
+  clearTimeout(defaultTimer)
+  document.removeEventListener('pointerdown', outsidePointer)
+  flags.isOpenSearch = false
+})
 
 watch(route, (value) => {
+  closeSuggest()
   const { key } = value.query
   if (key && key !== keywords.value) {
     keywords.value = key
   }
 })
+watch(
+  () => flags.isOpenDetail,
+  (open) => {
+    if (open) closeSuggest()
+  }
+)
 recordContent.value = JSON.parse(localStorage.getItem(RECORD_KEY) || '[]')
 const searchHandler = (
   item: string | object,
@@ -46,7 +77,7 @@ const searchHandler = (
   let path = ''
   let keyword = ''
 
-  showSuggest.value = false
+  closeSuggest()
 
   if (key === 'allMatch') {
     path = `/search?key=${item.keyword}`
@@ -89,6 +120,7 @@ const clearRecord = () => {
   recordContent.value = []
 }
 const recordTagClick = (item: RecordContent, index: number) => {
+  closeSuggest()
   recordContent.value.splice(index, 1)
   recordContent.value.unshift(item)
   localStorage.setItem(RECORD_KEY, JSON.stringify(recordContent.value))
@@ -100,6 +132,7 @@ const deleteTag = (index: number) => {
   localStorage.setItem(RECORD_KEY, JSON.stringify(recordContent.value))
 }
 const focusHandler = async () => {
+  clearTimeout(blurTimer)
   showSuggest.value = true
   flags.isOpenSearch = true
   if (!state.scoreList.length) {
@@ -110,10 +143,7 @@ const focusHandler = async () => {
   state.scoreList = res.data
 }
 const blurHandler = () => {
-  setTimeout(() => {
-    flags.isOpenSearch = false
-    showSuggest.value = false
-  }, 300)
+  blurTimer = setTimeout(closeSuggest, 200)
 }
 let timer: NodeJS.Timeout
 const inputHandler = () => {
@@ -179,7 +209,7 @@ const getSearchDefault = async () => {
   const { data } = await searchDefault()
   placeholderInfo.value.realkeyword = data.realkeyword
   placeholderInfo.value.showKeyword = data.showKeyword
-  setTimeout(getSearchDefault, 30000)
+  if (!disposed) defaultTimer = setTimeout(getSearchDefault, 30000)
 }
 getSearchDefault()
 
@@ -189,29 +219,29 @@ const realkeyword = computed(() => {
 </script>
 
 <template>
-  <div
-    @keyup.enter="searchHandler(realkeyword, 'search')"
-    ref="searchContainerEl"
-    class="search-container"
-  >
-    <el-icon
+  <div @keydown="escapeSearch" ref="searchContainerEl" class="search-container">
+    <button
+      type="button"
+      aria-label="搜索音乐"
       @click="searchHandler(realkeyword, 'search')"
       class="search-icon"
-      size="18px"
-      color="rgba(255, 255, 255, 0.5)"
     >
-      <Search />
-    </el-icon>
+      <el-icon :size="17"><Search /></el-icon>
+    </button>
     <input
       v-model.trim="keywords"
-      @keydown.stop
+      @keydown.stop="escapeSearch"
+      @keyup.enter="searchHandler(realkeyword, 'search')"
       @focus="focusHandler"
       @blur="blurHandler"
       @input="inputHandler"
       class="search"
-      :placeholder="placeholderInfo.showKeyword"
+      aria-label="搜索歌曲、歌手或歌单"
+      :aria-expanded="showSuggest"
+      aria-controls="header-search-suggestions"
+      :placeholder="placeholderInfo.showKeyword || '搜索音乐'"
     />
-    <div v-loading="loading" v-show="showSuggest" class="suggest">
+    <div id="header-search-suggestions" v-loading="loading" v-show="showSuggest" class="suggest">
       <List
         :model="model"
         @click="searchHandler"
@@ -229,50 +259,73 @@ const realkeyword = computed(() => {
 <style lang="less" scoped>
 .search-container {
   position: relative;
-  padding: 0 15px;
-  border-radius: 8px;
-  //background-color: rgba(255, 255, 255, 0.06);
-  box-sizing: border-box;
   display: flex;
   align-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  input::-webkit-input-placeholder {
-    color: white;
+  min-width: 0;
+  height: 36px;
+  padding: 0 11px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  background: rgba(255, 255, 255, 0.035);
+  box-sizing: border-box;
+  -webkit-app-region: no-drag;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+  &:focus-within {
+    border-color: rgba(232, 189, 209, 0.5);
+    background: rgba(255, 255, 255, 0.055);
   }
-
   .search-icon {
-    position: relative;
-    top: 1px;
-    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 20px;
+    height: 26px;
+    margin-right: 7px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #a19aaa;
     cursor: pointer;
+    &:hover {
+      color: #f2eff5;
+    }
+    &:focus-visible {
+      outline: 2px solid #e8bdd1;
+      border-radius: 4px;
+    }
   }
   .search {
+    width: 100%;
+    min-width: 0;
+    height: 34px;
     border: none;
     box-shadow: none;
-    width: 230px;
-    height: 37px;
     outline: none;
     box-sizing: border-box;
-    background-color: transparent;
-    font-size: 14px;
-    color: white;
-
-    &::-webkit-input-placeholder {
-      color: rgba(255, 255, 255, 0.5);
+    background: transparent;
+    font-size: 12px;
+    color: #f2eff5;
+    text-overflow: ellipsis;
+    &::placeholder {
+      color: #8d8598;
     }
   }
   :deep(.suggest) {
     position: absolute;
-    border-radius: 10px;
-    width: 400px;
-    max-height: 77vh;
-    background-color: rgba(45, 45, 56, 1);
-    transform: translateX(-50%) translateY(100%);
-    left: 50%;
-    bottom: -3vh;
+    top: calc(100% + 14px);
+    right: 0;
+    width: min(400px, calc(100vw - 32px));
+    max-height: min(600px, calc(100vh - 180px));
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 14px;
+    background: #24222e;
+    box-shadow: 0 20px 65px rgba(0, 0, 0, 0.4);
     z-index: 10;
     overflow: auto;
-    //backdrop-filter: blur(60px) saturate(210%);
+    -webkit-app-region: no-drag;
     .el-loading-mask {
       background: transparent;
     }

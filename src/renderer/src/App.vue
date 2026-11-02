@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, provide } from 'vue'
+import { computed, onMounted, onUnmounted, ref, provide, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMusicAction } from '@/store/music'
 import { getUserAccountFn } from '@/utils/userInfo'
 import { useFlags } from '@/store/flags'
 import { usePunchCard } from '@/store/punchCard'
 import Header from '@/layout/BaseHeader/index.vue'
-import Aside from '@/layout/BaseAside/index.vue'
 import Bottom from '@/layout/BaseBottom/index.vue'
 import MusicDetail from '@/components/MusicDetail/index.vue'
 import MusicPlayer, { MusicPlayerInstanceType } from '@/components/MusicPlayer/index.vue'
@@ -27,6 +26,14 @@ const route = useRoute()
 const store = useUserInfo()
 const settings = useSettings()
 const refresh = ref(0) // 登录完成后强制刷新组件
+const bodyRef = ref<HTMLElement | null>(null)
+const accountRequired = computed(() => !store.isLogin && ['/cloud', '/lately'].includes(route.path))
+const accountPageName = computed(() => (route.path === '/cloud' ? '音乐云盘' : '最近播放'))
+watch(
+  () => route.fullPath,
+  () => bodyRef.value?.scrollTo({ top: 0 }),
+  { flush: 'post' }
+)
 store.loadCache()
 
 // 创建并提供全局菜单状态
@@ -87,24 +94,41 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div id="opacity-bg" style="position: fixed; width: 100%; height: 100%; transition: 0.5s"></div>
-  <div id="opacity-bg1" style="position: fixed; width: 100%; height: 100%; transition: 0.5s"></div>
+  <div id="opacity-bg" class="app-theme-background"></div>
+  <div id="opacity-bg1" class="app-theme-background"></div>
   <MusicDetail v-model="flags.isOpenDetail" />
   <PlayListDrawer v-model="flags.isOpenDrawer" />
-  <div style="height: 100%; position: relative; z-index: auto">
-    <div id="box">
-      <Aside></Aside>
-      <div class="main">
-        <Header></Header>
-        <div class="body">
-          <router-view v-slot="{ Component }">
+  <div
+    id="box"
+    class="app-shell"
+    :class="{ 'has-player': music.state.musicUrl.length > 0 }"
+    :inert="flags.isOpenDetail"
+  >
+    <div class="main">
+      <Header />
+      <main ref="bodyRef" class="body" id="main-content" aria-label="音乐内容">
+        <div class="page-view" :class="{ 'page-view-contained': route.path === '/comment' }">
+          <section v-if="accountRequired" class="account-required">
+            <v-icon
+              :icon="route.path === '/cloud' ? 'mdi-cloud-outline' : 'mdi-history'"
+              size="48"
+            />
+            <h1>{{ accountPageName }}</h1>
+            <p>
+              {{
+                route.path === '/cloud'
+                  ? '登录后，随时收听你上传的音乐。'
+                  : '登录后，找回最近听过的歌曲。'
+              }}
+            </p>
+            <button type="button" @click="login?.show()">登录账号</button>
+          </section>
+          <router-view v-else v-slot="{ Component }">
             <component :key="refresh" :is="Component"></component>
           </router-view>
-          <div style="width: 100%;padding: 53px 0"></div>
         </div>
-      </div>
+      </main>
     </div>
-    <div style="height: 20px"></div>
   </div>
   <Bottom :class="[music.state.musicUrl.length ? 'bottom-show' : 'bottom-visible']">
     <template #default>

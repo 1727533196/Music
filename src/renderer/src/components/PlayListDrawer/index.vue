@@ -51,13 +51,13 @@ const setModelValue = computed({
 .drawer {
   position: fixed;
   z-index: 2001;
-  height: calc(100% - 200px);
-  width: 400px;
+  bottom: calc(var(--app-player-height, 75px) + 16px);
+  width: min(400px, calc(100vw - 24px));
   //background: transparent;
   color: #fff;
   background-color: rgba(40, 40, 40, 0.7);
   right: 0;
-  top: 90px;
+  top: var(--app-header-height, 88px);
   border-radius: 15px 0 0 15px;
   box-shadow: 0 5px 15px 5px rgba(0, 0, 0, 0.3);
   transform: translateX(120%);

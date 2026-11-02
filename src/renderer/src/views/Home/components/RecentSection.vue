@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { GetMusicDetailData } from '@/api/musicList'
+import { useRouter } from 'vue-router'
 
 defineProps<{ songs: GetMusicDetailData[] }>()
 const emit = defineEmits<{ play: [song: GetMusicDetailData] }>()
+const router = useRouter()
 
 const duration = (ms: number) => {
   const seconds = Math.floor((ms || 0) / 1000)
@@ -14,7 +16,9 @@ const duration = (ms: number) => {
   <section class="recent-section" aria-label="最近播放">
     <div class="section-header">
       <h2>最近播放</h2>
-      <v-icon icon="mdi-history" size="20" />
+      <button type="button" class="view-all" @click="router.push('/lately')">
+        查看全部<v-icon icon="mdi-chevron-right" size="17" />
+      </button>
     </div>
     <div v-if="songs.length" class="recent-list">
       <button
@@ -59,13 +63,26 @@ const duration = (ms: number) => {
     letter-spacing: 0.02em;
     color: var(--discovery-text);
   }
-  > .v-icon {
-    color: var(--discovery-muted);
+}
+.view-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--discovery-muted);
+  cursor: pointer;
+  &:hover {
+    color: var(--discovery-text);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--discovery-accent);
+    outline-offset: 4px;
   }
 }
 .recent-list {
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
 }
 .recent-song {
   display: flex;
@@ -73,10 +90,11 @@ const duration = (ms: number) => {
   gap: 12px;
   width: 100%;
   min-width: 0;
-  padding: 10px 0;
+  padding: 12px;
   text-align: left;
   border-radius: 10px;
   color: var(--discovery-text);
+  background: rgba(255, 255, 255, 0.025);
   cursor: pointer;
   &:hover .cover-play,
   &:focus-visible .cover-play {
@@ -147,17 +165,15 @@ const duration = (ms: number) => {
   background: rgba(255, 255, 255, 0.02);
   border-radius: 10px;
 }
-@container (min-width: 541px) and (max-width: 900px) {
+@container (max-width: 650px) {
   .recent-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 18px;
-  }
-  .recent-song {
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  .recent-info {
-    flex-basis: calc(100% - 64px);
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(230px, 70%);
+    overflow-x: auto;
+    gap: 12px;
+    padding: 3px 3px 8px;
+    margin-inline: -3px;
   }
   .song-duration {
     display: none;

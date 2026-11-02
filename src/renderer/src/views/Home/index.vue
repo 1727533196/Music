@@ -1,12 +1,13 @@
 <script setup lang="ts" name="Home">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUserInfo } from '@/store'
 import ArtistBanner from './components/ArtistBanner.vue'
 import SongsSection from './components/SongsSection.vue'
 import RecentSection from './components/RecentSection.vue'
 import AlbumsSection from './components/AlbumsSection.vue'
 import MixSection from './components/MixSection.vue'
 import usePlayList from '@/layout/BaseAside/usePlayList'
-import { playListState } from '@/layout/BaseAside/usePlayList'
 import { useMusicAction } from '@/store/music'
 import type { GetMusicDetailData } from '@/api/musicList'
 import { getHighQualityPlaylists, recommendSongList } from '@/api/home'
@@ -17,11 +18,13 @@ import { playListMock as recentQueue } from '@/views/LatelyPlay/config'
 // 使用现有的 usePlayList hook
 const { getRecommendSongs } = usePlayList()
 const music = useMusicAction()
+const user = useUserInfo()
+const router = useRouter()
+const homeLoading = ref(false)
+const login = () => window.$login?.show()
 
 // 转换 API 数据为组件所需格式（复用 SongList 的数据格式）
-const dailySongs = computed(() => {
-  return playListState.playList
-})
+const dailySongs = ref<GetMusicDetailData[]>([])
 
 // 最近播放的歌曲
 const recentSongs = ref<GetMusicDetailData[]>([])
@@ -158,13 +161,22 @@ const handleShare = () => {
   console.log('Share')
 }
 
-// 组件挂载时获取数据
-onMounted(async () => {
+let personalRequestVersion = 0
+const loadPersonalSections = async () => {
+  const version = ++personalRequestVersion
+  dailySongs.value = []
+  albums.value = []
+  recentSongs.value = []
+  homeLoading.value = user.isLogin
+  if (!user.isLogin) return
+  const isCurrent = () => version === personalRequestVersion && user.isLogin
   // 各区域独立更新，日推或播放记录请求失败时仍可展示精品歌单。
   const results = await Promise.allSettled([
-    getRecommendSongs(),
-    loadMixPage(),
+    getRecommendSongs().then((data) => {
+      if (isCurrent()) dailySongs.value = data.dailySongs || []
+    }),
     recommendSongList().then(({ recommend }) => {
+      if (!isCurrent()) return
       albums.value = (recommend || []).map((item) => ({
         id: item.id,
         name: item.name,
@@ -174,28 +186,58 @@ onMounted(async () => {
       }))
     }),
     getRecordSong(10).then(({ data }) => {
+      if (!isCurrent()) return
       recentSongs.value = (data?.list || []).slice(0, 3).map((item: any) => item.data)
     })
   ])
-  const sections = ['每日推荐歌曲', '精选歌单', '每日歌单', '最近播放']
+  const sections = ['每日推荐歌曲', '每日歌单', '最近播放']
+  if (isCurrent()) homeLoading.value = false
   results.forEach((result, index) => {
     if (result.status === 'rejected') {
       console.error(`Failed to load ${sections[index]}:`, result.reason)
     }
   })
-})
+}
+watch(() => [user.isLogin, user.profile.userId], loadPersonalSections, { immediate: true })
+onBeforeUnmount(() => personalRequestVersion++)
+onMounted(() => void loadMixPage())
 </script>
 
 <template>
   <div class="home-container">
     <!-- Song Banner -->
-    <ArtistBanner @play="handlePlay" @like="handleLike" @share="handleShare" />
+    <ArtistBanner
+      v-if="dailySongs.length"
+      @play="handlePlay"
+      @like="handleLike"
+      @share="handleShare"
+    />
+    <section v-else class="home-welcome" :aria-busy="homeLoading">
+      <span class="welcome-icon"><v-icon icon="mdi-music-note" size="36" /></span>
+      <div>
+        <p class="welcome-caption">{{ homeLoading ? '正在为你准备音乐' : '为每一天，找到旋律' }}</p>
+        <h1>{{ user.isLogin ? '今天，听点什么？' : '从一首好歌开始。' }}</h1>
+        <p>
+          {{
+            user.isLogin
+              ? '看看精选歌单，发现下一首喜欢的歌。'
+              : '登录后，收听每日推荐，找回你的音乐收藏。'
+          }}
+        </p>
+      </div>
+      <button v-if="!homeLoading && !user.isLogin" type="button" @click="login">
+        登录账号<v-icon icon="mdi-arrow-right" size="17" />
+      </button>
+    </section>
 
     <div class="content-area">
-      <div class="listening-row">
-        <SongsSection title="每日推荐" :songs="dailySongs" @play="handlePlay" />
-        <RecentSection :songs="recentSongs" @play="handleRecentPlay" />
-      </div>
+      <RecentSection v-if="recentSongs.length" :songs="recentSongs" @play="handleRecentPlay" />
+      <SongsSection
+        v-if="dailySongs.length"
+        title="每日推荐"
+        :songs="dailySongs"
+        @play="handlePlay"
+      />
       <MixSection
         title="精选歌单"
         :mixes="mixes"
@@ -208,44 +250,108 @@ onMounted(async () => {
         @page-size-change="updateMixPageSize"
         @like="handleLike"
       />
-      <AlbumsSection title="每日歌单" :albums="albums" @like="handleLike" />
+      <AlbumsSection v-if="user.isLogin" title="每日歌单" :albums="albums" @like="handleLike" />
+      <button type="button" class="library-link" @click="router.push('/library')">
+        <v-icon icon="mdi-music-box-multiple-outline" size="20" />
+        <span>回到资料库，听听你的收藏</span>
+        <v-icon icon="mdi-arrow-right" size="18" />
+      </button>
     </div>
   </div>
 </template>
 
 <style lang="less" scoped>
-.content-area {
+.home-container {
   --discovery-text: #f2eff5;
   --discovery-muted: #9a96a3;
   --discovery-accent: #e8bdd1;
+  width: 100%;
+  padding: 24px var(--app-gutter) 16px;
+  :deep(.artist-banner) {
+    margin: 0 0 36px;
+  }
+}
+.content-area {
   container-type: inline-size;
-  padding: 16px 24px 40px;
   display: flex;
   flex-direction: column;
   gap: 36px;
-
-  .listening-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr);
-    gap: 32px;
-
-    > * {
-      min-width: 0;
-    }
+}
+.home-welcome {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 220px;
+  margin-bottom: 36px;
+  padding: 36px;
+  border: 1px solid rgba(232, 189, 209, 0.1);
+  border-radius: 24px;
+  background: rgba(232, 189, 209, 0.025);
+  .welcome-icon {
+    color: var(--app-accent);
+  }
+  h1 {
+    margin: 8px 0 12px;
+    color: var(--app-text);
+    font-size: 32px;
+    font-weight: 650;
+  }
+  p {
+    color: var(--app-muted);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .welcome-caption {
+    color: var(--app-accent);
+  }
+  button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 11px 18px;
+    border-radius: 24px;
+    color: #302330;
+    background: var(--app-accent);
+    font-size: 13px;
+    cursor: pointer;
   }
 }
-
-@container (max-width: 900px) {
-  .content-area .listening-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 32px;
+.library-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 22px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--app-muted);
+  font-size: 13px;
+  cursor: pointer;
+  &:hover {
+    color: var(--app-accent);
   }
 }
-
+.library-link:focus-visible,
+.home-welcome button:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 4px;
+}
 @media (max-width: 700px) {
   .content-area {
-    padding-inline: 16px;
     gap: 28px;
+  }
+  .home-welcome {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 24px;
+  }
+  .home-welcome h1 {
+    font-size: 26px;
+  }
+  .home-welcome button {
+    margin-left: 0;
   }
 }
 </style>
