@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { GetMusicDetailData } from '@/api/musicList'
 import { useMusicAction } from '@/store/music'
 import { useUserInfo } from '@/store'
 import { useFlags } from '@/store/flags'
 import useMusic from './useMusic'
+import PlayerGlyph from './PlayerGlyph.vue'
 import { getSongCommentLabel, loadSongCommentCount } from '@/utils/songComments'
 
 const props = defineProps<{ songs: GetMusicDetailData; isPlay: boolean }>()
@@ -26,6 +27,14 @@ const lastVolume = ref(user.volume > 0 ? user.volume : 1)
 const hasSong = computed(() => Boolean(props.songs?.id))
 const canPlay = computed(() => hasSong.value && Boolean(music.state.musicUrl))
 const canSkip = computed(() => canPlay.value && music.state.runtimeIds.length > 0)
+const previousGlyph = useTemplateRef<InstanceType<typeof PlayerGlyph>>('previousGlyph')
+const nextGlyph = useTemplateRef<InstanceType<typeof PlayerGlyph>>('nextGlyph')
+const skipSong = (next: boolean) => {
+  if (!canSkip.value) return
+  const glyph = next ? nextGlyph.value : previousGlyph.value
+  glyph?.animate()
+  emit('cutSong', next)
+}
 const artist = computed(() => props.songs?.ar?.map((item) => item.name).join(' / ') || '未知艺术家')
 const isLiked = computed(() => user.userLikeIds.includes(props.songs?.id))
 const modeNames = ['心动模式', '列表循环', '随机播放', '单曲循环']
@@ -111,7 +120,7 @@ const openComments = () => {
         :aria-pressed="isLiked"
         @click="toggleLike"
       >
-        <v-icon :icon="isLiked ? 'mdi-star' : 'mdi-star-outline'" size="23" />
+        <PlayerGlyph name="star" :filled="isLiked" />
       </button>
     </div>
 
@@ -142,9 +151,9 @@ const openComments = () => {
         :disabled="!canSkip"
         title="上一首"
         aria-label="上一首"
-        @click="emit('cutSong', false)"
+        @click="skipSong(false)"
       >
-        <v-icon icon="mdi-skip-previous" size="36" />
+        <PlayerGlyph ref="previousGlyph" name="previous" />
       </button>
       <button
         type="button"
@@ -154,7 +163,7 @@ const openComments = () => {
         :aria-label="isPlay ? '暂停' : '播放'"
         @click="isPlay ? emit('pause') : emit('play')"
       >
-        <v-icon :icon="isPlay ? 'mdi-pause' : 'mdi-play'" size="49" />
+        <PlayerGlyph :name="isPlay ? 'pause' : 'play'" />
       </button>
       <button
         type="button"
@@ -162,9 +171,9 @@ const openComments = () => {
         :disabled="!canSkip"
         title="下一首"
         aria-label="下一首"
-        @click="emit('cutSong', true)"
+        @click="skipSong(true)"
       >
-        <v-icon icon="mdi-skip-next" size="36" />
+        <PlayerGlyph ref="nextGlyph" name="next" />
       </button>
     </div>
 
@@ -176,7 +185,7 @@ const openComments = () => {
         :aria-label="volume ? '静音' : '取消静音'"
         @click="toggleMute"
       >
-        <v-icon :icon="volume ? 'mdi-volume-low' : 'mdi-volume-off'" size="21" />
+        <PlayerGlyph :name="volume ? 'speaker' : 'mute'" />
       </button>
       <input
         class="range volume-range"
@@ -190,7 +199,7 @@ const openComments = () => {
         :aria-valuetext="`${Math.round(volume * 100)}%`"
         @input="changeVolume"
       />
-      <v-icon class="volume-high" icon="mdi-volume-high" size="21" />
+      <PlayerGlyph class="volume-high" name="volume" />
     </div>
 
     <div class="secondary-controls">
@@ -239,7 +248,7 @@ const openComments = () => {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 .track-meta {
   flex: 1;
@@ -296,36 +305,54 @@ const openComments = () => {
   height: 32px;
 }
 .favorite-button {
+  width: 29px;
+  height: 29px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.7);
+  svg {
+    width: 18px;
+    height: 18px;
+  }
 }
 .active {
   color: white;
 }
 .range {
+  --track-height: 6px;
+  --track-fill: rgba(255, 255, 255, 0.68);
   display: block;
   width: 100%;
-  height: 4px;
-  border-radius: 20px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
   appearance: none;
   -webkit-appearance: none;
-  background: linear-gradient(
-    to right,
-    rgba(255, 255, 255, 0.65) var(--range-progress, 0%),
-    rgba(255, 255, 255, 0.19) var(--range-progress, 0%)
-  );
+  background: transparent;
   cursor: pointer;
+  &::-webkit-slider-runnable-track {
+    height: var(--track-height);
+    border-radius: 99px;
+    background: linear-gradient(
+      to right,
+      var(--track-fill) var(--range-progress, 0%),
+      rgba(255, 255, 255, 0.22) var(--range-progress, 0%)
+    );
+    transition: height 150ms ease;
+  }
   &::-webkit-slider-thumb {
     appearance: none;
     -webkit-appearance: none;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: white;
-    opacity: 0;
+    width: 16px;
+    height: 24px;
+    margin-top: calc((var(--track-height) - 24px) / 2);
+    background: transparent;
   }
-  &:hover::-webkit-slider-thumb,
-  &:focus-visible::-webkit-slider-thumb {
-    opacity: 1;
+  &:hover:not(:disabled),
+  &:focus-visible {
+    --track-fill: rgba(255, 255, 255, 0.88);
+    --track-height: 8px;
   }
   &:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.7);
@@ -337,22 +364,26 @@ const openComments = () => {
   }
 }
 .seek-range {
-  margin: 7px 0 0;
+  margin: 0;
 }
 .time-labels {
   display: flex;
   justify-content: space-between;
-  margin-top: 8px;
+  margin-top: -1px;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.48);
 }
 .transport-controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
   align-items: center;
-  justify-content: center;
-  gap: clamp(24px, 4vw, 52px);
-  margin-top: 8px;
+  justify-items: center;
+  margin-top: 5px;
+  .icon-button:active:not(:disabled) {
+    opacity: 0.65;
+    transform: scale(0.94);
+  }
 }
 .mode-button {
   color: rgba(255, 255, 255, 0.56);
@@ -360,37 +391,51 @@ const openComments = () => {
 .skip-button {
   width: 44px;
   height: 48px;
+  svg {
+    width: 30px;
+    height: 30px;
+  }
 }
 .play-button {
-  width: 58px;
-  height: 58px;
+  width: 64px;
+  height: 64px;
+  svg {
+    width: 40px;
+    height: 40px;
+  }
 }
 .volume-control {
   display: flex;
   align-items: center;
-  gap: 11px;
-  margin-top: 10px;
+  gap: 12px;
+  margin-top: 5px;
   color: rgba(255, 255, 255, 0.5);
 }
 .volume-button {
-  width: 24px;
-  height: 28px;
+  width: 28px;
+  height: 32px;
+  svg {
+    width: 22px;
+    height: 22px;
+  }
 }
 .volume-range {
+  --track-height: 5px;
   flex: 1;
   min-width: 0;
   margin: 0;
-  height: 3px;
 }
 .volume-high {
   flex-shrink: 0;
+  width: 23px;
+  height: 23px;
 }
 .secondary-controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  margin-top: 12px;
+  margin-top: 5px;
   color: rgba(255, 255, 255, 0.55);
 }
 .text-button {
@@ -402,7 +447,8 @@ const openComments = () => {
 }
 @media (prefers-reduced-motion: reduce) {
   .icon-button,
-  .text-button {
+  .text-button,
+  .range::-webkit-slider-runnable-track {
     transition: none;
   }
 }

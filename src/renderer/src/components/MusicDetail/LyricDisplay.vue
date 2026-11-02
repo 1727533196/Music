@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { Yrc } from '@/utils'
 import type { Lyric } from '@/store/music'
-import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import gsap from 'gsap'
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   active?: boolean
 }
 const props = defineProps<Props>()
+const nowPlayingColumn = useTemplateRef<HTMLDivElement>('nowPlayingColumn')
 const coverContainer = useTemplateRef<HTMLDivElement>('coverContainer')
 const videoCover = useTemplateRef<HTMLVideoElement>('videoCover')
 const displayedCoverSrc = ref('')
@@ -34,6 +35,32 @@ const syncVideo = () => {
   } else video.pause()
 }
 onMounted(() => {
+  watch(
+    () => Boolean(props.lyric.length),
+    async (_hasLyrics, _previous, onCleanup) => {
+      const column = nowPlayingColumn.value!
+      const previousRect = column.getBoundingClientRect()
+      let cancelled = false
+      let movement: gsap.core.Tween | undefined
+      onCleanup(() => {
+        cancelled = true
+        movement?.kill()
+      })
+      gsap.set(column, { clearProps: 'transform' })
+      if (!props.active || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+      // 布局先更新，再从原来的可见位置平移到新位置，快速反向切换也保持连续。
+      await nextTick()
+      if (cancelled) return
+      const nextRect = column.getBoundingClientRect()
+      movement = gsap.fromTo(
+        column,
+        { x: previousRect.left - nextRect.left, y: previousRect.top - nextRect.top },
+        { x: 0, y: 0, duration: 0.5, ease: 'power3.out', clearProps: 'transform' }
+      )
+    }
+  )
+
   watch(
     coverSrc,
     (src, _previous, onCleanup) => {
@@ -96,7 +123,7 @@ onMounted(() => {
 
 <template>
   <div class="listening-layout" :class="{ 'no-lyrics': !props.lyric.length }">
-    <div class="now-playing-column">
+    <div ref="nowPlayingColumn" class="now-playing-column">
       <div class="cover-frame">
         <div ref="coverContainer" class="cover-container">
           <video
