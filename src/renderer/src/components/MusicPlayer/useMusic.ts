@@ -1,5 +1,5 @@
 import { likeMusicApi } from '@/api/musicList'
-import { ElMessage } from 'element-plus'
+import { message } from '@/utils/message'
 import usePlayList from '@/layout/BaseAside/usePlayList'
 import { useMusicAction } from '@/store/music'
 import { deleteSong } from '@/api/play'
@@ -16,7 +16,7 @@ export default () => {
       if (playId) {
         getPlayListDetailFn(playId)
       }
-      ElMessage.success(msg)
+      message.success(msg)
     } catch (e: any) {
       console.log('e', e.message || e)
     }

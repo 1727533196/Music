@@ -45,13 +45,14 @@ function init() {
 }
 const search = async (key: string, offset: number, limit: number) => {
   loading.value = true
-  const { result } = await cloudSearch(key, offset, limit).finally(() => {
+  try {
+    const { result } = await cloudSearch(key, offset, limit)
+    state.songs.songCount = result.songCount
+    state.songs.result = result.songs
+    music.updateSearchList(result.songs)
+  } finally {
     loading.value = false
-  })
-  state.songs.songCount = result.songCount
-  state.songs.result = result.songs
-  music.updateSearchList(result.songs)
-
+  }
 }
 
 const currentChange = (val: number) => {
@@ -71,7 +72,7 @@ const gotoSongList = (item: any) => {
     path: '/play-list',
     query: {
       id: item.id,
-      position: 1,
+      position: 1
     }
   })
 }
@@ -92,31 +93,37 @@ watch(
 </script>
 
 <template>
-  <div class="padding-container">
-    <span class="keyword"
-      >{{ route.query.key }}<span class="keyword-text">的相关搜索如下</span>
-    </span>
-    <AreaBox @title-click="">
-      <template v-slot:title>歌单</template>
+  <div class="padding-container search-overview">
+    <header class="search-heading">
+      <h1>{{ route.query.key || '搜索' }}</h1>
+      <p role="status">
+        <template v-if="loading">正在搜索音乐…</template>
+        <template v-else>
+          找到 {{ (state.songs.songCount || 0).toLocaleString() }} 首单曲
+          <span v-if="state.songList.playlistCount">
+            · {{ state.songList.playlistCount.toLocaleString() }} 个歌单</span
+          >
+        </template>
+      </p>
+    </header>
+    <AreaBox v-if="state.songList.playlists?.length" class="playlist-results">
+      <template #title>歌单</template>
       <Card
         v-for="item in state.songList.playlists"
+        :key="item.id"
         :is-click="true"
         @click="gotoSongList(item)"
         :name="item.name"
+        :caption="`${item.trackCount || 0} 首${item.creator?.nickname ? ` · ${item.creator.nickname}` : ''}`"
         :pic-url="item.coverImgUrl"
-      ></Card>
-      <!--      <div @click="gotoSongList(item)" v-for="item in state.songList.playlists" class="card">-->
-      <!--        <div class="img-box">-->
-      <!--          <img :src="item.coverImgUrl" class="img" />-->
-      <!--          <div class="count">{{ formatNumberToMillion(item.playCount) }}</div>-->
-      <!--        </div>-->
-      <!--        <div class="name">{{ item.name }}</div>-->
-      <!--      </div>-->
+      >
+        <span v-if="item.playCount" class="playlist-play-count">
+          <v-icon icon="mdi-play-outline" size="13" aria-hidden="true" />
+          {{ formatNumberToMillion(item.playCount) }}
+        </span>
+      </Card>
     </AreaBox>
-
-    <AreaBox :is-move="false">
-      <template v-slot:title>单曲</template>
-    </AreaBox>
+    <h2 class="songs-heading">单曲</h2>
   </div>
   <SongList
     @current-change="currentChange"
@@ -142,48 +149,67 @@ watch(
 </template>
 
 <style lang="less" scoped>
+.search-overview.padding-container {
+  padding: 26px var(--app-gutter, 32px) 0;
+}
+.search-heading {
+  margin-bottom: 26px;
+  h1 {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    margin: 0 0 8px;
+    color: var(--app-text);
+    font-size: var(--app-title-size, 28px);
+    font-weight: 650;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+  p {
+    margin: 0;
+    color: var(--app-muted);
+    font-size: 12px;
+    line-height: 1.6;
+    font-variant-numeric: tabular-nums;
+  }
+}
+.playlist-results {
+  --card-width: clamp(140px, 18cqw, 184px);
+  margin: 0 0 28px;
+}
+.playlist-play-count {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 14px);
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: #111b;
+  color: #fff;
+  font-size: 10px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.songs-heading {
+  margin: 0 0 2px;
+  color: var(--app-text);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.5;
+}
 .song-list-container {
-  padding-top: 0;
-  padding-left: 15px;
+  padding-top: 12px;
 }
-.padding-container {
-  padding-bottom: 10px !important;
-}
-.keyword {
-  color: #d2d2d2;
-  font-size: 21px;
-  .keyword-text {
-    font-size: 14px;
-    margin-left: 10px;
-    color: @moreDark;
+@media (max-height: 720px) {
+  .search-overview.padding-container {
+    padding-top: 20px;
   }
-}
-.card {
-  cursor: pointer;
-  border-radius: 10px;
-  position: relative;
-  margin-bottom: 20px;
-  .img-box {
-    position: relative;
-    .img {
-      width: 200px;
-      height: 200px;
-      border-radius: 10px;
-    }
-    .count {
-      position: absolute;
-      right: 10px;
-      top: 5px;
-      color: white;
-    }
-  }
-
-  .name {
-    font-weight: 400;
-    font-size: 16px;
-  }
-  & + & {
-    margin-left: 20px;
+  .search-heading {
+    margin-bottom: 22px;
   }
 }
 </style>

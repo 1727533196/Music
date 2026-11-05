@@ -13,6 +13,7 @@ import Login from '@/components/Login/index.vue'
 import { useUserInfo } from '@/store'
 import PlayListDrawer from '@/components/PlayListDrawer/index.vue'
 import PunchCardReminder from '@/components/PunchCardReminder/index.vue'
+import MessageHost from '@/components/MessageHost/index.vue'
 import '@/utils/shortcutKey'
 import { useSettings } from '@/store/settings'
 import { useContextMenu } from './components/ContextMenu/useContextMenu'
@@ -145,6 +146,7 @@ onUnmounted(() => {
   </Bottom>
   <Login ref="login"></Login>
   <PunchCardReminder ref="punchCardRef"></PunchCardReminder>
+  <MessageHost />
 </template>
 
 <style lang="less">

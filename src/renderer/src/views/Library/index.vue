@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
+import { message } from '@/utils/message'
 import { useUserInfo } from '@/store'
 import type { GetUserPlayListRes, PlayList } from '@/api/musicList'
 import { deletePlay } from '@/api/play'
 import request from '@/utils/request'
 import ContextMenu from '@/components/ContextMenu/index.vue'
 import SongListCreator from '@/components/SongListCreator.vue'
-import fallbackCover from '@/assets/defaultBg.png'
 
 type LibraryFilter = 'all' | 'created' | 'collected'
 const store = useUserInfo()
@@ -19,6 +19,7 @@ const loading = ref(false)
 const loadError = ref(false)
 const creatorVisible = ref(false)
 const deletingId = ref<number | null>(null)
+const failedCovers = ref(new Set<string>())
 let requestVersion = 0
 const filters: { key: LibraryFilter; label: string }[] = [
   { key: 'all', label: '全部歌单' },
@@ -29,14 +30,18 @@ const activeFilter = computed<LibraryFilter>(() => {
   const value = route.query.filter
   return value === 'created' || value === 'collected' ? value : 'all'
 })
-const favorite = computed(() => store.userPlayListInfo.find((item) => item.specialType === 5))
-const playlists = computed(() => store.userPlayListInfo.filter((item) => item.specialType !== 5))
-const collectedCount = computed(() => playlists.value.filter((item) => item.subscribed).length)
+const playlists = computed(() => [
+  ...store.userPlayListInfo
+    .filter((item) => item.specialType === 5)
+    .map((item) => ({ ...item, name: '我喜欢的音乐' })),
+  ...store.userPlayListInfo.filter((item) => item.specialType !== 5)
+])
 const filteredPlaylists = computed(() => {
   const query = search.value.trim().toLocaleLowerCase()
   return playlists.value.filter((item) => {
-    if (activeFilter.value === 'created' && item.subscribed) return false
-    if (activeFilter.value === 'collected' && !item.subscribed) return false
+    if (activeFilter.value === 'created' && item.specialType !== 5 && item.subscribed) return false
+    if (activeFilter.value === 'collected' && (item.specialType === 5 || !item.subscribed))
+      return false
     return !query || item.name.toLocaleLowerCase().includes(query)
   })
 })
@@ -54,10 +59,6 @@ const setFilter = (filter: LibraryFilter) => {
   router.replace({ path: '/library', query })
 }
 const openPlaylist = (item: PlayList) => router.push({ path: '/play-list', query: { id: item.id } })
-const openFavorites = () => {
-  if (favorite.value) openPlaylist(favorite.value)
-  else if (!loading.value && !loadError.value) ElMessage.info('喜欢的音乐还未同步，请刷新资料库')
-}
 const canDelete = (item: PlayList) =>
   !item.subscribed &&
   item.specialType !== 5 &&
@@ -126,9 +127,9 @@ const handleMenu = async (action: { value: string }, item: PlayList) => {
     await deletePlay([String(item.id)])
     if (store.profile.userId !== uid || !store.isLogin) return
     store.updateUserPlayList(store.userPlayListInfo.filter((playlist) => playlist.id !== item.id))
-    ElMessage.success('歌单已删除')
+    message.success('歌单已删除')
   } catch {
-    ElMessage.error('删除失败，请重试')
+    message.error('删除失败，请重试')
   } finally {
     deletingId.value = null
   }
@@ -154,30 +155,42 @@ onBeforeUnmount(() => {
 })
 const imageFallback = (event: Event) => {
   const image = event.target as HTMLImageElement
-  image.onerror = null
-  image.src = fallbackCover
+  const src = image.getAttribute('src')
+  if (src) failedCovers.value.add(src)
 }
 </script>
 
 <template>
   <div class="library-page">
     <header class="library-heading">
-      <div>
-        <p class="eyebrow">我的音乐</p>
+      <div class="heading-title">
         <h1>资料库</h1>
-        <p class="heading-caption">喜欢的旋律，留在这里。</p>
+        <span v-if="store.isLogin" class="heading-count" role="status" aria-live="polite">
+          {{ loading && !playlists.length ? '正在同步…' : `${filteredPlaylists.length} 张歌单` }}
+        </span>
       </div>
       <div v-if="store.isLogin" class="heading-actions">
         <button
+          type="button"
+          class="history-button"
+          aria-label="最近播放"
+          title="最近播放"
+          @click="router.push('/lately')"
+        >
+          <v-icon icon="mdi-history" size="20" /><span>最近播放</span>
+        </button>
+        <button
+          type="button"
           class="icon-button refresh-button"
           :disabled="loading"
+          :aria-busy="loading"
           aria-label="刷新资料库"
           title="刷新资料库"
           @click="loadLibrary"
         >
           <v-icon icon="mdi-refresh" size="21" :class="{ spinning: loading }" />
         </button>
-        <button class="create-button" @click="creatorVisible = true">
+        <button type="button" class="create-button" @click="creatorVisible = true">
           <v-icon icon="mdi-plus" size="19" /><span>新建歌单</span>
         </button>
       </div>
@@ -191,39 +204,13 @@ const imageFallback = (event: Event) => {
     </section>
 
     <template v-else>
-      <section class="library-shortcuts" aria-label="我的音乐快捷入口">
-        <button class="shortcut favorite-shortcut" :disabled="!favorite" @click="openFavorites">
-          <span class="shortcut-icon"><v-icon icon="mdi-star" size="27" /></span>
-          <span class="shortcut-text"
-            ><strong>我喜欢的音乐</strong
-            ><span>{{
-              favorite ? `${favorite.trackCount || 0} 首歌曲` : loading ? '正在同步…' : '暂未同步'
-            }}</span></span
-          >
-          <v-icon class="shortcut-arrow" icon="mdi-chevron-right" size="21" />
-        </button>
-        <button class="shortcut" @click="router.push('/lately')">
-          <span class="shortcut-icon"><v-icon icon="mdi-history" size="28" /></span>
-          <span class="shortcut-text"><strong>最近播放</strong><span>回到熟悉的旋律</span></span>
-          <v-icon class="shortcut-arrow" icon="mdi-chevron-right" size="21" />
-        </button>
-        <button class="shortcut" @click="setFilter('collected')">
-          <span class="shortcut-icon"
-            ><v-icon icon="mdi-bookmark-multiple-outline" size="26"
-          /></span>
-          <span class="shortcut-text"
-            ><strong>收藏的歌单</strong><span>{{ collectedCount }} 张歌单</span></span
-          >
-          <v-icon class="shortcut-arrow" icon="mdi-chevron-right" size="21" />
-        </button>
-      </section>
-
       <section class="playlist-section" :aria-busy="loading">
         <div class="library-toolbar">
           <div class="library-filters" role="group" aria-label="筛选歌单">
             <button
               v-for="filter in filters"
               :key="filter.key"
+              type="button"
               :class="{ active: activeFilter === filter.key }"
               :aria-pressed="activeFilter === filter.key"
               @click="setFilter(filter.key)"
@@ -236,16 +223,11 @@ const imageFallback = (event: Event) => {
             <input
               v-model="search"
               type="search"
-              placeholder="搜索资料库"
+              placeholder="搜索歌单"
               aria-label="按名称搜索资料库歌单"
             />
           </label>
         </div>
-        <div class="section-caption">
-          <span>{{ filteredPlaylists.length }} 张歌单</span
-          ><span v-if="loading">正在同步资料库…</span>
-        </div>
-
         <div v-if="loadError" class="library-error" role="status">
           <span>{{
             playlists.length
@@ -270,17 +252,24 @@ const imageFallback = (event: Event) => {
                 @click="openPlaylist(item)"
               >
                 <span class="cover-wrap"
+                  ><span class="cover-placeholder" aria-hidden="true"
+                    ><v-icon icon="mdi-music-note" size="42" /></span
                   ><img
-                    :src="item.coverImgUrl || fallbackCover"
+                    v-if="item.coverImgUrl && !failedCovers.has(item.coverImgUrl)"
+                    :src="item.coverImgUrl"
                     :alt="item.name"
                     loading="lazy"
-                    @error="imageFallback" /><span class="cover-open"
-                    ><v-icon icon="mdi-arrow-top-right" size="23" /></span
+                    @error="imageFallback" /><span
+                    v-if="item.specialType === 5"
+                    class="favorite-badge"
+                    aria-hidden="true"
+                    ><v-icon icon="mdi-star" size="14" /></span
+                  ><span class="cover-open"><v-icon icon="mdi-arrow-top-right" size="23" /></span
                 ></span>
                 <strong :title="item.name">{{ item.name }}</strong>
                 <span class="playlist-meta"
                   >{{ item.trackCount || 0 }} 首<span>·</span
-                  >{{ item.subscribed ? '已收藏' : '我创建的' }}</span
+                  >{{ item.specialType !== 5 && item.subscribed ? '已收藏' : '我创建的' }}</span
                 >
               </button>
             </article>
@@ -291,13 +280,18 @@ const imageFallback = (event: Event) => {
           class="library-grid skeleton-grid"
           aria-label="正在加载歌单"
         >
-          <div v-for="i in 6" :key="i" class="skeleton-card">
+          <div v-for="i in 12" :key="i" class="skeleton-card">
             <div></div>
             <span></span><span></span>
           </div>
         </div>
         <div v-else-if="!loadError" class="library-empty">
-          <v-icon :icon="search.trim() ? 'mdi-magnify' : 'mdi-playlist-music-outline'" size="34" />
+          <div class="empty-icon">
+            <v-icon
+              :icon="search.trim() ? 'mdi-magnify' : 'mdi-playlist-music-outline'"
+              size="30"
+            />
+          </div>
           <h2>{{ emptyTitle }}</h2>
           <p>
             {{
@@ -329,9 +323,10 @@ const imageFallback = (event: Event) => {
 <style scoped lang="less">
 .library-page {
   width: 100%;
+  max-width: calc(var(--app-content-width, 1360px) + 2 * var(--app-gutter, 40px));
   margin: 0 auto;
-  padding: 28px var(--app-gutter, clamp(20px, 3vw, 40px)) 52px;
-  color: #f2eff5;
+  padding: 28px var(--app-gutter, clamp(20px, 3vw, 40px)) 40px;
+  color: var(--app-text);
   button,
   input {
     font: inherit;
@@ -343,9 +338,8 @@ const imageFallback = (event: Event) => {
     cursor: default;
     opacity: 0.45;
   }
-  button:focus-visible,
-  input:focus-visible {
-    outline: 2px solid #e8bdd1;
+  button:focus-visible {
+    outline: 2px solid var(--app-accent);
     outline-offset: 4px;
   }
 }
@@ -354,44 +348,64 @@ const imageFallback = (event: Event) => {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 32px;
+  min-height: 40px;
+  margin-bottom: 20px;
 }
-.eyebrow {
-  margin: 0 0 8px;
-  color: #a19aaa;
-  letter-spacing: 0.18em;
-  font-size: 11px;
-  font-weight: 600;
+.heading-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  min-width: 0;
+}
+.heading-count {
+  color: var(--app-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 h1 {
-  font-size: 32px;
+  font-size: var(--app-title-size, clamp(26px, 2.3vw, 32px));
   line-height: 1.2;
   font-weight: 650;
   margin: 0;
-  letter-spacing: -0.04em;
-}
-.heading-caption {
-  margin: 10px 0 0;
-  color: #a19aaa;
-  font-size: 13px;
+  letter-spacing: -0.02em;
 }
 .heading-actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
+  flex-shrink: 0;
+}
+.history-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--app-control-height, 36px);
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--app-control-radius, 10px);
+  color: var(--app-secondary);
+  background: transparent;
+  font-size: 13px !important;
+  &:hover {
+    color: var(--app-text);
+    background: var(--app-hover);
+  }
 }
 .icon-button {
-  width: 38px;
-  height: 38px;
+  width: var(--app-control-height, 36px);
+  height: var(--app-control-height, 36px);
   display: grid;
   place-items: center;
-  color: #a19aaa;
+  color: var(--app-muted);
   background: transparent;
-  border: 1px solid #ffffff16;
-  border-radius: 50%;
+  border: 1px solid transparent;
+  border-radius: var(--app-control-radius, 10px);
   &:hover {
-    color: #f2eff5;
-    background: #ffffff08;
+    color: var(--app-text);
+    background: var(--app-surface);
   }
 }
 .create-button,
@@ -400,146 +414,111 @@ h1 {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px 17px;
-  border-radius: 8px;
+  height: var(--app-control-height, 36px);
+  padding: 0 15px;
+  border-radius: var(--app-control-radius, 10px);
   border: 1px solid transparent;
   font-weight: 600 !important;
   font-size: 13px !important;
 }
 .create-button {
-  background: #e8bdd1;
-  color: #30212b;
+  background: var(--app-accent);
+  color: var(--app-on-accent);
   &:hover {
-    background: #f1d1e0;
+    background: var(--app-accent-hover);
   }
 }
 .secondary-button {
-  background: #ffffff09;
-  border-color: #ffffff1a;
-  color: #e8bdd1;
-}
-.library-shortcuts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 42px;
-}
-.shortcut {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  text-align: left;
-  min-width: 0;
-  padding: 20px;
-  border: 1px solid #ffffff0d;
-  background: #ffffff04;
-  border-radius: 12px;
-  color: #f2eff5;
-  transition: background 0.18s;
-  &:hover {
-    background: #ffffff09;
-  }
-}
-.shortcut-icon {
-  display: grid;
-  place-items: center;
-  flex: 0 0 49px;
-  height: 49px;
-  border-radius: 12px;
-  background: #ffffff07;
-  color: #c1b9c8;
-}
-.favorite-shortcut .shortcut-icon {
-  background: #e8bdd112;
-  color: #e8bdd1;
-}
-.shortcut-text {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  strong {
-    font-size: 15px;
-    font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  > span {
-    font-size: 12px;
-    color: #a19aaa;
-  }
-}
-.shortcut-arrow {
-  margin-left: auto;
-  color: #82798d;
+  background: var(--app-surface, #ffffff09);
+  border-color: var(--app-border, #ffffff14);
+  color: var(--app-accent);
 }
 .library-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #ffffff0d;
+  gap: 16px;
+  min-height: 48px;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--app-border);
 }
 .library-filters {
   display: flex;
-  gap: 7px;
+  align-self: stretch;
+  align-items: stretch;
+  gap: 24px;
   button {
+    position: relative;
+    padding: 0;
     background: transparent;
     border: 0;
-    color: #a19aaa;
-    font-size: 14px;
-    border-radius: 7px;
-    padding: 8px 13px;
+    color: var(--app-muted);
+    font-size: 13px;
+    min-height: 36px;
     white-space: nowrap;
     &:hover {
-      color: #f2eff5;
+      color: var(--app-text);
     }
     &.active {
-      color: #e8bdd1;
-      background: #e8bdd110;
+      color: var(--app-accent);
       font-weight: 600;
+      &::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        bottom: -13px;
+        left: 0;
+        height: 2px;
+        border-radius: 2px;
+        background: var(--app-accent);
+      }
     }
   }
 }
 .library-search {
-  width: 224px;
+  width: clamp(180px, 23vw, 260px);
+  min-width: 0;
+  height: var(--app-control-height, 36px);
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #82798d;
-  border-bottom: 1px solid #ffffff1a;
-  padding: 7px 0;
+  color: var(--app-muted);
+  border: 1px solid var(--app-border, #ffffff14);
+  border-radius: var(--app-control-radius, 10px);
+  background: var(--app-surface, #ffffff09);
+  padding: 0 11px;
+  transition:
+    border-color 0.18s,
+    box-shadow 0.18s;
+  &:focus-within {
+    border-color: var(--app-accent-border);
+    box-shadow: 0 0 0 2px var(--app-accent-soft);
+    color: var(--app-accent);
+  }
   input {
     min-width: 0;
     width: 100%;
     border: 0;
     background: transparent;
-    color: #f2eff5;
+    color: var(--app-text);
     font-size: 13px;
     outline: 0;
+    height: 100%;
     &::placeholder {
-      color: #82798d;
+      color: var(--app-muted);
     }
   }
 }
-.section-caption {
-  display: flex;
-  gap: 14px;
-  color: #82798d;
-  font-size: 12px;
-  margin: 17px 0 22px;
-}
 .library-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 28px 24px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: start;
+  gap: 28px 22px;
 }
 .library-card {
   width: 100%;
   min-width: 0;
-  max-width: 210px;
   &.deleting {
     opacity: 0.45;
     pointer-events: none;
@@ -551,20 +530,25 @@ h1 {
   border: 0;
   background: transparent;
   text-align: left;
-  color: #f2eff5;
+  color: var(--app-text);
+  padding: 0;
+  border-radius: 11px;
   strong {
     display: block;
     font-size: 14px;
-    font-weight: 550;
+    font-weight: 500;
+    line-height: 1.5;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    margin: 12px 0 5px;
+    margin: 10px 0 3px;
   }
-  &:hover .cover-open {
+  &:hover .cover-open,
+  &:focus-visible .cover-open {
     opacity: 1;
   }
-  &:hover .cover-wrap img {
+  &:hover .cover-wrap img,
+  &:focus-visible .cover-wrap img {
     transform: scale(1.025);
   }
 }
@@ -573,9 +557,19 @@ h1 {
   position: relative;
   aspect-ratio: 1;
   overflow: hidden;
-  border-radius: 9px;
-  background: #ffffff07;
+  border-radius: 11px;
+  background: var(--app-surface);
+  box-shadow: 0 4px 16px #00000012;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--app-hover);
+    border-radius: inherit;
+    pointer-events: none;
+  }
   img {
+    position: relative;
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -583,92 +577,128 @@ h1 {
     transition: transform 0.25s ease;
   }
 }
+.cover-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--app-surface-strong);
+  color: var(--app-muted);
+  .v-icon {
+    opacity: 0.65;
+  }
+}
 .cover-open {
   position: absolute;
   inset: auto 9px 9px auto;
   display: grid;
   place-items: center;
-  background: #16131acd;
-  width: 36px;
-  height: 36px;
+  background: rgba(18, 19, 20, 0.9);
+  color: white;
+  border: 1px solid #ffffff19;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   opacity: 0;
   transition: opacity 0.2s;
 }
+.favorite-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #ffffff26;
+  border-radius: 50%;
+  background: rgba(18, 19, 20, 0.72);
+  color: white;
+}
 .playlist-meta {
   display: flex;
   gap: 7px;
-  font-size: 12px;
-  color: #a19aaa;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--app-muted);
 }
 .library-error {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  background: #e8bdd109;
-  border: 1px solid #e8bdd119;
-  border-radius: 8px;
-  padding: 14px 17px;
-  color: #c6b8c3;
+  background: var(--app-accent-soft);
+  border: 1px solid var(--app-accent-border);
+  border-radius: var(--app-control-radius, 10px);
+  padding: 12px 15px;
+  color: var(--app-secondary);
   font-size: 13px;
   margin-bottom: 24px;
   button {
-    color: #e8bdd1;
+    color: var(--app-accent);
     border: 0;
     background: transparent;
     white-space: nowrap;
   }
 }
 .library-empty {
-  min-height: 260px;
-  padding: 40px 20px;
+  min-height: 228px;
+  padding: 30px 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: #a19aaa;
+  color: var(--app-muted);
   h2 {
-    color: #f2eff5;
-    font-size: 19px;
-    font-weight: 600;
-    margin: 16px 0 9px;
+    color: var(--app-text);
+    font-size: 17px;
+    font-weight: 550;
+    margin: 4px 0 8px;
   }
   p {
+    max-width: 360px;
     font-size: 13px;
     line-height: 1.8;
-    margin: 0 0 22px;
+    margin: 0 0 20px;
   }
 }
 .signed-out {
-  min-height: 380px;
-  border-top: 1px solid #ffffff0d;
+  min-height: 300px;
+  border-top: 1px solid var(--app-border);
 }
 .empty-icon {
   display: grid;
   place-items: center;
-  width: 76px;
-  height: 76px;
-  border-radius: 22px;
-  color: #e8bdd1;
-  background: #e8bdd109;
-  margin-bottom: 8px;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--app-accent-border);
+  border-radius: 16px;
+  color: var(--app-accent);
+  background: linear-gradient(145deg, var(--app-accent-soft), transparent);
+  margin-bottom: 12px;
 }
 .skeleton-card {
-  max-width: 210px;
+  width: 100%;
   div {
     aspect-ratio: 1;
-    border-radius: 9px;
-    background: #ffffff07;
+    border-radius: 11px;
+    background: linear-gradient(
+      100deg,
+      var(--app-surface) 20%,
+      var(--app-hover) 45%,
+      var(--app-surface) 70%
+    );
+    background-size: 240% 100%;
+    animation: skeleton-shimmer 1.8s ease-in-out infinite;
   }
   span {
     display: block;
     height: 11px;
-    margin-top: 14px;
+    margin-top: 11px;
     border-radius: 4px;
     width: 75%;
-    background: #ffffff07;
+    background: var(--app-surface);
     &:last-child {
       width: 42%;
       margin-top: 9px;
@@ -678,69 +708,90 @@ h1 {
 .spinning {
   animation: spin 1s linear infinite;
 }
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
 }
-@media (max-width: 900px) {
-  .shortcut {
-    padding: 16px 13px;
-    gap: 10px;
+@media (max-width: 1199px) {
+  .library-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
-  .shortcut-icon {
-    flex-basis: 40px;
-    height: 40px;
+}
+@media (max-width: 999px) {
+  .library-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
-  .shortcut-arrow {
+}
+@media (max-width: 759px) {
+  .library-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px 18px;
+  }
+  .history-button {
+    width: var(--app-control-height, 36px);
+    padding: 0;
+  }
+  .history-button span {
     display: none;
   }
 }
 @media (max-width: 650px) {
   .library-page {
-    padding-top: 22px;
+    padding-top: 24px;
   }
   .library-heading {
     gap: 12px;
-  }
-  .library-shortcuts {
-    gap: 8px;
-    margin-bottom: 28px;
-  }
-  .shortcut {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 14px 12px;
-  }
-  .shortcut-text strong {
-    font-size: 13px;
-  }
-  .shortcut-text > span {
-    font-size: 11px;
   }
   .library-toolbar {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
+    padding-bottom: 16px;
+    margin-bottom: 20px;
   }
   .library-search {
     width: 100%;
   }
   .library-filters {
-    gap: 4px;
+    gap: 24px;
+    padding-bottom: 4px;
     button {
-      padding: 8px 10px;
+      &.active::after {
+        bottom: -1px;
+      }
     }
   }
-  .library-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 24px 16px;
-  }
   .create-button {
-    padding: 9px 12px;
+    padding: 0 12px;
   }
   .heading-actions {
-    gap: 8px;
+    gap: 4px;
+  }
+}
+@media (max-width: 519px) {
+  .heading-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+  .library-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 16px;
+  }
+  .playlist-link strong {
+    font-size: 13px;
+  }
+  .playlist-meta {
+    gap: 5px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

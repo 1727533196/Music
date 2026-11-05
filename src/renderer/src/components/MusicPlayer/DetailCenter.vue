@@ -78,8 +78,8 @@ const skipSong = (next: boolean) => {
 
 <style scoped lang="less">
 .center {
-  color: rgb(212, 212, 212);
-  width: 441px;
+  color: var(--app-text);
+  min-width: 0;
   display: flex;
   justify-content: center;
 }
@@ -106,14 +106,14 @@ const skipSong = (next: boolean) => {
     opacity 150ms ease,
     background-color 150ms ease;
   &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--app-hover);
   }
   &:active:not(:disabled) {
     opacity: 0.65;
     transform: scale(0.94);
   }
   &:focus-visible {
-    outline: 2px solid rgba(255, 255, 255, 0.8);
+    outline: 2px solid var(--app-accent);
     outline-offset: 3px;
   }
   &:disabled {
@@ -122,7 +122,7 @@ const skipSong = (next: boolean) => {
   }
 }
 .mode-button {
-  color: rgba(255, 255, 255, 0.56);
+  color: var(--app-muted);
 }
 .skip-button svg {
   width: 23px;
@@ -134,6 +134,16 @@ const skipSong = (next: boolean) => {
   svg {
     width: 28px;
     height: 28px;
+  }
+}
+@media (max-width: 800px) {
+  .cut-container {
+    gap: 14px;
+  }
+}
+@media (max-width: 560px) {
+  .cut-container {
+    gap: 25px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

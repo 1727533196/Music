@@ -12,9 +12,9 @@ defineSlots<{
 
 <style lang="less" scoped>
 .container {
-  height: 75px;
-  //background-color: rgb(26,26,35);
-  border-top: rgb(59, 59, 62) 1px solid;
+  height: var(--app-player-height, 75px);
+  background: var(--app-background);
+  border-top: 1px solid var(--app-border);
   position: fixed;
   bottom: 0;
   left: 0;
@@ -22,6 +22,8 @@ defineSlots<{
   width: 100%;
 }
 .bottom-container {
-  transition: 0.5s;
+  transition:
+    opacity 0.5s ease,
+    visibility 0.5s;
 }
 </style>

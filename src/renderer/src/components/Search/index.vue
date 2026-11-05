@@ -1,256 +1,341 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import useSearch from '@/components/Search/useSearch'
 import { searchDefault, searchHotDetail, searchSuggest } from '@/api/search'
+import { getMusicDetail } from '@/api/musicList'
 import List from './List.vue'
 import { useFlags } from '@/store/flags'
 import { useMusicAction } from '@/store/music'
-import { RECORD_KEY, RecordContent } from '@/components/Search/type'
-import { isString } from '@/utils'
+import {
+  RECORD_KEY,
+  type HotSearch,
+  type RecordContent,
+  type Suggestion,
+  type SuggestionKey,
+  type Suggestions
+} from './type'
 
-const state = reactive({
+const state = reactive<{ scoreList: HotSearch[]; keywordsList: Suggestions }>({
   scoreList: [],
   keywordsList: {}
 })
 const loading = ref(false)
+const error = ref('')
 const router = useRouter()
 const route = useRoute()
-const keywords = ref('')
+const keywords = ref(typeof route.query.key === 'string' ? route.query.key : '')
 const showSuggest = ref(false)
-const { search } = useSearch()
 const flags = useFlags()
 const model = ref<'hot' | 'keywords'>('hot')
 const music = useMusicAction()
 const searchContainerEl = ref<HTMLDivElement>()
 const recordContent = ref<RecordContent[]>([])
-const placeholderInfo = ref({
-  realkeyword: '',
-  showKeyword: ''
-})
+const placeholderInfo = ref({ realkeyword: '', showKeyword: '' })
 let blurTimer: ReturnType<typeof setTimeout> | undefined
 let defaultTimer: ReturnType<typeof setTimeout> | undefined
+let suggestTimer: ReturnType<typeof setTimeout> | undefined
+let requestId = 0
+let songRequestId = 0
 let disposed = false
+let hotPending: Promise<void> | undefined
+
+try {
+  const stored = JSON.parse(localStorage.getItem(RECORD_KEY) || '[]')
+  recordContent.value = Array.isArray(stored)
+    ? stored
+        .filter(
+          (item) =>
+            typeof item?.term === 'string' &&
+            item.term.trim() &&
+            typeof item.path === 'string' &&
+            item.path.startsWith('/')
+        )
+        .slice(0, 20)
+    : []
+} catch {
+  recordContent.value = []
+}
+
 const closeSuggest = () => {
   clearTimeout(blurTimer)
+  clearTimeout(suggestTimer)
+  requestId++
+  loading.value = false
   flags.isOpenSearch = false
   showSuggest.value = false
 }
 const outsidePointer = (event: PointerEvent) => {
   if (!searchContainerEl.value?.contains(event.target as Node)) closeSuggest()
 }
-const escapeSearch = (event: KeyboardEvent) => {
-  if (event.key !== 'Escape') return
-  closeSuggest()
-  searchContainerEl.value?.querySelector('input')?.blur()
+const blurHandler = () => {
+  clearTimeout(blurTimer)
+  blurTimer = setTimeout(() => {
+    if (!searchContainerEl.value?.contains(document.activeElement)) closeSuggest()
+  }, 0)
 }
-onMounted(() => document.addEventListener('pointerdown', outsidePointer))
+const openSearch = async () => {
+  flags.isOpenDetail = false
+  await nextTick()
+  searchContainerEl.value?.querySelector('input')?.focus()
+  focusHandler()
+}
+onMounted(() => {
+  document.addEventListener('pointerdown', outsidePointer)
+  window.addEventListener('open-search', openSearch)
+})
 onBeforeUnmount(() => {
   disposed = true
-  clearTimeout(blurTimer)
+  closeSuggest()
   clearTimeout(defaultTimer)
   document.removeEventListener('pointerdown', outsidePointer)
-  flags.isOpenSearch = false
+  window.removeEventListener('open-search', openSearch)
 })
-
-watch(route, (value) => {
-  closeSuggest()
-  const { key } = value.query
-  if (key && key !== keywords.value) {
-    keywords.value = key
+watch(
+  () => route.fullPath,
+  () => {
+    closeSuggest()
+    if (typeof route.query.key === 'string') keywords.value = route.query.key
   }
-})
+)
 watch(
   () => flags.isOpenDetail,
   (open) => {
     if (open) closeSuggest()
   }
 )
-recordContent.value = JSON.parse(localStorage.getItem(RECORD_KEY) || '[]')
-const searchHandler = (
-  item: string | object,
-  key?: 'allMatch' | 'songs' | 'artists' | 'albums' | 'playlists' | 'search' | 'hot'
+
+const saveHistory = () => localStorage.setItem(RECORD_KEY, JSON.stringify(recordContent.value))
+const searchHandler = async (
+  item: string | Suggestion | HotSearch,
+  key: SuggestionKey | 'search' | 'hot'
 ) => {
-  if (isString(item) && !item.length) {
-    return
-  }
+  const actionId = ++songRequestId
   let path = ''
   let keyword = ''
-
-  closeSuggest()
-
-  if (key === 'allMatch') {
-    path = `/search?key=${item.keyword}`
-    keyword = item.keyword
-  } else if (key === 'songs') {
-    music.getMusicUrlHandler(item)
-  } else if (key === 'artists') {
-    path = `/singer-page?id=${item.id}`
-  } else if (key === 'albums') {
-    path = `/play-list?id=${item.id}&type=album`
-  } else if (key === 'playlists') {
-    path = `/play-list?id=${item.id}`
-  } else if (key === 'search') {
-    path = `/search?key=${item}`
-    keyword = item as string
-  } else if (key === 'hot') {
-    path = `/search?key=${item.searchWord}`
-    keyword = item.searchWord
-  }
-
-  keywords.value = keyword
-
-  if (key !== 'songs') {
-    const index = recordContent.value.findIndex((item) => item.term === keyword)
-    if (index >= 0) {
-      recordContent.value.splice(index, 1)
+  if (key === 'songs') {
+    const id = (item as Suggestion).id
+    if (!id) return
+    const previousSelection = music.state.songs
+    closeSuggest()
+    try {
+      const { songs } = await getMusicDetail(String(id))
+      if (
+        !disposed &&
+        actionId === songRequestId &&
+        music.state.songs === previousSelection &&
+        songs?.[0]
+      ) {
+        await music.getMusicUrlHandler(songs[0])
+      }
+    } catch {
+      /* The shared request handler displays the network error. */
     }
-    recordContent.value.unshift({
-      term: keyword,
-      time: Date.now(),
-      path
-    })
-    localStorage.setItem(RECORD_KEY, JSON.stringify(recordContent.value))
-
-    router.push(path)
+    return
   }
+  if (key === 'artists' || key === 'albums' || key === 'playlists') {
+    const id = (item as Suggestion).id
+    if (!id) return
+    path =
+      key === 'artists'
+        ? `/singer-page?id=${id}`
+        : `/play-list?id=${id}${key === 'albums' ? '&type=album' : ''}`
+  } else {
+    keyword = (
+      typeof item === 'string'
+        ? item
+        : key === 'hot'
+          ? (item as HotSearch).searchWord
+          : (item as Suggestion).keyword || ''
+    ).trim()
+    if (!keyword) return
+    path = `/search?key=${encodeURIComponent(keyword)}`
+  }
+  closeSuggest()
+  if (keyword) {
+    keywords.value = keyword
+    recordContent.value = [
+      { term: keyword, time: Date.now(), path },
+      ...recordContent.value.filter((record) => record.term !== keyword)
+    ].slice(0, 20)
+    saveHistory()
+  }
+  void router.push(path)
 }
 const clearRecord = () => {
-  localStorage.removeItem(RECORD_KEY)
   recordContent.value = []
+  localStorage.removeItem(RECORD_KEY)
 }
 const recordTagClick = (item: RecordContent, index: number) => {
+  songRequestId++
   closeSuggest()
   recordContent.value.splice(index, 1)
-  recordContent.value.unshift(item)
-  localStorage.setItem(RECORD_KEY, JSON.stringify(recordContent.value))
-  router.push(item.path)
+  recordContent.value.unshift({ ...item, time: Date.now() })
+  saveHistory()
   keywords.value = item.term
+  void router.push(item.path)
 }
 const deleteTag = (index: number) => {
   recordContent.value.splice(index, 1)
-  localStorage.setItem(RECORD_KEY, JSON.stringify(recordContent.value))
+  saveHistory()
 }
-const focusHandler = async () => {
-  clearTimeout(blurTimer)
+const loadHot = async () => {
+  if (hotPending) return hotPending
+  if (!state.scoreList.length) loading.value = true
+  error.value = ''
+  hotPending = (async () => {
+    try {
+      const res = (await searchHotDetail()) as { data?: HotSearch[] }
+      if (!disposed) state.scoreList = Array.isArray(res.data) ? res.data : []
+    } catch {
+      if (!disposed && showSuggest.value && model.value === 'hot') error.value = '热搜暂时无法加载'
+    } finally {
+      hotPending = undefined
+      if (model.value === 'hot') loading.value = false
+    }
+  })()
+  return hotPending
+}
+const getSearchSuggest = async (term: string, id: number) => {
+  try {
+    const [suggest, mobile] = await Promise.all([
+      searchSuggest(term),
+      searchSuggest(term, 'mobile')
+    ])
+    if (disposed || id !== requestId || !showSuggest.value) return
+    const result = suggest.result || {}
+    const allMatch = mobile.result?.allMatch || []
+    const order: SuggestionKey[] = ['allMatch', 'songs', 'artists', 'albums', 'playlists']
+    state.keywordsList = {
+      ...result,
+      allMatch,
+      order: order.filter((key) => (key === 'allMatch' ? allMatch : result[key])?.length)
+    }
+  } catch {
+    if (!disposed && id === requestId && showSuggest.value) error.value = '搜索建议暂时无法加载'
+  } finally {
+    if (id === requestId) loading.value = false
+  }
+}
+const inputHandler = (event?: Event) => {
+  if (event instanceof InputEvent && event.isComposing) return
+  clearTimeout(suggestTimer)
+  const id = ++requestId
+  error.value = ''
+  const term = keywords.value.trim()
+  model.value = term ? 'keywords' : 'hot'
   showSuggest.value = true
   flags.isOpenSearch = true
-  if (!state.scoreList.length) {
-    loading.value = true
-  }
-  const res = await searchHotDetail()
-  loading.value = false
-  state.scoreList = res.data
-}
-const blurHandler = () => {
-  blurTimer = setTimeout(closeSuggest, 200)
-}
-let timer: NodeJS.Timeout
-const inputHandler = () => {
-  if (keywords.value === '') {
-    model.value = 'hot'
-    focusHandler()
+  if (!term) {
+    void loadHot()
     return
   }
-  model.value = keywords.value === '' ? 'hot' : 'keywords'
-  getSearchSuggest(keywords.value)
-}
-// 高亮元素
-const hig = (result: object) => {
-  if (!Object.keys(result)) {
-    return
-  }
-  const regExp = new RegExp(keywords.value, 'i')
-  const len = result.order.length
-  for (let i = 0; i < len; i++) {
-    const key = result.order[i]
-    const list = result[key]
-    if (key === 'allMatch') {
-      list.forEach((item) => {
-        item.text = item.keyword.replace(
-          regExp,
-          (text) => `<span style="color:lightskyblue">${text}</span>`
-        )
-      })
-    } else {
-      list.forEach((item) => {
-        item.text = item.name.replace(
-          regExp,
-          (text) => `<span style="color:lightskyblue">${text}</span>`
-        )
-      })
-    }
-  }
-}
-const getSearchSuggest = async (keywords: string) => {
   loading.value = true
   state.keywordsList = {}
-  const [suggest, songs] = await Promise.all([
-    searchSuggest(keywords),
-    searchSuggest(keywords, 'mobile')
-  ])
-  // 单曲、专辑、歌手、歌单
-  if (Object.keys(suggest)) {
-    state.keywordsList = suggest.result
-  }
-  // 猜你想搜
-  if (Object.keys(songs)) {
-    state.keywordsList.allMatch = songs.result.allMatch
-    if (!state.keywordsList.order) {
-      state.keywordsList.order = []
-    }
-    state.keywordsList.order.unshift('allMatch')
-  }
-  hig(state.keywordsList)
-  loading.value = false
+  suggestTimer = setTimeout(() => void getSearchSuggest(term, id), 200)
 }
-
+const focusHandler = () => {
+  clearTimeout(blurTimer)
+  if (showSuggest.value) return
+  inputHandler()
+}
+const retry = () => {
+  searchContainerEl.value?.querySelector('input')?.focus()
+  if (model.value === 'hot') void loadHot()
+  else inputHandler()
+}
+const searchKeydown = async (event: KeyboardEvent) => {
+  if (event.isComposing || event.keyCode === 229) return
+  if (event.key === 'Escape') {
+    if (!showSuggest.value) return
+    event.preventDefault()
+    event.stopPropagation()
+    searchContainerEl.value?.querySelector('input')?.focus()
+    closeSuggest()
+    return
+  }
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+  event.preventDefault()
+  event.stopPropagation()
+  if (!showSuggest.value) {
+    focusHandler()
+    await nextTick()
+  }
+  const options = [
+    ...(searchContainerEl.value?.querySelectorAll<HTMLButtonElement>('[data-search-option]') || [])
+  ]
+  if (!options.length) return
+  const index = options.indexOf(document.activeElement as HTMLButtonElement)
+  const next =
+    event.key === 'ArrowDown'
+      ? (index + 1) % options.length
+      : index <= 0
+        ? options.length - 1
+        : index - 1
+  options[next].focus({ preventScroll: true })
+  options[next].scrollIntoView({ block: 'nearest' })
+}
+const inputKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'Enter' || event.isComposing) return
+  event.preventDefault()
+  event.stopPropagation()
+  searchHandler(realkeyword.value, 'search')
+}
 const getSearchDefault = async () => {
-  const { data } = await searchDefault()
-  placeholderInfo.value.realkeyword = data.realkeyword
-  placeholderInfo.value.showKeyword = data.showKeyword
-  if (!disposed) defaultTimer = setTimeout(getSearchDefault, 30000)
+  try {
+    const { data } = await searchDefault()
+    if (!disposed && data) placeholderInfo.value = data
+  } catch {
+    /* The static placeholder remains available when suggestions are offline. */
+  } finally {
+    if (!disposed) defaultTimer = setTimeout(getSearchDefault, 30000)
+  }
 }
-getSearchDefault()
-
-const realkeyword = computed(() => {
-  return keywords.value.length ? keywords.value : placeholderInfo.value.realkeyword
-})
+void getSearchDefault()
+const realkeyword = computed(() => keywords.value.trim() || placeholderInfo.value.realkeyword)
 </script>
 
 <template>
-  <div @keydown="escapeSearch" ref="searchContainerEl" class="search-container">
+  <div
+    ref="searchContainerEl"
+    class="search-container"
+    @keydown="searchKeydown"
+    @focusout="blurHandler"
+  >
     <button
       type="button"
       aria-label="搜索音乐"
-      @click="searchHandler(realkeyword, 'search')"
       class="search-icon"
+      @click="searchHandler(realkeyword, 'search')"
     >
       <el-icon :size="17"><Search /></el-icon>
     </button>
     <input
-      v-model.trim="keywords"
-      @keydown.stop="escapeSearch"
-      @keyup.enter="searchHandler(realkeyword, 'search')"
-      @focus="focusHandler"
-      @blur="blurHandler"
-      @input="inputHandler"
+      v-model="keywords"
       class="search"
+      type="search"
+      autocomplete="off"
       aria-label="搜索歌曲、歌手或歌单"
       :aria-expanded="showSuggest"
       aria-controls="header-search-suggestions"
       :placeholder="placeholderInfo.showKeyword || '搜索音乐'"
+      @keydown="inputKeydown"
+      @focus="focusHandler"
+      @input="inputHandler"
     />
-    <div id="header-search-suggestions" v-loading="loading" v-show="showSuggest" class="suggest">
+    <div id="header-search-suggestions" v-show="showSuggest" class="suggest" :aria-busy="loading">
       <List
         :model="model"
+        :keywords="keywords"
+        :loading="loading"
+        :error="error"
+        :recordContent="recordContent"
+        :keywordsList="state.keywordsList"
+        :list="state.scoreList"
         @click="searchHandler"
         @clear="clearRecord"
         @recordTagClick="recordTagClick"
         @deleteTag="deleteTag"
-        :recordContent="recordContent"
-        :keywordsList="state.keywordsList"
-        :list="state.scoreList"
+        @retry="retry"
       />
     </div>
   </div>
@@ -265,16 +350,16 @@ const realkeyword = computed(() => {
   height: 36px;
   padding: 0 11px;
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
   box-sizing: border-box;
   -webkit-app-region: no-drag;
   transition:
     border-color 160ms ease,
     background 160ms ease;
   &:focus-within {
-    border-color: rgba(232, 189, 209, 0.5);
-    background: rgba(255, 255, 255, 0.055);
+    border-color: var(--app-accent-border);
+    background: var(--app-hover);
   }
   .search-icon {
     display: flex;
@@ -287,13 +372,13 @@ const realkeyword = computed(() => {
     padding: 0;
     border: 0;
     background: transparent;
-    color: #a19aaa;
+    color: var(--app-muted);
     cursor: pointer;
     &:hover {
-      color: #f2eff5;
+      color: var(--app-text);
     }
     &:focus-visible {
-      outline: 2px solid #e8bdd1;
+      outline: 2px solid var(--app-accent);
       border-radius: 4px;
     }
   }
@@ -307,22 +392,22 @@ const realkeyword = computed(() => {
     box-sizing: border-box;
     background: transparent;
     font-size: 12px;
-    color: #f2eff5;
+    color: var(--app-text);
     text-overflow: ellipsis;
     &::placeholder {
-      color: #8d8598;
+      color: var(--app-muted);
     }
   }
   :deep(.suggest) {
     position: absolute;
     top: calc(100% + 14px);
     right: 0;
-    width: min(400px, calc(100vw - 32px));
-    max-height: min(600px, calc(100vh - 180px));
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    width: ~'min(400px, calc(100vw - 32px))';
+    max-height: ~'min(600px, calc(100dvh - var(--app-header-height, 76px) - var(--app-player-height, 75px) - 24px))';
+    border: 1px solid var(--app-border);
     border-radius: 14px;
-    background: #24222e;
-    box-shadow: 0 20px 65px rgba(0, 0, 0, 0.4);
+    background: var(--app-panel);
+    box-shadow: var(--app-shadow);
     z-index: 10;
     overflow: auto;
     -webkit-app-region: no-drag;

@@ -14,7 +14,7 @@ import '@lrc-player/core/dist/style.css'
 import Player from '@lrc-player/core'
 import { useFlags } from '@/store/flags'
 import { reloadAudioSource } from '@/utils/musicSource'
-import { ElMessage } from 'element-plus'
+import { message } from '@/utils/message'
 
 const orderStatus = ['icon-xihuan5', 'icon-xunhuan', 'icon-suijibofang', 'icon-danquxunhuan']
 type userAudio = {
@@ -174,7 +174,7 @@ async function startPlayback(lengthen: boolean, signal: AbortSignal): Promise<un
     originPause.call(element)
     if (resumeTime !== null) music.state.musicUrlExpiresAt = 0
     console.error('恢复播放失败:', error)
-    ElMessage.error('播放失败，请稍后重试')
+    message.error('播放失败，请稍后重试')
   }
   return undefined
 }
@@ -381,7 +381,6 @@ defineExpose(exposeObj)
   align-items: center;
   height: 100%;
   padding: 0 15px;
-  backdrop-filter: blur(60px) saturate(210%);
 }
 .bottom-container.detail-player {
   display: block;
@@ -390,10 +389,42 @@ defineExpose(exposeObj)
   backdrop-filter: none;
 }
 .compact-player {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
+  gap: 24px;
   width: 100%;
   height: 100%;
+}
+@media (max-width: 800px) {
+  .compact-player {
+    gap: 12px;
+  }
+}
+@media (max-width: 560px) {
+  :global(html:root) {
+    --app-player-height: 112px;
+  }
+  .bottom-container:not(.detail-player) {
+    padding: 8px 12px;
+  }
+  .compact-player {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 48px 40px;
+    gap: 4px 10px;
+    align-content: center;
+  }
+  .compact-player > :deep(.left) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .compact-player > :deep(.center) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .compact-player > :deep(.right) {
+    grid-column: 2;
+    grid-row: 1;
+  }
 }
 </style>

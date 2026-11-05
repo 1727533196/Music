@@ -4,20 +4,20 @@ import { useMusicAction } from '@/store/music'
 
 // 默认快捷键配置
 const defaultShortcuts: Record<string, string[]> = {
-  'play_pause': ['Space'],
-  'prev_track': ['Control', 'ArrowLeft'],
-  'next_track': ['Control', 'ArrowRight'],
-  'volume_up': ['Control', 'ArrowUp'],
-  'volume_down': ['Control', 'ArrowDown'],
-  'toggle_lyrics': ['L'],
-  'search': ['Control', 'K']
+  play_pause: ['Space'],
+  prev_track: ['Control', 'ArrowLeft'],
+  next_track: ['Control', 'ArrowRight'],
+  volume_up: ['Control', 'ArrowUp'],
+  volume_down: ['Control', 'ArrowDown'],
+  toggle_lyrics: ['L'],
+  search: ['Control', 'K']
 }
 
 // 获取用户配置的快捷键（从 localStorage）
 const getUserShortcuts = (): Record<string, string[]> => {
   const shortcuts: Record<string, string[]> = {}
 
-  Object.keys(defaultShortcuts).forEach(id => {
+  Object.keys(defaultShortcuts).forEach((id) => {
     const saved = localStorage.getItem(`shortcut_${id}`)
     if (saved) {
       try {
@@ -38,8 +38,9 @@ const getUserShortcuts = (): Record<string, string[]> => {
 const isKeysMatch = (pressedKeys: string[], shortcutKeys: string[]): boolean => {
   if (pressedKeys.length !== shortcutKeys.length) return false
 
-  const sorted1 = [...pressedKeys].sort()
-  const sorted2 = [...shortcutKeys].sort()
+  const normalizeKey = (key: string) => (key.length === 1 ? key.toLowerCase() : key)
+  const sorted1 = pressedKeys.map(normalizeKey).sort()
+  const sorted2 = shortcutKeys.map(normalizeKey).sort()
 
   return sorted1.every((key, index) => key === sorted2[index])
 }
@@ -50,9 +51,9 @@ const keydownHandler = (event: KeyboardEvent) => {
 
   // 如果在输入框等元素中，不触发快捷键
   const target = event.target as HTMLElement
-  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-    return
-  }
+  const nativeControl =
+    target.closest('input, textarea, select, button, a, summary, [role="tab"]') ||
+    target.isContentEditable
 
   // 构建当前按下的键组合
   const pressedKeys: string[] = []
@@ -68,6 +69,10 @@ const keydownHandler = (event: KeyboardEvent) => {
 
   // 获取用户配置的快捷键
   const userShortcuts = getUserShortcuts()
+  const openSearchCombination =
+    (event.ctrlKey || event.metaKey || event.altKey) &&
+    isKeysMatch(pressedKeys, userShortcuts.search)
+  if (nativeControl && !openSearchCombination) return
 
   // 查找匹配的快捷键并执行对应操作
   for (const [id, keys] of Object.entries(userShortcuts)) {

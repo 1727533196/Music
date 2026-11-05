@@ -121,7 +121,7 @@ const formatPlayCount = (count?: number) => {
             <v-btn
               icon
               variant="tonal"
-              color="pink"
+              color="var(--app-accent)"
               size="small"
               class="mix-heart discovery-heart"
               :aria-label="`收藏${mix.name}`"
@@ -152,7 +152,7 @@ const formatPlayCount = (count?: number) => {
       <v-btn variant="tonal" size="small" @click="emit('retry')">重新加载</v-btn>
     </div>
     <div v-else class="empty-state text-center py-8">
-      <v-icon icon="mdi-playlist-music-off" size="64" color="grey" />
+      <v-icon icon="mdi-playlist-music-off" size="64" color="var(--app-muted)" />
       <div class="text-body-1 text-medium-emphasis mt-4">暂无精选歌单</div>
     </div>
   </div>

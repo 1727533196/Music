@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, h, nextTick, ref, watch } from 'vue'
+import { computed, h, nextTick, ref, useId, watch } from 'vue'
+import type { CSSProperties } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { lookup } from '@/utils'
 import { GetMusicDetailData, PlayList } from '@/api/musicList'
@@ -10,12 +11,13 @@ import Pagination from '@/components/Pagination/index.vue'
 import NotFound from '@/assets/not-found.png'
 import ContextMenu from '@/components/ContextMenu/index.vue'
 import { checkMusic, deleteSong } from '@/api/play'
-import { ElMessage } from 'element-plus'
+import { message } from '@/utils/message'
 import { getUserPlayListFn } from '@/utils/userInfo'
 import { getSongCommentLabel, loadSongCommentCount } from '@/utils/songComments'
 import CorrectSongDialog from './CorrectSongDialog.vue'
 import CollectionDialog from './CollectionDialog.vue'
 import CopyrightDialog from './components/CopyrightDialog.vue'
+import { useSongReorder } from './useSongReorder'
 
 export interface Columns {
   title: string
@@ -24,7 +26,7 @@ export interface Columns {
   icon?: string[]
   prop?: string
   on?: object
-  style?: object
+  style?: CSSProperties
   width?: string
   type?: 'index' | 'handle' | 'title' | 'album'
   class?: string
@@ -40,7 +42,10 @@ const playlistMenuItems = (song: GetMusicDetailData) => {
   if (song?.pc?.privateCloud || ['/cloud'].includes(route.path)) {
     result.push({ label: '纠正信息', value: 'correct' })
   }
-  return result
+  return result.map((item) => ({
+    ...item,
+    disabled: props.reorderSaving && ['collection', 'delete', 'correct'].includes(item.value)
+  }))
 }
 interface Props {
   list: GetMusicDetailData[]
@@ -58,6 +63,8 @@ interface Props {
   lazy?: boolean
   isNeedTitle?: boolean
   isSearch?: boolean
+  reorderable?: boolean
+  reorderSaving?: boolean
 }
 const props = withDefaults(defineProps<Props>(), {
   listInfo: {},
@@ -69,7 +76,32 @@ const props = withDefaults(defineProps<Props>(), {
   lazy: true,
   isNeedTitle: true
 })
-const emit = defineEmits(['play', 'current-change', 'update:modelValue'])
+const emit = defineEmits(['play', 'current-change', 'update:modelValue', 'reorder'])
+
+const isSecondaryColumn = (column: Columns) =>
+  !['index', 'title', 'handle'].includes(column.type || '') &&
+  !['empty', 'title', 'album', 'handle', 'time'].includes(column.class || '')
+const gridColumns = (mode: 'full' | 'compact' | 'narrow') =>
+  props.columns
+    .filter(
+      (column) =>
+        !column.hidden &&
+        (mode === 'full' || !isSecondaryColumn(column)) &&
+        (mode !== 'narrow' || column.class !== 'album')
+    )
+    .map((column) => {
+      if (column.type === 'index') return mode === 'narrow' ? '28px' : '36px'
+      if (column.type === 'handle') return '36px'
+      if (column.class === 'time') return column.width?.endsWith('px') ? column.width : '72px'
+      if (column.width?.endsWith('%')) return `minmax(0, ${parseFloat(column.width)}fr)`
+      return column.width || 'minmax(0, 1fr)'
+    })
+    .join(' ')
+const tableStyle = computed(() => ({
+  '--song-columns': gridColumns('full'),
+  '--song-columns-compact': gridColumns('compact'),
+  '--song-columns-narrow': gridColumns('narrow')
+}))
 
 const store = useUserInfo()
 const music = useMusicAction()
@@ -85,12 +117,77 @@ const collectionDialogVisible = ref(false)
 const collectionLoading = ref(false)
 const correctDialogVisible = ref(false)
 const currentMenuSongItem = ref<null | GetMusicDetailData>(null)
+const sortableList = ref<{ $el: HTMLElement }>()
+const loadingListHeight = ref(0)
+const loadingRowCount = ref(7)
+const reorderHelpId = useId()
+const reorderListId = useId()
+const reorderMode = ref(false)
+const reorderIds = computed(() => props.list.map((song) => song.id))
+let reorderFocusId: number | null = null
+const canDrag = computed(
+  () =>
+    props.reorderable &&
+    reorderMode.value &&
+    !props.reorderSaving &&
+    !props.loading &&
+    !searchKeyword.value.trim()
+)
+const {
+  draggingId,
+  dropPosition,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  cancelDrag,
+  moveBy,
+  onPointerDown
+} = useSongReorder({
+  getIds: () => reorderIds.value,
+  enabled: () => !!canDrag.value,
+  getContainer: () => sortableList.value?.$el ?? null,
+  onReorder: (ids) => emit('reorder', ids)
+})
+
+function onReorderKey(songId: number, direction: -1 | 1): void {
+  if (moveBy(songId, direction)) reorderFocusId = songId
+}
+
+function toggleReorderMode(): void {
+  if (props.reorderSaving) return
+  reorderMode.value = !reorderMode.value
+  reorderFocusId = null
+}
+
+watch([() => props.reorderable, () => props.listInfo?.id], () => {
+  reorderMode.value = false
+  reorderFocusId = null
+})
+
+watch(
+  () => props.reorderSaving,
+  async (saving) => {
+    if (saving || reorderFocusId === null) return
+    const songId = reorderFocusId
+    reorderFocusId = null
+    await nextTick()
+    const row = sortableList.value?.$el.querySelector<HTMLElement>(
+      `[data-song-id="${songId}"] .list`
+    )
+    if (row && (document.activeElement === document.body || document.activeElement === row)) {
+      row.focus({ preventScroll: true })
+      row.scrollIntoView({ block: 'nearest' })
+    }
+  }
+)
 
 const formatCount = (index: number) => {
   return index.toString().length > 1 ? index : '0' + index
 }
 
 const handlePlaylistMenuSelect = (item: { label: string; value: string }, row, index) => {
+  if (props.reorderSaving && ['collection', 'delete', 'correct'].includes(item.value)) return
   switch (item.value) {
     case 'collection':
       collectionDialogVisible.value = true
@@ -146,15 +243,8 @@ const isLike = (item: GetMusicDetailData) => {
   return store.userLikeIds.includes(item.id)
 }
 
-const activeText = (item: GetMusicDetailData) => {
-  if (item.id === undefined) {
-    return false
-  } else if (props.listInfo) {
-    return item.id === props.songs.id && props.listInfo.id === music.state.runtimeList?.id
-  } else {
-    return item.id === props.songs.id
-  }
-}
+const activeText = (item: GetMusicDetailData) =>
+  item.id !== undefined && item.id === props.songs?.id
 
 const singerDetail = (id: number) => {
   router.push(`/singer-page?id=${id}`)
@@ -185,10 +275,15 @@ const handleSearch = (val: string) => {
 watch(
   () => props.loading,
   (val) => {
+    // 在旧列表卸载前记录实际高度，翻页等待时保留分页栏的位置。
+    const list = val && props.isPaging && props.total ? sortableList.value?.$el : null
+    loadingListHeight.value = list?.getBoundingClientRect().height || 0
+    loadingRowCount.value = list?.children.length || 7
     if (props.isLoadingEndflyback && val) {
       document.querySelector('.main')!.scrollTop = 0
     }
-  }
+  },
+  { flush: 'pre' }
 )
 const itemRefs = ref<Record<number, HTMLDivElement>>({})
 const setItemRef = (el: any, id: number) => {
@@ -215,19 +310,14 @@ watch(
               top: targetEl.getBoundingClientRect().top - scrollEl.clientHeight / 2.35,
               behavior: 'smooth'
             })
-            targetEl.style.backgroundColor = 'rgba(255, 255, 255, 0.06)'
+            const highlightColor = getComputedStyle(targetEl).getPropertyValue('--app-hover').trim()
+            targetEl.style.backgroundColor = highlightColor
             targetEl
-              .animate(
-                [
-                  { backgroundColor: 'rgba(255, 255, 255, 0.06)' },
-                  { backgroundColor: 'rgba(255, 255, 255, 0)' }
-                ],
-                {
-                  duration: 1300,
-                  easing: 'ease-in-out',
-                  delay: 3000
-                }
-              )
+              .animate([{ backgroundColor: highlightColor }, { backgroundColor: 'transparent' }], {
+                duration: 1300,
+                easing: 'ease-in-out',
+                delay: 3000
+              })
               .finished.then(() => {
                 targetEl.style.backgroundColor = ''
               })
@@ -243,9 +333,7 @@ watch(
 
 watch(
   () => props.list,
-  (val) => {
-    filterList.value = val
-  }
+  () => handleSearch(searchKeyword.value)
 )
 
 const menuList = computed(() => {
@@ -260,14 +348,14 @@ const collectionHandler = async (menu: { id: number }) => {
   if (collectionLoading.value) return
   const songId = currentMenuSongItem.value?.id
   if (!songId || !menu.id) {
-    ElMessage.warning('请重新选择要添加的歌曲和歌单')
+    message.warning('请重新选择要添加的歌曲和歌单')
     return
   }
   collectionLoading.value = true
   try {
     await deleteSong('add', menu.id, songId)
     collectionDialogVisible.value = false
-    ElMessage.success('添加成功')
+    message.success('添加成功')
     void getUserPlayListFn().catch(() => {})
   } catch {
     // 请求层显示错误，保留选择以便重试。
@@ -296,20 +384,72 @@ const handleCollectionConfirm = (playlist: { id: number }) => {
     :userId="store.profile.userId!"
   />
 
-  <div class="song-list-container" :style="{ overflowY: scroll ? 'auto' : 'visible' }">
+  <div
+    class="song-list-container"
+    :style="{ ...tableStyle, overflowY: scroll ? 'auto' : 'visible' }"
+    :aria-busy="loading || reorderSaving"
+    :class="{
+      'is-reorderable': reorderable && reorderMode,
+      'is-reordering': draggingId !== null
+    }"
+  >
     <!-- 搜索框 -->
-    <div v-if="isSearch" class="search-container" :style="{ display: loading ? 'none' : '' }">
+    <div
+      v-if="isSearch || reorderable"
+      class="search-container"
+      :style="{ visibility: loading ? 'hidden' : undefined }"
+    >
       <VTextField
+        v-if="isSearch"
         density="compact"
-        placeholder="搜索此列表歌曲"
+        :placeholder="isPaging && (total || 0) > pageSize ? '搜索本页歌曲' : '搜索此列表歌曲'"
+        aria-label="搜索此列表歌曲"
         prepend-inner-icon="mdi-magnify"
         variant="outlined"
-        :max-width="400"
-        base-color="#ffffff33"
-        color="#ffffff33"
+        :max-width="320"
+        hide-details
+        base-color="var(--app-muted)"
+        color="var(--app-accent)"
         v-model="searchKeyword"
         @update:modelValue="handleSearch"
       />
+      <span v-if="isSearch && searchKeyword.trim()" class="search-count" role="status">
+        {{ filterList.length }} 首匹配
+      </span>
+      <div v-if="reorderable" class="reorder-controls">
+        <span
+          v-if="reorderMode || searchKeyword.trim()"
+          :id="reorderHelpId"
+          class="reorder-hint"
+          role="status"
+        >
+          {{
+            reorderSaving
+              ? '正在保存顺序…'
+              : searchKeyword.trim()
+                ? '清空搜索后可排序'
+                : '拖动歌曲行，松开自动保存'
+          }}
+        </span>
+        <button
+          type="button"
+          class="reorder-toggle"
+          :class="{ active: reorderMode }"
+          :aria-pressed="reorderMode"
+          :aria-controls="reorderListId"
+          :disabled="reorderSaving || (!reorderMode && !!searchKeyword.trim())"
+          :title="!reorderMode && searchKeyword.trim() ? '清空搜索后可排序' : undefined"
+          @click="toggleReorderMode"
+        >
+          <v-icon
+            :icon="reorderSaving ? 'mdi-loading' : reorderMode ? 'mdi-check' : 'mdi-sort-variant'"
+            :class="{ 'reorder-spinner': reorderSaving }"
+            size="16"
+            aria-hidden="true"
+          />
+          {{ reorderSaving ? '保存中…' : reorderMode ? '完成排序' : '调整顺序' }}
+        </button>
+      </div>
     </div>
 
     <!-- 版权提示对话框 -->
@@ -318,132 +458,192 @@ const handleCollectionConfirm = (playlist: { id: number }) => {
     <!-- 主要内容 -->
     <template v-if="loading || filterList.length">
       <!-- 标题行 -->
-      <div v-if="isNeedTitle" class="title-container" :style="{ display: loading ? 'none' : '' }">
+      <div
+        v-if="isNeedTitle"
+        class="title-container"
+        :style="{ visibility: loading ? 'hidden' : undefined }"
+      >
         <div
           v-for="config in columns"
           v-show="!config.hidden"
           :key="config.title"
           class="title-item"
-          :class="config.class"
-          :style="{ ...config.style, width: config.width }"
+          :class="[config.class, { 'secondary-column': isSecondaryColumn(config) }]"
+          :style="config.style"
         >
           {{ config.title }}
         </div>
       </div>
 
-      <!-- 歌曲列表 -->
-      <div class="list-container" :style="{ display: loading ? 'none' : '' }">
-        <ContextMenu
+      <!-- 加载时卸载列表，避免排序过渡记录隐藏行的 (0, 0) 位置 -->
+      <TransitionGroup
+        v-if="!loading"
+        ref="sortableList"
+        name="song-reorder"
+        tag="div"
+        class="list-container"
+        :id="reorderListId"
+        @dragover="onDragOver"
+        @dragleave="onDragLeave"
+        @drop="onDrop"
+      >
+        <div
           v-for="(data, i) in filterList"
           :key="data.id"
-          :items="playlistMenuItems(data)"
-          @open="loadSongCommentCount(data.id)"
-          @select="(e) => handlePlaylistMenuSelect(e, data, i)"
+          class="song-sort-row"
+          :class="{
+            'is-dragging': draggingId === data.id,
+            'drop-before': dropPosition(i) === 'before',
+            'drop-after': dropPosition(i) === 'after'
+          }"
+          :data-song-id="data.id"
         >
-          <div
-            class="list"
-            :ref="(el) => setItemRef(el, data.id)"
-            :class="{ 'disable-list': data.copyright === 0 }"
-            @dblclick="() => playHandler(data, i)"
-            @mousedown="() => mousedownHandler(data)"
+          <ContextMenu
+            :items="playlistMenuItems(data)"
+            @open="loadSongCommentCount(data.id)"
+            @select="(e) => handlePlaylistMenuSelect(e, data, i)"
           >
             <div
-              v-for="config in columns"
-              v-show="!config.hidden"
-              :key="config.prop || config.type"
-              class="item"
-              :class="config.class"
-              :style="{ ...config.style, width: config.width }"
+              class="list"
+              :ref="(el) => setItemRef(el, data.id)"
+              :class="{
+                'disable-list': (data.privilege?.st ?? 0) < 0,
+                'is-playing': activeText(data),
+                'can-drag': canDrag
+              }"
+              :draggable="canDrag"
+              :tabindex="canDrag ? 0 : undefined"
+              :aria-label="
+                reorderable && reorderMode
+                  ? `调整 ${data.name} 的顺序，当前第 ${i + 1} 首`
+                  : undefined
+              "
+              :aria-describedby="reorderable && reorderMode ? reorderHelpId : undefined"
+              :aria-keyshortcuts="canDrag ? 'Alt+ArrowUp Alt+ArrowDown' : undefined"
+              @pointerdown.capture="onPointerDown"
+              @dragstart.stop="onDragStart($event, data.id)"
+              @dragend="cancelDrag"
+              @keydown.alt.up.self.prevent.stop="onReorderKey(data.id, -1)"
+              @keydown.alt.down.self.prevent.stop="onReorderKey(data.id, 1)"
+              @dblclick="() => playHandler(data, i)"
+              @mousedown="() => mousedownHandler(data)"
             >
-              <template v-if="config.processEl">
-                <!-- 自定义处理元素 -->
-                <component :is="h('div', config.processEl(h, data, i))" />
-              </template>
-              <template v-else-if="config.icon">
-                <!-- 图标处理 -->
-                <i
-                  v-for="val in config.icon"
-                  :key="val"
-                  class="iconfont"
-                  :class="{
-                    'icon-xihuan1': val === 'love' && isLike(data),
-                    'icon-xihuan': val === 'love' && !isLike(data)
-                  }"
-                  @click="val === 'love' && likeMusic(data.id, !isLike(data))"
-                />
-              </template>
-              <template v-else-if="!config.type && config.prop">
-                <!-- 普通属性 -->
-                {{ lookup(data, config.prop) }}
-              </template>
-              <template v-else-if="config.type === 'index'">
-                <!-- 索引 -->
-                {{ formatCount(isPaging ? pageSize * (currentPage - 1) + (i + 1) : i + 1) }}
-              </template>
-              <template v-else-if="config.type === 'title'">
-                <!-- 歌曲标题 -->
-                <div class="title-box">
-                  <VImg
-                    style="max-width: 50px"
-                    width="50"
-                    aspect-ratio="1/1"
-                    :src="lookup(data, config.picUrl) + '?param=150y150'"
-                    class="pic-url"
-                  />
-                  <div class="name-box">
-                    <div :style="{ color: activeText(data) ? 'rgb(255,60,60)' : '' }">
-                      {{ lookup(data, config.prop) }}
-                    </div>
-                    <div class="name-container">
-                      <div class="tag-box">
-                        <el-tag
-                          effect="plain"
-                          style="margin-right: 5px"
-                          v-if="data.fee === 1"
-                          type="primary"
-                          >vip</el-tag
-                        >
-                        <el-tag
-                          effect="plain"
-                          style="margin-right: 5px"
-                          v-if="data?.pc?.privateCloud"
-                          type="success"
-                          >云盘</el-tag
-                        >
+              <div
+                v-for="config in columns"
+                v-show="!config.hidden"
+                :key="config.title"
+                class="item"
+                :class="[config.class, { 'secondary-column': isSecondaryColumn(config) }]"
+                :style="config.style"
+              >
+                <template v-if="config.processEl">
+                  <!-- 自定义处理元素 -->
+                  <component :is="h('div', config.processEl(h, data, i))" />
+                </template>
+                <template v-else-if="config.icon">
+                  <!-- 图标处理 -->
+                  <button
+                    v-for="val in config.icon"
+                    :key="val"
+                    type="button"
+                    class="row-favorite"
+                    :class="{ liked: isLike(data) }"
+                    :aria-label="isLike(data) ? `取消喜欢 ${data.name}` : `喜欢 ${data.name}`"
+                    :aria-pressed="isLike(data)"
+                    :disabled="reorderSaving"
+                    @click="
+                      $event.detail < 2 && val === 'love' && likeMusic(data.id, !isLike(data))
+                    "
+                    @dblclick.stop
+                  >
+                    <v-icon :icon="isLike(data) ? 'mdi-star' : 'mdi-star-outline'" size="19" />
+                  </button>
+                </template>
+                <template v-else-if="!config.type && config.prop">
+                  <!-- 普通属性 -->
+                  {{ lookup(data, config.prop) }}
+                </template>
+                <template v-else-if="config.type === 'index'">
+                  <!-- 索引 -->
+                  <span class="row-number">{{
+                    formatCount(isPaging ? pageSize * (currentPage - 1) + (i + 1) : i + 1)
+                  }}</span>
+                </template>
+                <template v-else-if="config.type === 'title'">
+                  <!-- 歌曲标题 -->
+                  <div class="title-box">
+                    <button
+                      type="button"
+                      class="song-artwork"
+                      :aria-label="`播放 ${data.name}`"
+                      @click.stop="$event.detail < 2 && playHandler(data, i)"
+                      @dblclick.stop
+                    >
+                      <v-icon icon="mdi-music-note" size="21" class="artwork-placeholder" />
+                      <VImg
+                        v-if="config.picUrl && lookup(data, config.picUrl)"
+                        aspect-ratio="1/1"
+                        :src="lookup(data, config.picUrl) + '?param=150y150'"
+                        class="pic-url"
+                        cover
+                      />
+                      <span class="artwork-play"><v-icon icon="mdi-play" size="23" /></span>
+                    </button>
+                    <div class="name-box">
+                      <div class="song-title" :title="data.name">
+                        {{ lookup(data, config.prop) }}
                       </div>
-                      <div class="ar-box">
-                        <template v-if="!data.ar">
-                          {{ data.artist }}
-                        </template>
-                        <template v-else>
-                          <span
-                            v-for="(ar, index) in data.ar"
-                            :key="ar.id || index"
-                            :style="{
-                              cursor: ar.id ? 'pointer' : 'default',
-                              color: ar.id ? '' : 'rgba(150, 150, 150, 0.60)'
-                            }"
-                            @click="ar.id && singerDetail(ar.id)"
-                            class="ar"
-                          >
-                            {{ ar.name || data.artist || '未知艺人' }}
-                            <span v-if="index < data.ar.length - 1" style="color: #969696">
-                              /
+                      <div class="name-container">
+                        <div class="tag-box">
+                          <span v-if="data.fee === 1" class="song-tag vip-tag">VIP</span>
+                          <span v-if="data?.pc?.privateCloud" class="song-tag">云盘</span>
+                        </div>
+                        <div class="ar-box">
+                          <template v-if="!data.ar">
+                            {{ data.artist }}
+                          </template>
+                          <template v-else>
+                            <span
+                              v-for="(ar, index) in data.ar"
+                              :key="ar.id || index"
+                              class="ar"
+                              :style="{
+                                cursor: ar.id ? 'pointer' : 'default'
+                              }"
+                              :data-no-reorder="ar.id ? '' : undefined"
+                              @click="ar.id && singerDetail(ar.id)"
+                            >
+                              {{ ar.name || data.artist || '未知艺人' }}
+                              <span v-if="index < data.ar.length - 1" class="artist-divider">
+                                /
+                              </span>
                             </span>
-                          </span>
-                        </template>
+                          </template>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </template>
-              <template v-else-if="config.type === 'album'">
-                <!-- 专辑 -->
-                {{ lookup(data, config.prop) || '未知专辑' }}
-              </template>
+                </template>
+                <template v-else-if="config.type === 'album'">
+                  <!-- 专辑 -->
+                  {{ lookup(data, config.prop) || '未知专辑' }}
+                </template>
+              </div>
             </div>
-          </div>
-        </ContextMenu>
+          </ContextMenu>
+        </div>
+      </TransitionGroup>
+      <div
+        v-else
+        class="loading"
+        :style="{ minHeight: loadingListHeight ? `${loadingListHeight}px` : undefined }"
+        role="status"
+        aria-label="正在加载歌曲"
+      >
+        <div v-for="row in loadingRowCount" :key="row" class="song-skeleton" aria-hidden="true">
+          <span class="skeleton-cover" /><span class="skeleton-lines"><i /><i /></span>
+          <span class="skeleton-album" />
+        </div>
       </div>
     </template>
 
@@ -451,13 +651,26 @@ const handleCollectionConfirm = (playlist: { id: number }) => {
     <div v-else class="empty-state">
       <div class="empty-content">
         <div class="empty-icon-wrapper">
-          <v-icon icon="mdi-music-off" size="80" class="empty-icon" />
+          <v-icon
+            :icon="searchKeyword.trim() ? 'mdi-magnify' : 'mdi-music-note-outline'"
+            size="32"
+            class="empty-icon"
+          />
         </div>
         <div class="empty-text">
-          <div class="empty-title">未找到相关内容</div>
-          <div class="empty-desc">没有找到关于"{{ searchKeyword }}"的任何歌曲</div>
-          <div class="empty-hint">试试其他关键词吧</div>
+          <div class="empty-title">{{ searchKeyword.trim() ? '未找到相关歌曲' : '暂无歌曲' }}</div>
+          <div class="empty-desc">
+            {{ searchKeyword.trim() ? '换个关键词，或清空搜索再看看。' : '此列表还没有歌曲。' }}
+          </div>
         </div>
+        <button
+          v-if="searchKeyword.trim()"
+          type="button"
+          class="clear-search"
+          @click="handleSearch('')"
+        >
+          清空搜索
+        </button>
       </div>
     </div>
 
@@ -470,9 +683,6 @@ const handleCollectionConfirm = (playlist: { id: number }) => {
       :current-page="currentPage"
       @current-change="(page) => $emit('current-change', page)"
     />
-
-    <!-- 加载状态 -->
-    <div class="loading" :style="{ display: loading ? 'block' : 'none' }" v-loading="loading" />
   </div>
 </template>
 
@@ -488,221 +698,480 @@ const handleCollectionConfirm = (playlist: { id: number }) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 400px;
-  padding: 60px 20px;
+  min-height: 240px;
+  padding: 32px 20px;
 
   .empty-content {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 28px;
+    gap: 16px;
     text-align: center;
 
     .empty-icon-wrapper {
-      position: relative;
-      width: 120px;
-      height: 120px;
+      width: 64px;
+      height: 64px;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(
-        135deg,
-        rgba(var(--v-theme-primary), 0.1) 0%,
-        rgba(var(--v-theme-primary), 0.05) 100%
-      );
-      border-radius: 50%;
-      border: 2px solid rgba(var(--v-theme-primary), 0.2);
-      box-shadow: 0 8px 32px rgba(var(--v-theme-primary), 0.15);
+      background: var(--app-surface, #ffffff09);
+      border-radius: 18px;
+      border: 1px solid var(--app-border, #ffffff14);
 
       .empty-icon {
-        color: rgba(var(--v-theme-primary), 0.6);
-        animation: float 3s ease-in-out infinite;
-      }
-
-      @keyframes float {
-        0%,
-        100% {
-          transform: translateY(0);
-        }
-        50% {
-          transform: translateY(-8px);
-        }
+        color: var(--app-muted, #9399a2);
       }
     }
 
     .empty-text {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
 
       .empty-title {
-        font-size: 20px;
+        font-size: 19px;
         font-weight: 600;
-        color: rgba(255, 255, 255, 0.85);
-        letter-spacing: 0.5px;
+        color: var(--app-text, #f2f3f5);
       }
 
       .empty-desc {
-        font-size: 14px;
-        color: rgba(255, 255, 255, 0.5);
-        line-height: 1.6;
-      }
-
-      .empty-hint {
         font-size: 13px;
-        color: rgba(var(--v-theme-primary), 0.7);
-        margin-top: 4px;
-        font-weight: 500;
+        color: var(--app-muted, #9399a2);
+        line-height: 1.8;
       }
     }
   }
 }
-/* 保留原有的样式不变 */
+.clear-search {
+  height: var(--app-control-height, 36px);
+  padding: 0 14px;
+  border: 1px solid var(--app-border, #ffffff14);
+  border-radius: var(--app-control-radius, 10px);
+  color: var(--app-accent, #fff);
+  background: var(--app-surface, #ffffff09);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  &:hover {
+    background: var(--app-hover);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--app-accent, #fff);
+    outline-offset: 3px;
+  }
+}
 .song-list-container {
   flex: 1;
+  min-width: 0;
+  container-type: inline-size;
   position: relative;
-  padding: 35px;
+  padding: 16px var(--app-gutter, 32px) 24px;
   .search-container {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
     justify-content: start;
-  }
-  .loading {
-    position: relative;
-    top: 100px;
-    :deep(.el-loading-mask) {
-      .el-loading-spinner {
+    margin-bottom: 16px;
+    :deep(.v-input) {
+      width: 100%;
+      max-width: 320px;
+    }
+    :deep(.v-field) {
+      height: var(--app-control-height, 36px);
+      min-height: var(--app-control-height, 36px);
+      border: 1px solid var(--app-border, #ffffff14);
+      border-radius: var(--app-control-radius, 10px);
+      background: var(--app-surface, #ffffff09);
+      box-shadow: none;
+      padding-inline: 11px;
+      --v-input-control-height: var(--app-control-height, 36px);
+      --v-field-input-padding-top: 0px;
+      --v-field-input-padding-bottom: 0px;
+      --v-field-padding-start: 0px;
+      --v-field-padding-end: 0px;
+      &:focus-within {
+        border-color: var(--app-accent-border);
+        box-shadow: 0 0 0 2px var(--app-accent-soft);
+      }
+    }
+    :deep(.v-field__outline) {
+      display: none;
+    }
+    :deep(.v-field__field) {
+      align-items: center;
+    }
+    :deep(.v-field__input) {
+      min-height: 0;
+      padding-block: 0;
+      font-size: 13px;
+    }
+    :deep(.v-field__prepend-inner) {
+      padding-top: 0;
+      align-items: center;
+      .v-icon {
+        font-size: 19px;
       }
     }
   }
-  .title-item.empty {
+  .search-count {
+    flex-shrink: 0;
+    color: var(--app-muted);
+    font-size: 12px;
+  }
+  .reorder-controls {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-left: auto;
+  }
+  .reorder-hint {
+    color: var(--app-muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .reorder-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    flex-shrink: 0;
+    height: var(--app-control-height, 36px);
+    padding: 0 12px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-control-radius, 10px);
+    background: var(--app-surface);
+    color: var(--app-secondary);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      background-color 140ms ease,
+      border-color 140ms ease;
+    &:hover:not(:disabled) {
+      background: var(--app-hover);
+      color: var(--app-text);
+    }
+    &.active {
+      border-color: var(--app-accent-border);
+      background: var(--app-accent-soft);
+      color: var(--app-accent);
+    }
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 3px;
+    }
+  }
+  .reorder-spinner {
+    animation: reorder-spin 0.8s linear infinite;
+  }
+  .song-sort-row {
     position: relative;
-    top: 2px;
-    left: 2px;
+    &.is-dragging {
+      opacity: 0.4;
+    }
+    &.drop-before::before,
+    &.drop-after::before {
+      position: absolute;
+      z-index: 1;
+      right: 8px;
+      left: 8px;
+      height: 2px;
+      border-radius: 2px;
+      background: var(--app-accent);
+      content: '';
+      pointer-events: none;
+    }
+    &.drop-before::before {
+      top: -1px;
+    }
+    &.drop-after::before {
+      bottom: -1px;
+    }
   }
-  .empty {
-    width: 50px;
+  .song-reorder-move {
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
   }
-  .handle {
-    width: 45px;
-    margin-right: 20px;
+  .list.can-drag {
+    cursor: grab;
+    user-select: none;
+    &:active {
+      cursor: grabbing;
+    }
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: -2px;
+    }
+    :deep(img) {
+      -webkit-user-drag: none;
+    }
   }
-  .title {
-    width: 40%;
-    color: @text;
-    margin-right: 40% - 38px;
-    .textOverflow();
+  .title-container,
+  .list {
+    display: grid;
+    grid-template-columns: var(--song-columns);
+    align-items: center;
+    gap: 16px;
+    padding-inline: 12px;
   }
-
-  .album {
-    width: 20%;
-    .textOverflow();
-    margin-right: 20% - 19px;
-  }
-  .time {
-    width: 10%;
+  .title-item,
+  .item {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   .title-container {
-    display: flex;
-    font-size: 14px;
-    height: 35px;
-    color: @darkText;
-    padding: 0 20px;
-    justify-content: space-around;
-    .title-item {
-      text-align: left;
-    }
-    .title-item.title {
-      color: @darkText;
-    }
+    min-height: 36px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--app-border);
+    color: var(--app-muted);
+    font-size: 12px;
+    font-weight: 400;
   }
-  .list.disable-list {
-    //background-color: rgba(0, 0, 0, 0.3);
+  .empty,
+  .handle {
+    text-align: center;
+  }
+  .time {
+    text-align: right;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
   }
   .list {
-    justify-content: space-around;
-    font-size: 14px;
+    min-height: 64px;
+    border-radius: 8px;
+    color: var(--app-muted);
+    font-size: 13px;
+    transition: background-color 140ms ease;
+    &:hover,
+    &:focus-within {
+      background: var(--app-hover);
+    }
+    &.disable-list .song-title {
+      color: var(--app-muted);
+      opacity: 0.65;
+    }
+    &.is-playing {
+      background: transparent;
+      .song-title {
+        color: var(--app-playing);
+        opacity: 1;
+      }
+    }
+  }
+  .title-box {
     display: flex;
-    height: 70px;
-    color: @darkText;
     align-items: center;
-    padding: 0 20px;
-    border-radius: 10px;
-    .title-box {
+    gap: 12px;
+    min-width: 0;
+  }
+  .song-artwork {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    overflow: hidden;
+    border: 1px solid var(--app-border);
+    border-radius: 7px;
+    color: var(--app-muted);
+    background: var(--app-surface);
+    cursor: pointer;
+    .pic-url {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+  }
+  .artwork-play {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(0, 0, 0, 0.42);
+    color: white;
+    opacity: 0;
+    transition: opacity 140ms ease;
+  }
+  .list:hover .artwork-play,
+  .song-artwork:focus-visible .artwork-play {
+    opacity: 1;
+  }
+  .name-box {
+    flex: 1;
+    min-width: 0;
+  }
+  .song-title {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--app-text);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.6;
+  }
+  .name-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+    font-size: 12px;
+    line-height: 1.6;
+    .tag-box {
       display: flex;
-      .pic-url {
-        height: 50px;
-        width: 50px;
-        border-radius: 8px;
-        margin-right: 10px;
-        flex-shrink: 0;
-      }
-      .name-box {
-        display: flex;
-        flex: 1;
-        min-width: 0;
-        flex-direction: column;
-        justify-content: space-around;
-
-        .name-container {
-          display: flex;
-          align-items: center;
-          color: @text;
-          .tag-box {
-            flex-shrink: 0;
-            white-space: nowrap;
-          }
-          .ar-box {
-            position: relative;
-            top: 2px;
-            flex: 1;
-            min-width: 0;
-            display: block;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            .ar:hover {
-              color: #85b9e6;
-            }
-          }
-        }
-        .title {
-          color: @text;
-        }
-        > div {
-          .textOverflow();
-        }
-        .name {
-          font-size: 13px;
-          color: @darkText;
-        }
+      flex-shrink: 0;
+      gap: 4px;
+      &:empty {
+        display: none;
       }
     }
-    .name {
-      cursor: pointer;
-      &:hover {
-        color: @text !important;
-      }
+    .ar-box {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
-    .item {
-      text-align: left;
+    .ar:hover {
+      color: var(--app-accent);
     }
-    .handle {
-      font-size: 18px;
-      cursor: pointer;
-      .icon-xihuan1 {
-        font-size: 18px;
-        color: #eb4141;
-        margin-left: 4px;
-      }
-      .icon-xihuan {
-        color: #a5a7a8;
-        font-size: 19px;
-        margin-left: 4px;
-      }
+  }
+  .song-tag {
+    display: inline-flex;
+    align-items: center;
+    height: 16px;
+    padding: 0 4px;
+    border: 1px solid var(--app-border);
+    border-radius: 4px;
+    color: var(--app-muted);
+    font-size: 10px;
+    line-height: 1;
+    &.vip-tag {
+      border-color: var(--app-warning-border, #a86f244d);
+      color: var(--app-warning-text, #8e5b12);
     }
-
+  }
+  .artist-divider {
+    margin-inline: 2px;
+    opacity: 0.6;
+  }
+  .row-favorite {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--app-muted);
+    cursor: pointer;
     &:hover {
-      background-color: rgba(255, 255, 255, 0.06) !important;
+      background: var(--app-surface);
+      color: var(--app-text);
+    }
+    &.liked {
+      color: var(--app-accent);
+    }
+  }
+  .song-artwork:focus-visible,
+  .row-favorite:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+  .song-skeleton {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 64px;
+    padding: 10px 12px 10px 64px;
+    animation: skeleton-pulse 1.8s ease-in-out infinite alternate;
+  }
+  .skeleton-cover {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 7px;
+    background: var(--app-surface);
+  }
+  .skeleton-lines {
+    display: grid;
+    gap: 9px;
+    width: 35%;
+    i {
+      display: block;
+      height: 7px;
+      border-radius: 4px;
+      background: var(--app-surface);
+      &:last-child {
+        width: 60%;
+      }
+    }
+  }
+  .skeleton-album {
+    width: 18%;
+    height: 7px;
+    margin-left: auto;
+    border-radius: 4px;
+    background: var(--app-surface);
+  }
+}
+@container (max-width: 800px) {
+  .song-list-container .title-container,
+  .song-list-container .list {
+    grid-template-columns: var(--song-columns-compact);
+  }
+  .song-list-container .secondary-column {
+    display: none;
+  }
+}
+@container (max-width: 600px) {
+  .song-list-container .title-container,
+  .song-list-container .list {
+    grid-template-columns: var(--song-columns-narrow);
+    gap: 10px;
+    padding-inline: 8px;
+  }
+  .song-list-container .album {
+    display: none;
+  }
+  .song-list-container .song-skeleton {
+    padding-left: 46px;
+  }
+}
+@keyframes skeleton-pulse {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes reorder-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .song-list-container {
+    .list,
+    .artwork-play,
+    .song-reorder-move,
+    .reorder-toggle {
+      transition: none;
+    }
+    .song-skeleton,
+    .reorder-spinner {
+      animation: none;
     }
   }
 }

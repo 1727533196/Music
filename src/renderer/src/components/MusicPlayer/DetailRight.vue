@@ -20,7 +20,7 @@ const openDrawer = () => {
 
 <template>
   <div class="right">
-    <div style="display: flex">
+    <div class="playback-time">
       <div v-if="props.songs.ar" class="current-time">
         {{ formattingTime(props.currentTime * 1000) }}
       </div>
@@ -44,10 +44,18 @@ const openDrawer = () => {
 
 <style scoped lang="less">
 .right {
-  width: 27%;
+  width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: 18px;
+  .playback-time {
+    display: flex;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
   .current-time,
   .total-time {
     color: @text;
@@ -64,20 +72,28 @@ const openDrawer = () => {
     border: 0;
     border-radius: 8px;
     background: transparent;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--app-muted);
     cursor: pointer;
     transition:
       opacity 150ms ease,
       background-color 150ms ease;
     &:hover {
-      background: rgba(255, 255, 255, 0.08);
+      background: var(--app-hover);
     }
     &.active {
-      color: white;
+      color: var(--app-accent);
     }
     &:focus-visible {
-      outline: 2px solid rgba(255, 255, 255, 0.8);
+      outline: 2px solid var(--app-accent);
       outline-offset: 3px;
+    }
+  }
+}
+@media (max-width: 800px) {
+  .right {
+    gap: 8px;
+    .playback-time {
+      display: none;
     }
   }
 }

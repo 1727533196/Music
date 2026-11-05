@@ -2,10 +2,10 @@ import request from '../utils/request'
 
 // 创建歌单
 export const createPlay = (
-  name: number,
+  name: string,
   privacy: '10' | '' = '',
   type: 'NORMAL' | 'VIDEO' | 'SHARED' = 'NORMAL'
-) => request(`/playlist/create?name=${name}&type=${type}&privacy=${privacy}`, 'get')
+) => request('/playlist/create', 'get', { params: { name, type, privacy } })
 
 // 删除歌单
 export const deletePlay = (ids: string[]) => request(`/playlist/delete?id=${ids.join()}`)
@@ -33,6 +33,6 @@ export const matchCloudSong = (uid: number, sid: number, asid: number) =>
     params: {
       uid,
       sid,
-      asid,
+      asid
     }
   })

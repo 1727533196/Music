@@ -1,0 +1,121 @@
+:root {
+  color-scheme: dark;
+  --app-background: #121314;
+  --app-panel: #1c1e20;
+  --app-text: #f2f3f5;
+  --app-secondary: #c5c8ce;
+  --app-muted: #9399a2;
+  --app-disabled: #5f6670;
+  --app-surface: rgba(255, 255, 255, 0.035);
+  --app-surface-strong: rgba(255, 255, 255, 0.08);
+  --app-border: rgba(255, 255, 255, 0.08);
+  --app-hover: rgba(255, 255, 255, 0.06);
+  --app-shadow: 0 14px 40px rgba(0, 0, 0, 0.32);
+  --app-danger: #ed8fa1;
+  --app-danger-text: #f0a8b6;
+  --app-danger-soft: rgba(222, 96, 120, 0.1);
+  --app-warning-text: #d5b897;
+  --app-warning-border: #d5b89740;
+  --app-success: #8bcfc5;
+  --app-scrollbar: rgba(255, 255, 255, 0.13);
+  --app-accent: #ffffff;
+  --app-playing: #ff4d4f;
+  --app-on-accent: #101216;
+  --app-accent-soft: color-mix(in srgb, var(--app-accent) 10%, transparent);
+  --app-accent-border: color-mix(in srgb, var(--app-accent) 40%, transparent);
+  --app-accent-hover: color-mix(in srgb, var(--app-accent), var(--app-text) 8%);
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+  --app-background: #f6f7f8;
+  --app-panel: #ffffff;
+  --app-text: #202328;
+  --app-secondary: #535a64;
+  --app-muted: #68717c;
+  --app-disabled: #a0a6af;
+  --app-surface: rgba(20, 25, 32, 0.035);
+  --app-surface-strong: rgba(20, 25, 32, 0.08);
+  --app-border: rgba(20, 25, 32, 0.1);
+  --app-hover: rgba(20, 25, 32, 0.055);
+  --app-shadow: 0 12px 36px rgba(20, 25, 32, 0.12);
+  --app-danger: #bd3452;
+  --app-danger-text: #ac2947;
+  --app-danger-soft: rgba(189, 52, 82, 0.07);
+  --app-warning-text: #8e5b12;
+  --app-warning-border: #a86f244d;
+  --app-success: #087d72;
+  --app-scrollbar: rgba(20, 25, 32, 0.2);
+  --app-accent: #262626;
+  --app-playing: #c92a36;
+  --app-on-accent: #fff;
+}
+:root[data-accent='graphite'] {
+  --app-accent: #cbd0d8;
+}
+:root[data-accent='violet'] {
+  --app-accent: #c5adf3;
+}
+:root[data-accent='teal'] {
+  --app-accent: #8bcfc5;
+}
+:root[data-accent='amber'] {
+  --app-accent: #e8be83;
+}
+:root[data-theme='light'][data-accent='graphite'] {
+  --app-accent: #4b5563;
+}
+:root[data-theme='light'][data-accent='violet'] {
+  --app-accent: #734ac6;
+}
+:root[data-theme='light'][data-accent='teal'] {
+  --app-accent: #087d72;
+}
+:root[data-theme='light'][data-accent='amber'] {
+  --app-accent: #a45c12;
+}
+
+// Element Plus overlays teleport to body, so their palette belongs on the root.
+:root,
+:root.dark {
+  --el-color-primary: var(--app-accent);
+  --el-color-primary-light-3: color-mix(in srgb, var(--app-accent) 70%, var(--app-panel));
+  --el-color-primary-light-5: color-mix(in srgb, var(--app-accent) 50%, var(--app-panel));
+  --el-color-primary-light-7: color-mix(in srgb, var(--app-accent) 30%, var(--app-panel));
+  --el-color-primary-light-8: var(--app-accent-soft);
+  --el-color-primary-light-9: var(--app-accent-soft);
+  --el-color-primary-dark-2: var(--app-accent-hover);
+  --el-color-danger: var(--app-danger);
+  --el-color-danger-light-9: var(--app-danger-soft);
+  --el-color-error: var(--app-danger);
+  --el-color-error-light-9: var(--app-danger-soft);
+  --el-color-warning: var(--app-warning-text);
+  --el-color-warning-light-9: color-mix(in srgb, var(--app-warning-text) 8%, var(--app-panel));
+  --el-color-success: var(--app-success);
+  --el-color-success-light-9: color-mix(in srgb, var(--app-success) 8%, var(--app-panel));
+  --el-bg-color: var(--app-panel);
+  --el-bg-color-page: var(--app-background);
+  --el-bg-color-overlay: var(--app-panel);
+  --el-fill-color-blank: var(--app-panel);
+  --el-fill-color: var(--app-surface-strong);
+  --el-fill-color-light: var(--app-surface);
+  --el-fill-color-lighter: var(--app-surface);
+  --el-fill-color-dark: var(--app-hover);
+  --el-text-color-primary: var(--app-text);
+  --el-text-color-regular: var(--app-secondary);
+  --el-text-color-secondary: var(--app-muted);
+  --el-text-color-placeholder: var(--app-muted);
+  --el-text-color-disabled: var(--app-disabled);
+  --el-border-color: var(--app-border);
+  --el-border-color-light: var(--app-border);
+  --el-border-color-lighter: var(--app-border);
+  --el-border-color-extra-light: var(--app-border);
+  --el-mask-color: var(--app-panel);
+  --el-box-shadow: var(--app-shadow);
+  --el-box-shadow-light: var(--app-shadow);
+}
+.el-button--primary:not(.is-plain):not(.is-text):not(.is-link) {
+  --el-button-text-color: var(--app-on-accent);
+  --el-button-hover-text-color: var(--app-on-accent);
+  --el-button-active-text-color: var(--app-on-accent);
+  --el-button-disabled-text-color: var(--app-on-accent);
+}

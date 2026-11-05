@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useMusicAction } from '@/store/music'
 import LyricDisplay from './LyricDisplay.vue'
 import FlowBg from './FlowBg.vue'
@@ -8,6 +8,9 @@ const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits(['update:modelValue'])
 const music = useMusicAction()
 const backgroundActive = ref(props.modelValue)
+const detailEl = ref<HTMLElement>()
+const closeButton = ref<HTMLButtonElement>()
+let detailOpener: HTMLElement | null = null
 let backgroundStopTimer: ReturnType<typeof setTimeout> | undefined
 watch(
   () => props.modelValue,
@@ -22,24 +25,95 @@ watch(
     }
   }
 )
+watch(
+  () => props.modelValue,
+  async (open) => {
+    if (open) {
+      detailOpener =
+        document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+          ? document.activeElement
+          : null
+      await nextTick()
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      if (props.modelValue) {
+        detailEl.value?.querySelector('.music-detail-container')?.scrollTo({ top: 0 })
+        focusDetail()
+      }
+    } else {
+      await nextTick()
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      const focused = document.activeElement
+      const hasNewFocus =
+        focused instanceof HTMLElement &&
+        focused !== document.body &&
+        !detailEl.value?.contains(focused) &&
+        focused.getClientRects().length > 0 &&
+        !focused.closest('[inert]')
+      if (hasNewFocus) return
+      if (!props.modelValue && detailOpener?.isConnected && !detailOpener.closest('[inert]')) {
+        detailOpener.focus({ preventScroll: true })
+      } else if (!props.modelValue) {
+        document
+          .querySelector<HTMLButtonElement>('.compact-player .picture-box')
+          ?.focus({ preventScroll: true })
+      }
+    }
+  }
+)
 onUnmounted(() => clearTimeout(backgroundStopTimer))
 
 const bg = computed(() => music.state.songs?.al?.picUrl || '')
 const closeDetail = () => emit('update:modelValue', false)
+function focusDetail() {
+  const focused = document.activeElement
+  const hasExternalFocus =
+    focused instanceof HTMLElement &&
+    focused !== document.body &&
+    !detailEl.value?.contains(focused) &&
+    focused.getClientRects().length > 0 &&
+    !focused.closest('[inert]')
+  if (props.modelValue && !hasExternalFocus && !detailEl.value?.contains(focused)) {
+    closeButton.value?.focus({ preventScroll: true })
+  }
+}
+const containFocus = (event: KeyboardEvent) => {
+  if (event.key !== 'Tab') return
+  const controls = [
+    ...(detailEl.value?.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), input:not(:disabled), a[href], [tabindex="0"]'
+    ) || [])
+  ].filter((element) => element.getClientRects().length && !element.closest('[inert]'))
+  const first = controls[0]
+  const last = controls.at(-1)
+  if (
+    (event.shiftKey && document.activeElement === first) ||
+    (!event.shiftKey && document.activeElement === last)
+  ) {
+    event.preventDefault()
+    ;(event.shiftKey ? last : first)?.focus()
+  }
+}
 </script>
 
 <template>
   <section
+    ref="detailEl"
     :class="['music-detail-view', { open: modelValue }]"
     :aria-hidden="!modelValue"
     :inert="!modelValue"
     aria-label="正在播放"
-    @keydown.esc="closeDetail"
+    role="dialog"
+    :aria-modal="modelValue"
+    @keydown.esc.stop="closeDetail"
+    @keydown="containFocus"
+    @transitionend.self="focusDetail"
   >
     <FlowBg class="detail-background" :bg="bg" :active="backgroundActive" />
     <div class="detail-scrim" />
     <header class="detail-header window-container">
       <button
+        ref="closeButton"
         type="button"
         class="detail-header-button no-drag"
         aria-label="收起歌曲详情"
@@ -129,6 +203,12 @@ const closeDetail = () => emit('update:modelValue', false)
   z-index: 2;
   width: 100%;
   height: 100%;
+}
+@media (max-width: 760px), (max-height: 640px) {
+  .music-detail-container {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .music-detail-view,

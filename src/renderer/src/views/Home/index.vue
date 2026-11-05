@@ -262,38 +262,43 @@ onMounted(() => void loadMixPage())
 
 <style lang="less" scoped>
 .home-container {
-  --discovery-text: #f2eff5;
-  --discovery-muted: #9a96a3;
-  --discovery-accent: #e8bdd1;
+  --discovery-text: var(--app-text, #f2eff5);
+  --discovery-muted: var(--app-muted, #a19aaa);
+  --discovery-accent: var(--app-accent, #e8bdd1);
   width: 100%;
   padding: 24px var(--app-gutter) 16px;
   :deep(.artist-banner) {
-    margin: 0 0 36px;
+    margin: 0 0 var(--app-section-gap);
   }
 }
 .content-area {
   container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 36px;
+  gap: var(--app-section-gap);
 }
 .home-welcome {
   display: flex;
   align-items: center;
-  gap: 24px;
-  min-height: 220px;
-  margin-bottom: 36px;
-  padding: 36px;
-  border: 1px solid rgba(232, 189, 209, 0.1);
-  border-radius: 24px;
-  background: rgba(232, 189, 209, 0.025);
+  gap: 20px;
+  min-height: 180px;
+  margin-bottom: var(--app-section-gap);
+  padding: 28px 0 32px;
+  border-bottom: 1px solid var(--app-border);
   .welcome-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 64px;
+    height: 64px;
+    border: 1px solid var(--app-accent-border);
+    border-radius: 18px;
+    background: var(--app-accent-soft);
     color: var(--app-accent);
   }
   h1 {
-    margin: 8px 0 12px;
+    margin: 6px 0 8px;
     color: var(--app-text);
-    font-size: 32px;
+    font-size: var(--app-title-size);
     font-weight: 650;
   }
   p {
@@ -302,19 +307,22 @@ onMounted(() => void loadMixPage())
     line-height: 1.7;
   }
   .welcome-caption {
-    color: var(--app-accent);
+    color: var(--app-muted);
+    font-size: 12px;
   }
   button {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     flex-shrink: 0;
     margin-left: auto;
-    padding: 11px 18px;
-    border-radius: 24px;
-    color: #302330;
+    height: var(--app-control-height);
+    padding: 0 15px;
+    border-radius: var(--app-control-radius);
+    color: var(--app-on-accent);
     background: var(--app-accent);
     font-size: 13px;
+    font-weight: 600;
     cursor: pointer;
   }
 }
@@ -323,8 +331,8 @@ onMounted(() => void loadMixPage())
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 22px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 18px 0;
+  border-top: 1px solid var(--app-border);
   color: var(--app-muted);
   font-size: 13px;
   cursor: pointer;
@@ -345,13 +353,24 @@ onMounted(() => void loadMixPage())
     align-items: flex-start;
     flex-wrap: wrap;
     gap: 14px;
-    padding: 24px;
+    padding: 16px 0 24px;
   }
   .home-welcome h1 {
     font-size: 26px;
   }
   .home-welcome button {
-    margin-left: 0;
+    margin-left: 84px;
+  }
+}
+@media (max-height: 720px) {
+  .home-container {
+    padding-top: 20px;
+    :deep(.artist-banner) {
+      margin-bottom: 20px;
+    }
+  }
+  .content-area {
+    gap: 20px;
   }
 }
 </style>

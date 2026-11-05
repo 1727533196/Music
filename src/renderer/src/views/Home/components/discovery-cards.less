@@ -8,13 +8,13 @@
     justify-content: space-between;
     gap: 16px;
     min-height: 32px;
-    margin-bottom: 18px;
+    margin-bottom: 12px;
 
     h2 {
-      font-size: 21px;
+      font-size: 20px;
       font-weight: 650;
       line-height: 1.4;
-      letter-spacing: 0.02em;
+      letter-spacing: 0;
       color: var(--discovery-text);
     }
   }
@@ -23,6 +23,21 @@
     display: flex;
     flex-shrink: 0;
     gap: 8px;
+    .v-btn {
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--app-border, #ffffff14);
+      border-radius: 9px;
+      background: transparent;
+      color: var(--discovery-text);
+      .v-icon {
+        font-size: 19px;
+      }
+      &:focus-visible {
+        outline: 2px solid var(--discovery-accent);
+        outline-offset: 3px;
+      }
+    }
   }
 
   .discovery-grid {
@@ -44,8 +59,10 @@
     &:hover,
     &:focus-within {
       .discovery-cover {
-        filter: brightness(1.06);
         transform: translateY(-2px);
+      }
+      .discovery-cover::after {
+        border-color: var(--app-border);
       }
 
       .discovery-heart {
@@ -59,10 +76,17 @@
     aspect-ratio: 1;
     overflow: hidden;
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.04);
-    transition:
-      transform 180ms ease,
-      filter 180ms ease;
+    background: var(--app-surface);
+    transition: transform 180ms ease;
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 1px solid var(--app-border);
+      border-radius: inherit;
+      pointer-events: none;
+      transition: border-color 180ms ease;
+    }
 
     .cover-img {
       width: 100%;
@@ -90,9 +114,10 @@
     align-items: center;
     gap: 3px;
     max-width: calc(100% - 16px);
-    padding: 3px 7px;
-    border-radius: 6px;
-    background: rgba(0, 0, 0, 0.58);
+    padding: 3px 6px;
+    border: 1px solid var(--app-border);
+    border-radius: 5px;
+    background: rgba(15, 13, 20, 0.64);
     color: white;
     font-size: 11px;
     line-height: 1.4;
@@ -103,7 +128,7 @@
   }
 
   .discovery-info {
-    padding: 12px 0 0;
+    padding: 11px 1px 0;
   }
 
   .discovery-name {
@@ -113,13 +138,13 @@
     overflow: hidden;
     overflow-wrap: anywhere;
     font-size: 14px;
-    font-weight: 600;
-    line-height: 1.5;
+    font-weight: 550;
+    line-height: 1.6;
     color: var(--discovery-text);
   }
 
   .discovery-description {
-    margin-top: 5px;
+    margin-top: 4px;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -133,7 +158,15 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 200px;
+    min-height: 160px;
+    color: var(--discovery-muted);
+    font-size: 13px;
+    border: 1px solid var(--app-border, #ffffff14);
+    border-radius: 12px;
+    > .v-icon {
+      font-size: 30px !important;
+      color: var(--discovery-muted) !important;
+    }
   }
 }
 
@@ -174,7 +207,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .discovery-section .discovery-cover {
+  .discovery-section .discovery-cover,
+  .discovery-section .discovery-cover::after,
+  .discovery-section .discovery-heart {
     transition: none;
   }
 }

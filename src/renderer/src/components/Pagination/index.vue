@@ -32,42 +32,46 @@ const emit = defineEmits(['size-change', 'current-change'])
 .box {
   display: flex;
   justify-content: center;
-  padding: 30px 0;
+  padding: 24px 0;
 }
 .el-pagination {
-  :deep(button) {
-    background-color: rgba(255, 255, 255, 0.12) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    transition: 0.3s;
-    color: white !important;
-    &:hover:not(button:disabled) {
-      background-color: rgba(255, 255, 255, 0.08) !important;
+  --el-pagination-button-width: var(--app-control-height);
+  --el-pagination-button-height: var(--app-control-height);
+  --el-pagination-button-disabled-bg-color: transparent;
+  --el-pagination-hover-color: var(--app-accent);
+
+  :deep(button),
+  :deep(.el-pager li) {
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-control-radius);
+    background: var(--app-surface) !important;
+    color: var(--app-muted) !important;
+    font-variant-numeric: tabular-nums;
+    transition:
+      background 0.18s,
+      color 0.18s;
+    &:hover:not(:disabled):not(.is-active) {
+      background: var(--app-hover) !important;
+      color: var(--app-text) !important;
     }
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 3px;
+    }
+  }
+  :deep(.el-pager .is-active) {
+    border-color: transparent;
+    background: var(--app-accent) !important;
+    color: var(--app-on-accent) !important;
   }
   :deep(button:disabled) {
-    cursor: auto !important;
+    opacity: 0.35;
   }
 }
-
-:deep(.el-pager) {
-  .is-active.number {
-    background-color: @subject !important;
-    color: white;
-  }
-  .more {
-    background-color: transparent !important;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: @text !important;
-  }
-  .number {
-    background-color: transparent !important;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: @text !important;
-    transition: 0.3s;
-    &:hover:not(.is-active) {
-      background-color: rgba(220, 55, 55, 0.5) !important;
-      color: white;
-    }
+@media (prefers-reduced-motion: reduce) {
+  .el-pagination :deep(button),
+  .el-pagination :deep(.el-pager li) {
+    transition: none;
   }
 }
 </style>

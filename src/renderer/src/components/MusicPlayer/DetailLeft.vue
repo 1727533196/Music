@@ -56,14 +56,27 @@ const gotoComment = () => {
 
 <template>
   <div v-show="!flags.isOpenDetail" class="left">
-    <div @click="openMusicDetail" class="picture-box">
-      <div
-        :style="{ backgroundImage: `url(${props.songs.al?.picUrl + '?param=150y150'})` }"
+    <button
+      type="button"
+      class="picture-box"
+      :disabled="!songs.id"
+      :aria-expanded="flags.isOpenDetail"
+      aria-label="展开歌曲详情"
+      title="展开歌曲详情"
+      @click="openMusicDetail"
+    >
+      <span
+        :style="{
+          backgroundImage: props.songs.al?.picUrl
+            ? `url(${props.songs.al.picUrl}?param=150y150)`
+            : undefined
+        }"
         class="picture"
-      ></div>
-      <div class="shade-box"></div>
-      <el-icon :size="25" @click="closeMusicDetail" class="close np-drag"><ArrowDown /></el-icon>
-    </div>
+        ><v-icon v-if="!props.songs.al?.picUrl" icon="mdi-music-note" size="24"
+      /></span>
+      <span class="shade-box"></span>
+      <el-icon :size="25" class="close no-drag"><ArrowDown /></el-icon>
+    </button>
 
     <div class="name-info">
       <div class="song-name-box">
@@ -85,7 +98,7 @@ const gotoComment = () => {
       <div class="name-container">
         <template v-for="(item, i) in props.songs.ar">
           <span class="name">{{ item.name }}</span>
-          <span v-if="i === 0 && i !== props.songs.ar.length - 1">/</span>
+          <span v-if="i !== props.songs.ar.length - 1"> / </span>
         </template>
       </div>
     </div>
@@ -106,7 +119,8 @@ const gotoComment = () => {
   display: flex;
   align-items: center;
   color: @text;
-  width: 25%;
+  width: 100%;
+  min-width: 0;
 
   .iconfont {
     cursor: pointer;
@@ -117,7 +131,7 @@ const gotoComment = () => {
   }
   .icon-xihuan1 {
     font-size: 21px;
-    color: rgb(235, 65, 65);
+    color: var(--app-accent);
   }
 
   .favorite-button {
@@ -130,8 +144,8 @@ const gotoComment = () => {
     padding: 0;
     border: 0;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.12);
-    color: rgba(255, 255, 255, 0.7);
+    background: var(--app-surface-strong);
+    color: var(--app-secondary);
     cursor: pointer;
     -webkit-app-region: no-drag;
     transition:
@@ -142,13 +156,14 @@ const gotoComment = () => {
       height: 18px;
     }
     &.active {
-      color: white;
+      color: var(--app-accent);
+      background: var(--app-accent-soft);
     }
     &:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.08);
+      background: var(--app-hover);
     }
     &:focus-visible {
-      outline: 2px solid rgba(255, 255, 255, 0.8);
+      outline: 2px solid var(--app-accent);
       outline-offset: 3px;
     }
     &:disabled {
@@ -164,11 +179,26 @@ const gotoComment = () => {
   .picture-box {
     position: relative;
     cursor: pointer;
+    flex-shrink: 0;
     width: 50px;
     height: 50px;
+    padding: 0;
+    border: 0;
     border-radius: 5px;
     overflow: hidden;
+    color: var(--app-muted);
+    background: var(--app-surface);
+    -webkit-app-region: no-drag;
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 3px;
+    }
+    &:disabled {
+      cursor: default;
+    }
     .picture {
+      display: grid;
+      place-items: center;
       .bgSetting();
       width: 100%;
       height: 100%;
@@ -184,6 +214,7 @@ const gotoComment = () => {
       transition: 0.5s;
     }
     .close {
+      color: #fff;
       visibility: hidden;
       position: absolute;
       top: 50%;
@@ -192,7 +223,8 @@ const gotoComment = () => {
       opacity: 0;
       transform: rotateX(-180deg) translateY(50%) translateX(-50%);
     }
-    &:hover {
+    &:hover:not(:disabled),
+    &:focus-visible {
       .picture {
         filter: blur(1.5px);
       }
@@ -207,6 +239,8 @@ const gotoComment = () => {
   }
 
   .name-info {
+    flex: 1;
+    min-width: 0;
     font-size: 14px;
     margin-left: 10px;
     display: flex;
@@ -218,7 +252,10 @@ const gotoComment = () => {
       display: flex;
       align-items: center;
       gap: 5px;
+      width: 100%;
+      min-width: 0;
       .song-name {
+        min-width: 0;
         font-size: 15px;
         max-width: 140px;
         .textOverflow();
@@ -226,6 +263,7 @@ const gotoComment = () => {
     }
 
     .name-container {
+      width: 100%;
       max-width: 140px;
       .textOverflow();
     }
@@ -254,6 +292,19 @@ const gotoComment = () => {
     > i {
       position: relative;
       top: 0px;
+    }
+  }
+}
+@media (max-width: 800px) {
+  .left .picture-box {
+    width: 44px;
+    height: 44px;
+  }
+  .left .name-info {
+    margin-left: 8px;
+    font-size: 12px;
+    .song-name-box .song-name {
+      font-size: 13px;
     }
   }
 }

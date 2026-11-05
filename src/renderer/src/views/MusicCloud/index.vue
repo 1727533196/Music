@@ -68,7 +68,9 @@ void getUserCloudFn()
         <p class="heading-caption">收藏在云端的音乐，随时重听。</p>
       </div>
       <div class="heading-actions">
-        <span class="cloud-count">{{ state.total }} 首歌曲</span>
+        <span class="cloud-count"
+          ><v-icon icon="mdi-music-note-outline" size="16" />{{ state.total }} 首歌曲</span
+        >
         <button
           class="refresh-button"
           :disabled="state.loading"
@@ -82,7 +84,7 @@ void getUserCloudFn()
     </header>
 
     <div v-if="state.loading && !state.list.length" class="cloud-state" role="status">
-      <v-icon icon="mdi-loading" size="32" class="spinning" />
+      <span class="cloud-state-icon"><v-icon icon="mdi-loading" size="28" class="spinning" /></span>
       <h2>正在加载音乐云盘</h2>
       <p>稍等片刻，你的歌曲即将出现。</p>
     </div>
@@ -97,7 +99,7 @@ void getUserCloudFn()
           <button class="retry-button" @click="getUserCloudFn(requestedPage)">重新加载</button>
         </template>
         <template v-else>
-          <v-icon icon="mdi-cloud-alert-outline" size="35" />
+          <span class="cloud-state-icon"><v-icon icon="mdi-cloud-alert-outline" size="28" /></span>
           <h2>音乐云盘加载失败</h2>
           <p>请检查网络连接后重试。</p>
           <button class="retry-button" @click="getUserCloudFn(requestedPage)">重新加载</button>
@@ -129,7 +131,7 @@ void getUserCloudFn()
         </div>
       </template>
       <div v-else-if="!loadError" class="cloud-state">
-        <v-icon icon="mdi-cloud-music-outline" size="36" />
+        <span class="cloud-state-icon"><v-icon icon="mdi-cloud-music-outline" size="28" /></span>
         <h2>{{ state.total ? '本页暂无歌曲' : '还没有云盘歌曲' }}</h2>
         <p>
           {{
@@ -149,7 +151,7 @@ void getUserCloudFn()
 <style scoped lang="less">
 .cloud-page {
   width: 100%;
-  color: #f2eff5;
+  color: var(--app-text);
   padding-bottom: 40px;
   button {
     font: inherit;
@@ -160,7 +162,7 @@ void getUserCloudFn()
     opacity: 0.45;
   }
   button:focus-visible {
-    outline: 2px solid #e8bdd1;
+    outline: 2px solid var(--app-accent);
     outline-offset: 4px;
   }
 }
@@ -169,25 +171,25 @@ void getUserCloudFn()
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 28px var(--app-gutter, 32px) 26px;
+  padding: 24px var(--app-gutter, 32px);
 }
 .eyebrow {
-  margin: 0 0 8px;
-  color: #a19aaa;
+  margin: 0 0 6px;
+  color: var(--app-muted);
   letter-spacing: 0.18em;
   font-size: 11px;
   font-weight: 600;
 }
 h1 {
-  font-size: 32px;
+  font-size: var(--app-title-size, clamp(26px, 2.3vw, 32px));
   line-height: 1.2;
   font-weight: 650;
   margin: 0;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.02em;
 }
 .heading-caption {
-  margin: 10px 0 0;
-  color: #a19aaa;
+  margin: 8px 0 0;
+  color: var(--app-muted);
   font-size: 13px;
 }
 .heading-actions {
@@ -196,40 +198,43 @@ h1 {
   gap: 16px;
 }
 .cloud-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
-  color: #a19aaa;
+  color: var(--app-muted);
   white-space: nowrap;
 }
 .refresh-button {
-  width: 38px;
-  height: 38px;
+  width: var(--app-control-height, 36px);
+  height: var(--app-control-height, 36px);
   display: grid;
   place-items: center;
-  border-radius: 50%;
-  border: 1px solid #ffffff16;
+  border-radius: var(--app-control-radius, 10px);
+  border: 1px solid var(--app-border, #ffffff14);
   background: transparent;
-  color: #a19aaa;
+  color: var(--app-muted);
   &:hover {
-    color: #f2eff5;
-    background: #ffffff08;
+    color: var(--app-text);
+    background: var(--app-surface);
   }
 }
 .cloud-state {
-  min-height: 330px;
+  min-height: 280px;
   margin: 0 var(--app-gutter, 32px);
-  border-top: 1px solid #ffffff0d;
-  padding: 48px 20px;
+  border-top: 1px solid var(--app-border);
+  padding: 36px 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: #a19aaa;
+  color: var(--app-muted);
   h2 {
-    font-size: 19px;
+    font-size: 18px;
     font-weight: 600;
-    color: #f2eff5;
-    margin: 17px 0 9px;
+    color: var(--app-text);
+    margin: 14px 0 8px;
   }
   p {
     font-size: 13px;
@@ -237,38 +242,49 @@ h1 {
     margin: 0;
   }
   .retry-button {
-    margin-top: 22px;
+    margin-top: 20px;
   }
 }
+.cloud-state-icon {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border: 1px solid var(--app-border);
+  border-radius: 16px;
+  background: var(--app-surface);
+  color: var(--app-accent);
+}
 .retry-button {
-  border: 1px solid #e8bdd126;
-  border-radius: 7px;
-  background: #e8bdd10a;
-  color: #e8bdd1;
+  border: 1px solid var(--app-accent-border);
+  border-radius: var(--app-control-radius, 10px);
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
   font-size: 13px !important;
-  padding: 8px 13px;
+  height: var(--app-control-height, 36px);
+  padding: 0 13px;
   white-space: nowrap;
   &:hover {
-    background: #e8bdd116;
+    background: var(--app-accent-soft);
   }
 }
 .cloud-error {
   margin: 0 var(--app-gutter, 32px) 20px;
   padding: 13px 16px;
-  border: 1px solid #e8bdd119;
-  background: #e8bdd109;
-  border-radius: 8px;
+  border: 1px solid var(--app-accent-border);
+  background: var(--app-accent-soft);
+  border-radius: var(--app-control-radius, 10px);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  color: #c6b8c3;
+  color: var(--app-secondary);
   font-size: 13px;
 }
 .cloud-loading-note {
   margin: 0 var(--app-gutter, 32px) 12px;
   font-size: 12px;
-  color: #a19aaa;
+  color: var(--app-muted);
 }
 .cloud-songs {
   :deep(.song-list-container) {

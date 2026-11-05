@@ -1,389 +1,444 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { computed, nextTick, ref, useId, watch } from 'vue'
 
 interface PlayList {
   id: number
   name: string
   coverImgUrl: string
+  trackCount?: number
   specialType?: number
 }
-
 interface Props {
   modelValue: boolean
   playlist: PlayList[]
   loading?: boolean
 }
-
-const props = withDefaults(defineProps<Props>(), {
-  playlist: () => [],
-  loading: false
-})
-
+const props = withDefaults(defineProps<Props>(), { playlist: () => [], loading: false })
 const emit = defineEmits(['update:modelValue', 'confirm'])
-
+const radioName = useId()
+const query = ref('')
+const selectedId = ref<number | null>(null)
+const searchInput = ref<HTMLInputElement | null>(null)
+const failedCovers = ref(new Set<string>())
+let opener: HTMLElement | null = null
+const restoreFocus = () => {
+  if (!props.modelValue && opener?.isConnected && !opener.closest('[inert]')) {
+    opener.focus({ preventScroll: true })
+  }
+}
+const selectedPlaylist = computed(() => props.playlist.find((item) => item.id === selectedId.value))
+const filteredPlaylists = computed(() => {
+  const keyword = query.value.trim().toLocaleLowerCase()
+  return props.playlist.filter((item) => item.name.toLocaleLowerCase().includes(keyword))
+})
 const dialogVisible = computed({
   get: () => props.modelValue,
-  set: (val) => {
-    if (!props.loading) emit('update:modelValue', val)
+  set: (value) => {
+    if (!props.loading) emit('update:modelValue', value)
   }
 })
-
-const selectedPlaylist = ref<PlayList | null>(null)
-
 const handleConfirm = () => {
-  if (props.loading) return
-  if (!selectedPlaylist.value) {
-    ElMessage.warning('请选择一个歌单')
-    return
-  }
-  emit('confirm', selectedPlaylist.value)
+  if (!props.loading && selectedPlaylist.value) emit('confirm', selectedPlaylist.value)
 }
-
+const focusSearch = async () => {
+  await nextTick()
+  searchInput.value?.focus()
+}
 watch(
   () => props.modelValue,
   (visible) => {
-    if (!visible) selectedPlaylist.value = null
+    if (visible) {
+      opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    }
+    selectedId.value = null
+    query.value = ''
   }
 )
-
-const selectPlaylist = (playlist: PlayList) => {
-  if (props.loading) return
-  selectedPlaylist.value = playlist
-}
 </script>
 
 <template>
   <v-dialog
     v-model="dialogVisible"
-    max-width="520"
-    persistent
-    transition="dialog-bottom-transition"
+    max-width="460"
+    :persistent="loading"
+    scrim="#09090e"
+    :opacity="0.72"
     class="collection-dialog"
+    aria-label="添加到歌单"
+    @after-enter="focusSearch"
+    @after-leave="restoreFocus"
   >
-    <v-card 
-      rounded="xl" 
-      class="dialog-card"
-      elevation="8"
-    >
-      <!-- 装饰性顶部渐变条 -->
-      <div class="gradient-bar" />
-      
-      <!-- 标题栏 -->
-      <v-card-item class="pb-0 pt-6 px-6">
-        <template #prepend>
-          <v-avatar
-            size="56"
-            color="primary"
-            variant="tonal"
-            class="icon-avatar"
-          >
-            <v-icon icon="mdi-playlist-plus" size="32" />
-          </v-avatar>
-        </template>
-        
-        <v-card-title class="text-h6 font-weight-bold mb-1">
-          收藏到歌单
-        </v-card-title>
-        
-        <v-card-subtitle class="text-body-2 text-medium-emphasis">
-          选择一个歌单添加歌曲
-        </v-card-subtitle>
-      </v-card-item>
-
-      <!-- 内容区 -->
-      <v-card-text class="px-6 py-4 dialog-content">
-        <div class="playlist-container">
-          <v-list class="playlist-list" lines="two">
-            <v-list-item
-              v-for="playlist in playlist"
-              :key="playlist.id"
-              :disabled="loading"
-              rounded="lg"
-              class="playlist-item"
-              :class="{ 'selected': selectedPlaylist?.id === playlist.id }"
-              @click="selectPlaylist(playlist)"
-            >
-              <template #prepend>
-                <v-img
-                  :src="playlist.coverImgUrl + '?param=50y50'"
-                  width="50"
-                  height="50"
-                  class="playlist-cover"
-                  cover
-                />
-              </template>
-
-              <v-list-item-title class="playlist-name">{{ playlist.name }}</v-list-item-title>
-
-              <template #append>
-                <v-icon
-                  :icon="selectedPlaylist?.id === playlist.id ? 'mdi-check-circle' : 'mdi-radiobox-blank'"
-                  :color="selectedPlaylist?.id === playlist.id ? 'primary' : 'grey-darken-1'"
-                  size="24"
-                  class="check-icon"
-                />
-              </template>
-            </v-list-item>
-          </v-list>
-
-          <!-- 空状态 -->
-          <div v-if="!playlist || playlist.length === 0" class="empty-state">
-            <v-icon icon="mdi-playlist-remove" size="x-large" color="grey" />
-            <div class="empty-text">暂无可用歌单</div>
-          </div>
+    <div class="collection-card" :aria-busy="loading">
+      <header class="dialog-heading">
+        <div class="heading-copy">
+          <h2>添加到歌单</h2>
+          <p>选择歌曲的收录歌单</p>
         </div>
-      </v-card-text>
-
-      <!-- 底部操作栏 -->
-      <v-card-actions class="dialog-footer">
-        <v-spacer />
-        <v-btn
-          variant="text"
-          color="medium-emphasis"
+        <button
+          type="button"
+          class="close-button"
+          aria-label="关闭添加到歌单"
           :disabled="loading"
           @click="dialogVisible = false"
-          class="mr-2"
+        >
+          <v-icon icon="mdi-close" size="20" />
+        </button>
+      </header>
+      <div v-if="playlist.length > 5" class="playlist-search">
+        <v-icon icon="mdi-magnify" size="18" aria-hidden="true" />
+        <input
+          ref="searchInput"
+          v-model="query"
+          type="search"
+          placeholder="搜索歌单"
+          aria-label="搜索可添加的歌单"
+          :disabled="loading"
+        />
+      </div>
+      <div
+        v-if="filteredPlaylists.length"
+        class="playlist-options"
+        role="radiogroup"
+        aria-label="选择歌单"
+      >
+        <label
+          v-for="item in filteredPlaylists"
+          :key="item.id"
+          class="playlist-option"
+          :class="{ selected: selectedId === item.id, busy: loading }"
+        >
+          <input
+            v-model="selectedId"
+            type="radio"
+            :name="radioName"
+            :value="item.id"
+            :disabled="loading"
+          />
+          <span class="playlist-cover">
+            <v-icon icon="mdi-playlist-music" size="22" aria-hidden="true" />
+            <img
+              v-if="item.coverImgUrl && !failedCovers.has(item.coverImgUrl)"
+              :src="item.coverImgUrl"
+              alt=""
+              loading="lazy"
+              @error="failedCovers.add(item.coverImgUrl)"
+            />
+          </span>
+          <span class="playlist-copy"
+            ><strong :title="item.name">{{ item.name }}</strong
+            ><span v-if="item.trackCount != null">{{ item.trackCount }} 首歌曲</span></span
+          >
+          <v-icon
+            class="selection-mark"
+            :icon="selectedId === item.id ? 'mdi-check-circle' : 'mdi-radiobox-blank'"
+            size="21"
+            aria-hidden="true"
+          />
+        </label>
+      </div>
+      <div v-else class="empty-state" role="status">
+        <v-icon :icon="query.trim() ? 'mdi-magnify' : 'mdi-playlist-music-outline'" size="32" />
+        <h3>{{ query.trim() ? '未找到相关歌单' : '暂无可用歌单' }}</h3>
+        <p>{{ query.trim() ? '换个关键词再试试。' : '先在资料库创建一个歌单。' }}</p>
+        <button v-if="query.trim()" type="button" class="text-button" @click="query = ''">
+          清空搜索
+        </button>
+      </div>
+      <footer class="dialog-footer">
+        <span class="selected-caption" :title="selectedPlaylist?.name">{{
+          selectedPlaylist ? `已选：${selectedPlaylist.name}` : `${playlist.length} 张可用歌单`
+        }}</span>
+        <button
+          type="button"
+          class="cancel-button"
+          :disabled="loading"
+          @click="dialogVisible = false"
         >
           取消
-        </v-btn>
-        <v-btn
-          color="primary"
-          variant="flat"
-          size="large"
-          min-width="120"
+        </button>
+        <button
+          type="button"
+          class="confirm-button"
           :disabled="!selectedPlaylist || loading"
-          :loading="loading"
           @click="handleConfirm"
-          class="confirm-btn"
         >
-          <v-icon icon="mdi-check" start />
-          确认
-        </v-btn>
-      </v-card-actions>
-    </v-card>
+          <v-icon v-if="loading" class="spinning" icon="mdi-loading" size="16" />{{
+            loading ? '添加中…' : '添加'
+          }}
+        </button>
+      </footer>
+    </div>
   </v-dialog>
 </template>
 
 <style lang="less" scoped>
-:deep(.v-overlay__scrim) {
-  background-color: rgba(0, 0, 0, 1) !important;
-}
-
-.collection-dialog {
-  .dialog-card {
-    position: relative;
-    overflow: hidden;
-    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), transparent);
-    backdrop-filter: blur(10px);
-
-    .gradient-bar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 4px;
-      background: linear-gradient(90deg,
-        #f093fb 0%,
-        #f5576c 50%,
-        #f093fb 100%);
-      background-size: 200% 100%;
-      animation: gradient-shift 3s ease infinite;
-    }
-
-    .icon-avatar {
-      border-radius: 16px;
-      animation: pulse-icon 2s ease-in-out infinite;
-    }
+.collection-card {
+  display: flex;
+  flex-direction: column;
+  max-height: ~"min(620px, calc(100dvh - 48px))";
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 16px;
+  background: var(--app-panel);
+  color: var(--app-text);
+  box-shadow: var(--app-shadow);
+  button,
+  input {
+    font: inherit;
   }
-
-  .dialog-content {
-    padding: 0;
-    max-height: 400px;
-    overflow-y: auto;
-
-    // 自定义滚动条
-    &::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    &::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 3px;
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.3);
-      }
-    }
-
-    .playlist-container {
-      padding: 16px;
-
-      .playlist-list {
-        background: transparent;
-
-        .playlist-item {
-          margin-bottom: 8px;
-          padding: 12px 16px;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.06);
-          border-radius: 12px !important;
-          cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          position: relative;
-          overflow: hidden;
-
-          &::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(135deg, 
-              rgba(var(--v-theme-primary), 0.1), 
-              transparent);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            border-radius: 12px;
-          }
-
-          &:hover {
-            background: rgba(255, 255, 255, 0.06);
-            border-color: rgba(var(--v-theme-primary), 0.3);
-            transform: translateX(4px);
-
-            &::before {
-              opacity: 1;
-            }
-
-            .playlist-name {
-              color: rgb(var(--v-theme-on-surface));
-            }
-
-            .check-icon {
-              color: rgb(var(--v-theme-primary)) !important;
-            }
-          }
-
-          &:active {
-            transform: scale(0.98);
-          }
-
-          &.selected {
-            background: rgba(var(--v-theme-primary), 0.12);
-            border-color: rgba(var(--v-theme-primary), 0.4);
-
-            &::before {
-              opacity: 1;
-            }
-
-            .playlist-name {
-              color: rgb(var(--v-theme-primary));
-              font-weight: 600;
-            }
-          }
-
-          .playlist-cover {
-            border-radius: 8px;
-            margin-right: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            transition: transform 0.3s ease;
-          }
-
-          &:hover .playlist-cover {
-            transform: scale(1.05);
-          }
-
-          .playlist-name {
-            font-size: 14px;
-            font-weight: 500;
-            color: rgba(255, 255, 255, 0.85);
-            transition: all 0.3s ease;
-          }
-
-          .check-icon {
-            transition: all 0.3s ease;
-          }
-        }
-      }
-
-      .empty-state {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 60px 20px;
-        gap: 16px;
-
-        .empty-text {
-          font-size: 14px;
-          color: rgba(255, 255, 255, 0.4);
-        }
-      }
-    }
-  }
-
-  .dialog-footer {
-    padding: 16px 24px;
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-  }
-
-  .confirm-btn {
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    transition: all 0.3s ease;
-    background: rgba(var(--v-theme-primary), 0.15) !important;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(var(--v-theme-primary), 0.3);
-    color: rgb(var(--v-theme-primary)) !important;
-
-    &:hover:not(:disabled) {
-      transform: translateY(-2px);
-      background: rgba(var(--v-theme-primary), 0.25) !important;
-      box-shadow: 0 8px 32px rgba(var(--v-theme-primary), 0.3);
-      border-color: rgba(var(--v-theme-primary), 0.5);
-    }
-
+  button {
+    cursor: pointer;
     &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+      opacity: 0.4;
+      cursor: default;
+    }
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 3px;
     }
   }
 }
-
-@keyframes gradient-shift {
-  0%, 100% {
-    background-position: 0% 50%;
+.dialog-heading {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 24px 24px 18px;
+}
+.heading-copy {
+  flex: 1;
+  min-width: 0;
+  h2 {
+    margin: 0 0 6px;
+    font-size: 19px;
+    font-weight: 600;
+    line-height: 1.4;
   }
-  50% {
-    background-position: 100% 50%;
+  p {
+    margin: 0;
+    color: var(--app-muted);
+    font-size: 12px;
   }
 }
-
-@keyframes pulse-icon {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.05);
-    opacity: 0.9;
+.close-button {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--app-muted);
+  &:hover:not(:disabled) {
+    color: var(--app-text);
+    background: var(--app-surface);
   }
 }
-
-// 深色模式适配
-:deep(.v-theme--dark) {
-  .dialog-card {
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), transparent);
+.playlist-search {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  margin: 0 24px 12px;
+  padding: 0 10px;
+  min-height: 36px;
+  border: 1px solid var(--app-border);
+  border-radius: 9px;
+  background: var(--app-surface);
+  color: var(--app-muted);
+  &:focus-within {
+    border-color: var(--app-accent-border);
+  }
+  input {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--app-text);
+    font-size: 13px;
+    &::placeholder {
+      color: var(--app-muted);
+    }
+  }
+}
+.playlist-options {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 14px 14px;
+}
+.playlist-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  &:hover:not(.busy) {
+    background: var(--app-surface);
+  }
+  &.selected {
+    border-color: var(--app-accent-border);
+    background: var(--app-accent-soft);
+    .selection-mark {
+      color: var(--app-accent);
+    }
+  }
+  &.busy {
+    cursor: default;
+  }
+  &:has(input:focus-visible) {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -2px;
+  }
+  input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+}
+.playlist-cover {
+  position: relative;
+  display: grid;
+  flex: 0 0 44px;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 7px;
+  background: var(--app-surface);
+  color: var(--app-muted);
+  img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+.playlist-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+  strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  > span {
+    color: var(--app-muted);
+    font-size: 11px;
+  }
+}
+.selection-mark {
+  flex-shrink: 0;
+  color: var(--app-muted);
+}
+.empty-state {
+  display: flex;
+  min-height: 230px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: var(--app-muted);
+  text-align: center;
+  h3 {
+    color: var(--app-text);
+    font-size: 15px;
+    font-weight: 550;
+  }
+  p {
+    font-size: 12px;
+  }
+}
+.text-button {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--app-accent);
+  font-size: 12px !important;
+}
+.dialog-footer {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--app-border);
+}
+.selected-caption {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--app-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cancel-button,
+.confirm-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  min-width: 64px;
+  padding: 0 14px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--app-text);
+  font-size: 12px !important;
+}
+.confirm-button {
+  border-color: transparent;
+  background: var(--app-accent);
+  color: var(--app-on-accent);
+  font-weight: 600 !important;
+}
+.spinning {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 480px) {
+  .dialog-heading {
+    padding: 20px 18px 16px;
+  }
+  .playlist-search {
+    margin-inline: 18px;
+  }
+  .playlist-options {
+    padding-inline: 8px;
+  }
+  .dialog-footer {
+    padding: 14px 18px;
+    gap: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinning {
+    animation: none;
   }
 }
 </style>

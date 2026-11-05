@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { ElMessage } from 'element-plus'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { message } from '@/utils/message'
 import SettingItem from './SettingItem.vue'
 
 interface ServerStatus {
@@ -8,286 +8,339 @@ interface ServerStatus {
   pid: number | null
   logs?: string[]
 }
-
 const status = ref<ServerStatus>({ running: false, pid: null })
 const logs = ref<string[]>([])
 const toggling = ref(false)
+const fetching = ref(true)
+const statusKnown = ref(false)
+const statusError = ref(false)
 const showLogs = ref(false)
 const logContainer = ref<HTMLElement | null>(null)
+const statusText = computed(() =>
+  fetching.value && !statusKnown.value
+    ? '正在获取状态…'
+    : statusError.value
+      ? '状态获取失败'
+      : status.value.running
+        ? '运行中'
+        : '已停止'
+)
+let active = true
+let statusVersion = 0
+const disposeListeners: Array<() => void> = []
 
-/** 初始化：拉取当前服务器状态 */
 async function fetchStatus() {
+  const version = statusVersion
+  fetching.value = true
   try {
-    const res: ServerStatus = await window.electron.ipcRenderer.invoke('server:getStatus')
-    status.value = { running: res.running, pid: res.pid }
-    if (res.logs) logs.value = res.logs
-  } catch (e) {
-    console.error('获取服务器状态失败', e)
+    const ipc = window.electron?.ipcRenderer
+    if (!ipc) throw new Error('IPC unavailable')
+    const result: ServerStatus = await ipc.invoke('server:getStatus')
+    if (!active || version !== statusVersion) return
+    if (!result || typeof result.running !== 'boolean') throw new Error('Invalid server status')
+    status.value = { running: result.running, pid: result.pid ?? null }
+    statusKnown.value = true
+    statusError.value = false
+    if (Array.isArray(result.logs))
+      logs.value = result.logs.filter((line) => typeof line === 'string').slice(-200)
+  } catch (error) {
+    if (active && version === statusVersion) statusError.value = true
+    console.error('获取服务器状态失败', error)
+  } finally {
+    if (active) fetching.value = false
   }
 }
 
-/** 切换服务器开关 */
-async function toggleServer(val: boolean) {
+async function toggleServer(value: boolean | null) {
+  if (
+    toggling.value ||
+    fetching.value ||
+    !statusKnown.value ||
+    statusError.value ||
+    typeof value !== 'boolean'
+  )
+    return
   toggling.value = true
   try {
-    const channel = val ? 'server:start' : 'server:stop'
-    const res: { success: boolean; message: string } =
-      await window.electron.ipcRenderer.invoke(channel)
-    if (res.success) {
-      ElMessage.success(res.message)
-    } else {
-      ElMessage.warning(res.message)
-      // 回滚开关到实际状态
-      await fetchStatus()
-    }
-  } catch (e: any) {
-    ElMessage.error(`操作失败：${e?.message || e}`)
-    await fetchStatus()
+    const result: { success: boolean; message: string } = await window.electron.ipcRenderer.invoke(
+      value ? 'server:start' : 'server:stop'
+    )
+    if (!active) return
+    if (result.success) message.success(result.message)
+    else message.warning(result.message || '服务器状态未更改')
+  } catch (error) {
+    if (active)
+      message.error(`操作失败：${error instanceof Error ? error.message : String(error)}`)
   } finally {
-    toggling.value = false
+    if (active) {
+      await fetchStatus()
+      toggling.value = false
+    }
   }
 }
 
-/** 监听主进程推送的状态变化 */
-function onStatusPush(_evt: any, s: ServerStatus) {
-  status.value = { running: s.running, pid: s.pid }
+function onStatusPush(_event: unknown, value: ServerStatus) {
+  if (!active || !value || typeof value.running !== 'boolean') return
+  statusVersion++
+  status.value = { running: value.running, pid: value.pid ?? null }
+  statusKnown.value = true
+  statusError.value = false
 }
-
-/** 监听主进程推送的日志 */
-function onLogPush(_evt: any, line: string) {
-  logs.value.push(line)
-  if (logs.value.length > 200) logs.value.shift()
-  // 自动滚动到底部
-  if (showLogs.value) {
-    requestAnimationFrame(() => {
-      if (logContainer.value) {
-        logContainer.value.scrollTop = logContainer.value.scrollHeight
-      }
-    })
-  }
+function onLogPush(_event: unknown, line: string) {
+  if (!active || typeof line !== 'string') return
+  const element = logContainer.value
+  const nearBottom =
+    !element || element.scrollHeight - element.scrollTop - element.clientHeight < 32
+  logs.value = [...logs.value, line].slice(-200)
+  if (showLogs.value && nearBottom) void scrollLogs()
+}
+async function scrollLogs() {
+  await nextTick()
+  if (active && logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
+}
+function toggleLogs() {
+  showLogs.value = !showLogs.value
+  if (showLogs.value) void scrollLogs()
 }
 
 onMounted(() => {
-  fetchStatus()
-  window.electron.ipcRenderer.on('server:status', onStatusPush)
-  window.electron.ipcRenderer.on('server:log', onLogPush)
+  const ipc = window.electron?.ipcRenderer
+  if (ipc) {
+    disposeListeners.push(ipc.on('server:status', onStatusPush), ipc.on('server:log', onLogPush))
+  }
+  void fetchStatus()
 })
-
 onBeforeUnmount(() => {
-  window.electron.ipcRenderer.removeListener('server:status', onStatusPush)
-  window.electron.ipcRenderer.removeListener('server:log', onLogPush)
+  active = false
+  disposeListeners.forEach((dispose) => dispose())
 })
 </script>
 
 <template>
-  <div class="settings-section">
-    <h2 class="section-title">
-      <v-icon icon="mdi-server" size="small" class="section-icon" />
-      本地服务器
-    </h2>
-
-    <!-- 服务器开关 -->
-    <div class="setting-item">
+  <section class="settings-section" aria-labelledby="server-settings-title">
+    <h2 id="server-settings-title" class="section-title">本地服务</h2>
+    <div class="setting-item setting-item-compact">
       <SettingItem
         label="本地 API 服务器"
-        description="启动 ncm-server，为本地离线模式提供 API 支持"
+        description="在本机运行音乐 API 服务，启动后可连接本地服务器地址。"
       />
-      <div class="server-switch-wrap">
+      <div class="item-content server-controls">
+        <span
+          class="server-status"
+          :class="{ running: statusKnown && !statusError && status.running }"
+          role="status"
+          >{{ statusText }}</span
+        >
+        <button
+          v-if="statusError"
+          type="button"
+          class="text-action"
+          :disabled="fetching"
+          @click="fetchStatus"
+        >
+          重试
+        </button>
         <v-switch
           :model-value="status.running"
-          :loading="toggling"
-          :disabled="toggling"
-          color="success"
+          :loading="toggling || fetching"
+          :disabled="toggling || fetching || !statusKnown || statusError"
+          aria-label="本地 API 服务器开关"
+          color="var(--app-accent)"
           hide-details
           density="compact"
           @update:model-value="toggleServer"
         />
-        <span class="status-badge" :class="status.running ? 'running' : 'stopped'">
-          <span class="status-dot" />
-          {{ status.running ? '运行中' : '已停止' }}
-          <span v-if="status.running && status.pid" class="pid-text">PID {{ status.pid }}</span>
-        </span>
       </div>
     </div>
-
-    <!-- 日志展开/收起 -->
-    <div class="setting-item log-row">
-      <SettingItem
-        label="服务器日志"
-        description="查看最近 200 条服务器输出"
-      />
-      <v-btn
-        variant="tonal"
-        size="small"
-        :color="showLogs ? 'primary' : 'default'"
-        @click="showLogs = !showLogs"
+    <div class="setting-item setting-item-compact">
+      <SettingItem label="服务器日志" description="查看最近 200 条输出，便于检查连接和运行情况。" />
+      <div class="item-content">
+        <button
+          type="button"
+          class="log-toggle"
+          :aria-expanded="showLogs"
+          aria-controls="server-log-panel"
+          @click="toggleLogs"
+        >
+          {{ showLogs ? '收起日志' : '查看日志'
+          }}<v-icon :icon="showLogs ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="17" />
+        </button>
+      </div>
+    </div>
+    <div v-if="showLogs" id="server-log-panel" class="log-panel">
+      <div class="log-header">
+        <span>{{ status.running && status.pid ? `PID ${status.pid}` : '服务器输出' }}</span
+        ><span>{{ logs.length }} 条</span>
+      </div>
+      <div
+        ref="logContainer"
+        class="log-content"
+        role="region"
+        aria-label="服务器日志"
+        tabindex="0"
       >
-        <v-icon :icon="showLogs ? 'mdi-chevron-up' : 'mdi-chevron-down'" start />
-        {{ showLogs ? '收起' : '展开' }}
-      </v-btn>
-    </div>
-
-    <transition name="log-slide">
-      <div v-if="showLogs" class="log-panel">
-        <div ref="logContainer" class="log-content">
-          <div v-if="logs.length === 0" class="log-empty">暂无日志</div>
-          <div
-            v-for="(line, idx) in logs"
-            :key="idx"
-            class="log-line"
-            :class="{
-              'log-err': line.startsWith('[ERR]'),
-              'log-sys': line.startsWith('[SYS]'),
-              'log-info': line.startsWith('[INFO]')
-            }"
-          >{{ line }}</div>
+        <div v-if="!logs.length" class="log-empty">
+          <p>暂无日志</p>
+          <span>{{
+            status.running ? '服务产生的新输出会显示在这里。' : '服务启动后的输出会显示在这里。'
+          }}</span>
         </div>
-        <div class="log-footer">
-          <v-btn
-            variant="text"
-            size="x-small"
-            color="error"
-            @click="logs = []"
-          >
-            <v-icon icon="mdi-delete-sweep" start />
-            清空
-          </v-btn>
-          <span class="log-count">共 {{ logs.length }} 条</span>
+        <div
+          v-for="(line, index) in logs"
+          :key="index"
+          class="log-line"
+          :class="{ 'log-error': line.startsWith('[ERR]') }"
+        >
+          {{ line }}
         </div>
       </div>
-    </transition>
-  </div>
+      <div class="log-footer">
+        <button type="button" class="text-action" :disabled="!logs.length" @click="logs = []">
+          清空显示
+        </button>
+      </div>
+    </div>
+  </section>
 </template>
 
-<style lang="less" scoped>
+<style scoped lang="less">
 @import '../index.less';
-
-.server-switch-wrap {
+.settings-section .setting-item .item-content {
+  align-items: center;
+  justify-content: flex-end;
+}
+.server-controls {
+  gap: 14px;
+  :deep(.v-switch) {
+    flex: 0 0 auto;
+  }
+}
+.server-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--app-muted);
+  font-size: 13px;
+  white-space: nowrap;
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.65;
+  }
+  &.running {
+    color: var(--app-accent);
+  }
+}
+.text-action,
+.log-toggle {
+  color: var(--app-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 3px;
+  }
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}
+.text-action {
+  background: transparent;
+  border: 0;
+  color: var(--app-accent);
+  padding: 4px 0;
+}
+.log-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--app-control-height, 36px);
+  padding: 0 13px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-control-radius, 10px);
+  background: var(--app-surface);
+  &:hover {
+    background: var(--app-surface-strong);
+  }
+}
+.log-panel {
+  margin-top: 4px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-control-radius, 10px);
+  overflow: hidden;
+  background: var(--app-surface);
+}
+.log-header,
+.log-footer {
   display: flex;
   align-items: center;
-  gap: 12px;
-
-  .status-badge {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--app-muted);
+}
+.log-header {
+  border-bottom: 1px solid var(--app-border);
+}
+.log-footer {
+  border-top: 1px solid var(--app-border);
+}
+.log-content {
+  min-width: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 12px 14px;
+  color: var(--app-muted);
+  font:
+    12px/1.8 Menlo,
+    Consolas,
+    monospace;
+  &:focus-visible {
+    outline: 1px solid var(--app-accent);
+    outline-offset: -2px;
+  }
+}
+.log-line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  &.log-error {
+    color: var(--app-danger-text);
+  }
+}
+.log-empty {
+  margin: 0;
+  padding: 18px 0;
+  text-align: center;
+  font-family: inherit;
+  p {
+    margin: 0 0 4px;
+    color: var(--app-text);
     font-size: 13px;
-    font-weight: 500;
-    padding: 4px 10px;
-    border-radius: 20px;
-    transition: all 0.3s ease;
-
-    &.running {
-      color: #4caf50;
-      background: rgba(76, 175, 80, 0.12);
-      border: 1px solid rgba(76, 175, 80, 0.25);
-    }
-
-    &.stopped {
-      color: rgba(255, 255, 255, 0.4);
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .status-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: currentColor;
-      flex-shrink: 0;
-
-      .running & {
-        animation: pulse 1.8s ease-in-out infinite;
-      }
-    }
-
-    .pid-text {
-      font-size: 11px;
-      opacity: 0.7;
-      font-weight: 400;
-    }
   }
-}
-
-.log-row {
-  border-bottom: none !important;
-}
-
-.log-panel {
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  margin-top: 4px;
-  overflow: hidden;
-
-  .log-content {
-    max-height: 220px;
-    overflow-y: auto;
-    padding: 12px 14px;
-    font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
+  span {
     font-size: 12px;
-    line-height: 1.7;
-
-    &::-webkit-scrollbar {
-      width: 4px;
-    }
-    &::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.15);
-      border-radius: 2px;
-    }
-
-    .log-empty {
-      color: rgba(255, 255, 255, 0.3);
-      text-align: center;
-      padding: 20px 0;
-      font-size: 13px;
-    }
-
-    .log-line {
-      white-space: pre-wrap;
-      word-break: break-all;
-      color: rgba(255, 255, 255, 0.6);
-
-      &.log-err  { color: #ff6b6b; }
-      &.log-sys  { color: rgba(255, 255, 255, 0.35); font-style: italic; }
-      &.log-info { color: rgba(255, 255, 255, 0.75); }
-    }
   }
-
+}
+@media (max-width: 760px) {
+  .settings-section .setting-item .item-content {
+    justify-content: flex-start;
+  }
+  .server-controls {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .log-header,
   .log-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-
-    .log-count {
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.3);
-    }
+    padding-inline: 12px;
   }
-}
-
-/* 展开/收起动画 */
-.log-slide-enter-active,
-.log-slide-leave-active {
-  transition: all 0.25s ease;
-  overflow: hidden;
-}
-.log-slide-enter-from,
-.log-slide-leave-to {
-  opacity: 0;
-  max-height: 0;
-}
-.log-slide-enter-to,
-.log-slide-leave-from {
-  opacity: 1;
-  max-height: 400px;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.4; transform: scale(0.75); }
+  .log-content {
+    padding-inline: 12px;
+  }
 }
 </style>
-

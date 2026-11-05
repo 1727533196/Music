@@ -285,9 +285,11 @@ onMounted(() => {
     gap: 24px;
   }
 }
-@media (max-width: 560px) {
+@media (max-width: 760px) {
   .listening-layout {
     --artwork-size: min(27vh, 240px);
+    min-height: 100%;
+    height: auto;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(160px, 1fr);
     padding: 84px 30px 12px;
@@ -303,6 +305,27 @@ onMounted(() => {
   .music-detail-bottom {
     margin-top: 18px;
     min-height: 240px;
+  }
+  .lyrics-column {
+    height: clamp(200px, 42vh, 360px);
+  }
+}
+@media (max-height: 640px) and (min-width: 761px) {
+  .listening-layout {
+    min-height: 100%;
+    height: auto;
+    padding-block: 76px 24px;
+  }
+  .lyrics-column {
+    min-height: 320px;
+    align-self: stretch;
+  }
+  .now-playing-column {
+    width: max(240px, var(--artwork-size));
+  }
+  .cover-frame {
+    width: var(--artwork-size);
+    margin-inline: auto;
   }
 }
 </style>

@@ -1,117 +1,254 @@
 .settings-section {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  padding: 28px 32px;
-  margin-bottom: 24px;
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.12);
+  min-width: 0;
+  margin-bottom: 16px;
+  color: var(--app-text);
+  .section-title.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
-
   .section-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
-    margin: 0 0 24px 0;
     display: flex;
     align-items: center;
-    gap: 10px;
-
+    gap: 8px;
+    margin: 0 0 12px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.5;
     .section-icon {
-      opacity: 0.8;
+      color: var(--app-muted);
+      font-size: 18px;
     }
   }
-
+  .section-description {
+    margin: 0 0 20px;
+    color: var(--app-muted);
+    font-size: 12px;
+    line-height: 1.7;
+  }
   .setting-item {
     display: grid;
-    grid-template-columns: 280px auto;
+    grid-template-columns: minmax(160px, 1fr) minmax(240px, 420px);
     align-items: center;
-    padding: 16px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    gap: 24px;
-
+    gap: 20px;
+    min-height: 64px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--app-border);
     &:last-child {
-      border-bottom: none;
-      padding-bottom: 0;
+      border-bottom: 0;
     }
-
-    &:first-child {
-      padding-top: 0;
+    &.setting-item-stacked {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 16px;
     }
-
-    .item-content {
-      display: flex;
-      justify-content: flex-start;
-      align-items: center;
-      min-width: 0;
-
-      :deep(.v-text-field) {
-        width: 100%;
-        max-width: 320px;
-
-        .v-field {
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 10px;
-          transition: all 0.2s ease;
-
-          &:hover {
-            background: rgba(255, 255, 255, 0.08);
-          }
-
-          &.v-field--focused {
-            background: rgba(255, 255, 255, 0.1);
-          }
-        }
-
-        .v-field__field input {
-          font-size: 14px;
-          color: rgba(255, 255, 255, 0.9);
-        }
-
-        .v-field__outline {
-          --v-field-border-color: rgba(255, 255, 255, 0.15);
-        }
-      }
-    }
-
-    // 按钮和开关直接放在右侧的情况
     > .v-btn,
     > .v-switch {
-      justify-self: start;
-      margin-left: 0;
+      justify-self: end;
     }
-
-    > .v-btn-toggle {
-      justify-self: start;
-      margin-left: 0;
+    .item-content {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      min-width: 0;
+      width: 100%;
+      :deep(.v-text-field) {
+        min-width: 0;
+        width: 100%;
+      }
     }
-
-    // 开关不需要额外 margin
-    > .v-switch {
-      justify-self: start;
-      margin-left: 0;
+  }
+  :deep(.v-btn) {
+    height: var(--app-control-height);
+    flex-shrink: 0;
+    padding-inline: 14px;
+    border-radius: var(--app-control-radius);
+    font-size: 12px;
+    font-weight: 550;
+    letter-spacing: 0;
+    text-transform: none;
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 3px;
+    }
+  }
+  :deep(.v-text-field .v-field) {
+    min-height: var(--app-control-height);
+    padding-inline: 11px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-control-radius);
+    background: var(--app-surface);
+    color: var(--app-text);
+    --v-input-control-height: var(--app-control-height);
+    --v-field-input-padding-top: 0px;
+    --v-field-input-padding-bottom: 0px;
+    --v-field-padding-start: 0px;
+    --v-field-padding-end: 0px;
+    &:focus-within {
+      border-color: var(--app-accent-border);
+      box-shadow: 0 0 0 2px var(--app-accent-soft);
+    }
+    &.v-field--error {
+      border-color: var(--app-danger);
+    }
+    .v-field__field {
+      align-items: center;
+    }
+    .v-field__input {
+      min-height: 34px;
+      padding-block: 0;
+      font-size: 13px;
+    }
+    .v-field__outline {
+      display: none;
+    }
+    .v-field__clearable,
+    .v-field__prepend-inner,
+    .v-field__append-inner {
+      padding-top: 0;
+      align-items: center;
+      .v-icon {
+        font-size: 18px;
+      }
+    }
+  }
+  :deep(.v-input__details) {
+    min-height: 0;
+    padding: 5px 2px 0;
+    color: var(--app-muted);
+    font-size: 11px;
+  }
+  :deep(.v-switch) {
+    flex: 0 0 auto;
+    .v-selection-control {
+      min-height: 32px;
+    }
+    .v-selection-control__wrapper {
+      width: 38px;
+      margin-inline: 5px;
+    }
+    .v-switch__track {
+      height: 22px;
+      min-width: 38px;
+      opacity: 1;
+      background: var(--app-surface-strong);
+    }
+    .v-switch__thumb {
+      width: 16px;
+      height: 16px;
+      color: var(--app-secondary);
+      transform: none;
+    }
+    .v-selection-control--dirty {
+      .v-switch__track {
+        background: var(--app-accent);
+      }
+      .v-switch__thumb {
+        color: var(--app-on-accent);
+      }
+    }
+    .v-selection-control__input:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 2px;
     }
   }
 }
-
-.theme-toggle {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-  padding: 4px;
+.settings-field-input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: var(--app-control-height, 36px);
+  padding: 0 11px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-control-radius, 10px);
+  background: var(--app-surface);
+  color: var(--app-text);
+  font: inherit;
+  font-size: 13px;
+  &::placeholder {
+    color: var(--app-muted);
+  }
+  &:focus {
+    outline: 0;
+    border-color: var(--app-accent-border);
+    box-shadow: 0 0 0 2px var(--app-accent-soft);
+  }
+}
+.settings-apply-button {
+  flex-shrink: 0;
+  height: var(--app-control-height, 36px);
+  padding: 0 15px;
+  border: 1px solid var(--app-accent-border);
+  border-radius: var(--app-control-radius, 10px);
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  &:hover:not(:disabled) {
+    background: var(--app-accent-soft);
+  }
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 3px;
+  }
+}
+.settings-field-tools {
   display: flex;
-  gap: 4px;
-
-  :deep(.v-btn) {
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
-
-    &.v-btn--active {
-      background: rgba(255, 255, 255, 0.15);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin-top: 8px;
+}
+.settings-text-action {
+  padding: 3px 0;
+  border: 0;
+  border-radius: 3px;
+  color: var(--app-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  &:hover {
+    color: var(--app-accent);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 3px;
+  }
+}
+.settings-field-note {
+  margin: 8px 0 0;
+  color: var(--app-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+@media (max-width: 600px) {
+  .settings-section .setting-item {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    > .v-btn,
+    > .v-switch {
+      justify-self: start;
+    }
+  }
+  .settings-section .setting-item-compact {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+    > .v-btn,
+    > .v-switch {
+      justify-self: end;
     }
   }
 }

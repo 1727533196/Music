@@ -1,5 +1,5 @@
 import axios, { AxiosRequestConfig, Method } from 'axios'
-import { ElMessage } from 'element-plus'
+import { message } from '@/utils/message'
 import { useSettings } from '@/store/settings'
 import { setActivePinia } from 'pinia'
 import pinia from '@/store/sotre'
@@ -54,14 +54,14 @@ http.interceptors.response.use(
     const isStatusError = typeof status === 'number' && status !== 200
     const isCodeError = typeof code === 'number' && code !== 200
     if (!ignoreState.includes(url) && (isStatusError || isCodeError)) {
-      ElMessage.error(data?.message || data?.msg || `请求出现错误，当前状态码为${code || status}`)
+      message.error(data?.message || data?.msg || `请求出现错误，当前状态码为${code || status}`)
       return Promise.reject(data)
     }
     return data
   },
   (error) => {
     const data = error.response?.data ?? error
-    ElMessage.error(data.message || data.msg || error.message)
+    message.error(data.message || data.msg || error.message)
 
     return Promise.reject(data)
   }

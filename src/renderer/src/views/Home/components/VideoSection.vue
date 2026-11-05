@@ -119,7 +119,7 @@ const handleNavigate = (direction: 'prev' | 'next') => {
 
     <!-- Empty State -->
     <div v-else class="empty-state text-center py-8">
-      <v-icon icon="mdi-video-off" size="64" color="grey" />
+      <v-icon icon="mdi-video-off" size="64" color="var(--app-muted)" />
       <div class="text-body-1 text-medium-emphasis mt-4">暂无视频内容</div>
     </div>
   </div>
@@ -190,6 +190,7 @@ const handleNavigate = (direction: 'prev' | 'next') => {
         left: 0;
         right: 0;
         background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+        color: white;
         padding: 12px;
       }
     }

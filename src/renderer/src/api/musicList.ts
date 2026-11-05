@@ -1,7 +1,10 @@
 import request from '../utils/request'
 import { deleteSong } from './play'
 
-export type PlayList = Omit<GetPlayListDetailRes['playlist'], 'tracks'>
+export type PlayList = Omit<GetPlayListDetailRes['playlist'], 'tracks'> & {
+  albumArtist?: { id: number; name: string }
+  publishTime?: number
+}
 
 export interface GetUserPlayListRes {
   playlist: PlayList[]
@@ -30,6 +33,7 @@ export interface GetPlayListDetailRes {
     specialType: 0 | 5 | 10 | 20 | 100 | 200 | 300
     playCount: number // 播放量
     trackCount: number //歌单下歌曲总数
+    description?: string | null
     tags: Array<string>
     trackIds: {
       id: number
@@ -64,7 +68,12 @@ interface GetMusicUrlRes {
 export interface CurrentItem extends PlayList {
   tracks: GetMusicDetailData[] | { id: number }
 }
+export interface SongPrivilege {
+  id: number
+  st?: number
+}
 export type GetMusicDetailData = {
+  privilege?: SongPrivilege
   playCount: number
   pc: any
   al: {
@@ -93,6 +102,7 @@ export type GetMusicDetailData = {
 interface GetMusicDetailRes {
   code: number
   songs: GetMusicDetailData[]
+  privileges?: SongPrivilege[]
 }
 interface GetLyricRes {
   code: number
@@ -189,11 +199,31 @@ export const getPlayListDetail = (id: number) =>
 
 // 获取歌曲详情
 export const getMusicDetail = (ids: string) =>
-  request<string, GetMusicDetailRes>(`/song/detail?ids=${ids}`, 'get')
+  request<string, GetMusicDetailRes>(`/song/detail?ids=${ids}`, 'get').then((response) => {
+    if (!Array.isArray(response.privileges)) return response
+    const privilegesById = new Map(
+      response.privileges.map((privilege) => [privilege.id, privilege])
+    )
+    return {
+      ...response,
+      songs: response.songs.map((song) => {
+        const privilege = privilegesById.get(song.id)
+        return privilege ? { ...song, privilege: { ...song.privilege, ...privilege } } : song
+      })
+    }
+  })
 
 // 对歌单添加或删除歌曲
 export const addOrDelPlaylist = (op: 'add' | 'del', pid: number, tracks: number) =>
   deleteSong(op, pid, tracks)
+
+// 按完整歌曲 ID 列表更新歌单内的顺序。
+export const updateSongOrder = (pid: number, ids: number[]) =>
+  request<{ pid: number; ids: string }, { code: number }>(
+    '/song/order/update',
+    { pid, ids: JSON.stringify(ids) },
+    'post'
+  )
 
 // 喜欢音乐
 export const likeMusicApi = (id: number, like: boolean = true) =>
@@ -218,8 +248,23 @@ export const getArtistAlbum = (id: number, limit?: number) =>
     params: { id, limit }
   })
 
+export interface GetAlbumContentRes {
+  code: number
+  songs: GetMusicDetailData[]
+  album: {
+    id: number
+    name: string
+    picUrl: string
+    description?: string
+    publishTime?: number
+    artist?: { id: number; name: string }
+    artists?: { id: number; name: string }[]
+  }
+}
+
 // 获取专辑内容
-export const getAlbumContent = (id: number) => request(`/album?id=${id}`, 'get')
+export const getAlbumContent = (id: number) =>
+  request<null, GetAlbumContentRes>(`/album?id=${id}`, 'get')
 
 // 获取歌曲评论数量，仅取一条评论以减少返回数据。
 export const getMusicCommentCount = (id: number) =>

@@ -73,14 +73,17 @@ const volume = computed(() => {
       @input="input"
       :show-tooltip="false"
       :show-stops="false"
-      style="width: 80px; overflow: hidden"
+      aria-label="音量"
+      :format-tooltip="(value: number) => `${value}%`"
     />
   </div>
 </template>
 
 <style scoped lang="less">
 .volume-box {
-  width: 150px;
+  width: 116px;
+  min-width: 0;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   .volume-button {
@@ -94,7 +97,7 @@ const volume = computed(() => {
     border: 0;
     border-radius: 8px;
     background: transparent;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--app-muted);
     cursor: pointer;
     margin-right: 8px;
     transition:
@@ -105,17 +108,19 @@ const volume = computed(() => {
       height: 22px;
     }
     &:hover {
-      background: rgba(255, 255, 255, 0.08);
+      background: var(--app-hover);
     }
     &:focus-visible {
-      outline: 2px solid rgba(255, 255, 255, 0.8);
+      outline: 2px solid var(--app-accent);
       outline-offset: 3px;
     }
   }
 }
 
 :deep(.el-slider) {
-  //width: 130px !important;
+  width: 80px;
+  min-width: 0;
+  flex: 1;
 }
 :deep(.el-slider__button-wrapper) {
   cursor: pointer !important;
@@ -124,13 +129,21 @@ const volume = computed(() => {
   display: none;
 }
 :deep(.el-slider__bar) {
-  background-color: rgb(236, 65, 65);
+  background-color: var(--app-accent);
   height: 5px;
   border-radius: 3px;
 }
 :deep(.el-slider__runway) {
   height: 5px;
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--app-surface-strong);
+}
+@media (max-width: 560px) {
+  .volume-box {
+    width: 98px;
+  }
+  .volume-box .volume-button {
+    margin-right: 5px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .volume-button {

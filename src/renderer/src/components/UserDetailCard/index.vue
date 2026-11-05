@@ -1,210 +1,202 @@
 <script setup lang="ts">
-import { Profile } from '@/api/user'
+import { ref, watch } from 'vue'
+import type { Profile } from '@/api/user'
 
 interface Props {
   userInfo: Profile
   identify: {
-    actionUrl?: string // 请求网易云音乐的链接
-    imageDesc?: string // 标签
-    imageUrl?: string // 标签图片
+    actionUrl?: string
+    imageDesc?: string
+    imageUrl?: string
     level: number
   }
   location: string
 }
 const props = defineProps<Props>()
+const failedAvatar = ref(false)
+watch(
+  () => props.userInfo.avatarUrl,
+  () => {
+    failedAvatar.value = false
+  }
+)
 </script>
 
 <template>
-  <div class="user-card-container">
-    <div :style="{ backgroundImage: `url(${userInfo.avatarUrl})` }" class="avatar" />
-    <div class="detail">
-      <div class="top-container">
-        <div class="vip-info">
-          <h2 class="top">{{ userInfo.nickname }}</h2>
-          <div class="vip">
-            <div>陆.</div>
-            <div class="tag-info">
-              <div class="tag">
-                <img :src="identify.imageUrl" />
-                {{ identify.imageDesc }}
-              </div>
-              <div class="rank">Lv{{ identify.level }}</div>
-            </div>
-          </div>
-        </div>
-        <div class="btn-container">
-          <v-btn variant="tonal" rounded="lg">歌手页</v-btn>
-          <v-btn variant="tonal" rounded="lg">发私信</v-btn>
-          <v-btn variant="tonal" rounded="lg">已关注</v-btn>
-          <!--          <BaseButton>歌手页</BaseButton>-->
-          <!--          <BaseButton>发私信</BaseButton>-->
-          <!--          <BaseButton>已关注</BaseButton>-->
-        </div>
-        <div class="line"></div>
-      </div>
-      <div class="bottom-container">
-        <div class="info-count">
-          <div>
-            <div>
-              <div class="count">{{ userInfo.eventCount }}</div>
-              <div class="text">动态</div>
-            </div>
-            <div class="line" />
-          </div>
-          <div>
-            <div>
-              <div class="count">{{ userInfo.newFollows }}</div>
-              <div class="text">关注</div>
-            </div>
-            <div class="line" />
-          </div>
-          <div>
-            <div>
-              <div class="count">{{ userInfo.followeds }}</div>
-              <div class="text">粉丝</div>
-            </div>
-          </div>
-        </div>
-        <div class="region personal-details">
-          <span class="title">所在地区: </span>
-          <span class="content">{{ location }}</span>
-        </div>
-        <div class="social personal-details">
-          <span class="title">社交网络: </span>
-          <span class="content">未绑定</span>
-        </div>
-        <div class="hi personal-details">
-          <span class="title">个人介绍: </span>
-          <span class="content">{{ userInfo.signature || '暂无介绍' }}</span>
-        </div>
-      </div>
+  <header class="user-heading">
+    <div class="user-avatar">
+      <v-icon icon="mdi-account-outline" size="54" aria-hidden="true" />
+      <img
+        v-if="userInfo.avatarUrl && !failedAvatar"
+        :src="userInfo.avatarUrl"
+        :alt="userInfo.nickname || '用户头像'"
+        @error="failedAvatar = true"
+      />
     </div>
-  </div>
+    <div class="user-info">
+      <p class="eyebrow">个人主页</p>
+      <h1>{{ userInfo.nickname || '音乐听众' }}</h1>
+      <div
+        v-if="identify.level != null || identify.imageDesc || (location && location !== '未知')"
+        class="user-meta"
+      >
+        <span v-if="identify.level != null" class="level">Lv.{{ identify.level }}</span>
+        <span v-if="identify.imageDesc">{{ identify.imageDesc }}</span>
+        <span v-if="location && location !== '未知'"
+          ><v-icon icon="mdi-map-marker-outline" size="14" />{{ location }}</span
+        >
+      </div>
+      <p v-if="userInfo.signature" class="signature" :title="userInfo.signature">
+        {{ userInfo.signature }}
+      </p>
+      <dl class="user-stats">
+        <div v-if="userInfo.eventCount != null">
+          <dt>动态</dt>
+          <dd>{{ userInfo.eventCount.toLocaleString() }}</dd>
+        </div>
+        <div v-if="userInfo.newFollows != null">
+          <dt>关注</dt>
+          <dd>{{ userInfo.newFollows.toLocaleString() }}</dd>
+        </div>
+        <div v-if="userInfo.followeds != null">
+          <dt>粉丝</dt>
+          <dd>{{ userInfo.followeds.toLocaleString() }}</dd>
+        </div>
+      </dl>
+    </div>
+  </header>
 </template>
 
 <style lang="less" scoped>
-.user-card-container {
+.user-heading {
   display: flex;
   align-items: center;
-  background-color: rgba(255, 255, 255, 0.05);
-  padding: 20px;
-  border-radius: 20px;
-  width: calc(87vw - 180px);
-  //width: 87%;
-  margin: 0 auto;
-  box-shadow: 0 5px 15px 5px rgba(0, 0, 0, 0.1);
-  transition: 0.4s;
-  .btn-container {
+  gap: 28px;
+  min-width: 0;
+  padding: 28px var(--app-gutter) 30px;
+}
+.user-avatar {
+  position: relative;
+  display: grid;
+  flex: 0 0 152px;
+  place-items: center;
+  width: 152px;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 50%;
+  background: var(--app-surface);
+  color: var(--app-muted);
+  img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+.user-info {
+  flex: 1;
+  min-width: 0;
+  h1 {
+    margin: 0 0 10px;
+    color: var(--app-text);
+    font-size: var(--app-title-size);
+    font-weight: 650;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+}
+.eyebrow {
+  margin-bottom: 7px;
+  color: var(--app-muted);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+}
+.user-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  color: var(--app-muted);
+  font-size: 12px;
+  > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .level {
+    padding: 2px 7px;
+    border: 1px solid var(--app-border);
+    border-radius: 5px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+}
+.signature {
+  display: -webkit-box;
+  max-width: 680px;
+  margin: 12px 0 0;
+  overflow: hidden;
+  color: var(--app-muted);
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.user-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-top: 18px;
+  > div {
     display: flex;
-    gap: 10px;
+    align-items: baseline;
+    gap: 7px;
   }
-  .bgSetting();
-
-  .avatar {
-    height: 200px;
-    width: 200px;
-    border-radius: 50%;
-    background-image: url('https://p1.music.126.net/9GAbSb_hlXPu66HWInJOww==/109951162846052486.jpg');
-    .bgSetting();
-    margin-right: 30px;
+  dt {
+    order: 1;
+    color: var(--app-muted);
+    font-size: 12px;
   }
-  .detail {
-    flex: 1;
-    .top-container {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      padding-bottom: 15px;
-      position: relative;
-      margin-bottom: 20px;
-      .line {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        height: 1px;
-        border-radius: 1px;
-        background-color: rgba(255, 255, 255, 0.12);
-      }
-      .vip-info {
-        display: flex;
-        justify-content: space-between;
-        flex-direction: column;
-        .vip {
-          display: flex;
-          .icon {
-          }
-          .tag-info {
-            display: flex;
-            align-items: center;
-            .tag {
-              background-color: rgb(253, 228, 226);
-              border-radius: 10px;
-              position: relative;
-              display: flex;
-              align-items: center;
-              font-size: 12px;
-              color: @subject;
-              padding-right: 10px;
-              img {
-                width: 16px;
-                margin-right: 3px;
-              }
-            }
-            .rank {
-              margin-left: 5px;
-              background-color: rgb(240, 240, 240);
-              color: @bgColor;
-              font-size: 12px;
-              padding: 1px 7px;
-              border-radius: 10px;
-            }
-          }
-        }
-      }
+  dd {
+    margin: 0;
+    color: var(--app-text);
+    font-size: 16px;
+    font-weight: 550;
+    font-variant-numeric: tabular-nums;
+  }
+}
+@media (max-width: 650px) {
+  .user-heading {
+    align-items: flex-start;
+    gap: 18px;
+    padding-top: 22px;
+  }
+  .user-avatar {
+    flex-basis: 96px;
+    width: 96px;
+  }
+  .user-stats {
+    gap: 9px 16px;
+    > div {
+      gap: 5px;
     }
-    .bottom-container {
-      display: flex;
-      flex-direction: column;
-      .info-count {
-        display: flex;
-        margin-bottom: 10px;
-        > div {
-          margin-right: 20px;
-          display: flex;
-          > div:first-child {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-          }
-        }
-        .count {
-          font-size: 20px;
-        }
-        .text {
-          font-size: 13px;
-          color: @darkText;
-        }
-        .line {
-          width: 1px;
-          margin-left: 20px;
-          height: 100%;
-          border-radius: 1px;
-          background-color: rgba(255, 255, 255, 0.12);
-        }
-      }
-      .personal-details {
-        .title {
-          font-size: 13px;
-        }
-        .content {
-          font-size: 13px;
-          color: @darkText;
-        }
-      }
-      .personal-details + .personal-details {
-        margin-top: 5px;
-      }
+  }
+}
+@media (max-width: 420px) {
+  .user-heading {
+    gap: 14px;
+  }
+  .user-avatar {
+    flex-basis: 72px;
+    width: 72px;
+  }
+  .user-stats {
+    gap: 8px 12px;
+    dd {
+      font-size: 14px;
     }
   }
 }

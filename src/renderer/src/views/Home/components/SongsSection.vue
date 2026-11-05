@@ -7,7 +7,7 @@ import { useUserInfo } from '@/store'
 import { deleteSong } from '@/api/play'
 import { getUserPlayListFn } from '@/utils/userInfo'
 import { getSongCommentLabel, loadSongCommentCount } from '@/utils/songComments'
-import { ElMessage } from 'element-plus'
+import { message } from '@/utils/message'
 import ContextMenu from '@/components/ContextMenu/index.vue'
 import CollectionDialog from '@/components/SongList/CollectionDialog.vue'
 
@@ -87,7 +87,7 @@ const handleMenuSelect = async (item: any) => {
   switch (item.value) {
     case 'play-next':
       // TODO: 实现播放下一首
-      ElMessage.info('播放下一首功能待实现')
+      message.info('播放下一首功能待实现')
       break
     case 'collection':
       collectionDialogVisible.value = true
@@ -109,14 +109,14 @@ const handleCollectionConfirm = async (playlist: { id: number }) => {
   if (collectionLoading.value) return
   const songId = currentSongForMenu.value?.id
   if (!songId || !playlist.id) {
-    ElMessage.warning('请重新选择要添加的歌曲和歌单')
+    message.warning('请重新选择要添加的歌曲和歌单')
     return
   }
   collectionLoading.value = true
   try {
     await deleteSong('add', playlist.id, songId)
     collectionDialogVisible.value = false
-    ElMessage.success('添加成功')
+    message.success('添加成功')
     void getUserPlayListFn().catch(() => {})
   } catch {
     // 请求层显示错误，保留选择以便重试。
@@ -167,6 +167,7 @@ const handleCollectionConfirm = async (playlist: { id: number }) => {
           <button
             type="button"
             class="song-item"
+            :class="{ 'is-current': isPlaying(song) }"
             :aria-label="`播放 ${song.name}`"
             @click="handleSongClick(song, page * pageSize + index)"
           >
@@ -176,6 +177,9 @@ const handleCollectionConfirm = async (playlist: { id: number }) => {
               }}</span>
               <div class="song-cover-wrapper">
                 <v-img :src="song.al?.picUrl || ''" cover class="song-cover" />
+                <span class="cover-play" aria-hidden="true"
+                  ><v-icon :icon="isPlaying(song) ? 'mdi-volume-high' : 'mdi-play'" size="23"
+                /></span>
               </div>
 
               <div class="song-info">
@@ -192,9 +196,9 @@ const handleCollectionConfirm = async (playlist: { id: number }) => {
       </template>
 
       <!-- Empty State -->
-      <div v-else class="empty-state text-center py-8">
-        <v-icon icon="mdi-music-off" size="64" color="grey" />
-        <div class="text-body-1 text-medium-emphasis mt-4">暂无推荐歌曲</div>
+      <div v-else class="empty-state">
+        <v-icon icon="mdi-music-note-outline" size="30" />
+        <span>暂无推荐歌曲</span>
       </div>
     </div>
   </div>
@@ -213,8 +217,8 @@ const handleCollectionConfirm = async (playlist: { id: number }) => {
   min-width: 0;
 }
 .section-header {
-  min-height: 40px;
-  margin-bottom: 18px;
+  min-height: 32px;
+  margin-bottom: 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -226,9 +230,10 @@ const handleCollectionConfirm = async (playlist: { id: number }) => {
   flex-wrap: wrap;
   gap: 12px;
   h2 {
-    font-size: 21px;
+    font-size: 20px;
     font-weight: 650;
-    letter-spacing: 0.02em;
+    line-height: 1.4;
+    letter-spacing: 0;
     color: var(--discovery-text);
   }
 }
@@ -242,6 +247,13 @@ const handleCollectionConfirm = async (playlist: { id: number }) => {
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+  :deep(.v-btn) {
+    border-radius: 8px;
+    &:focus-visible {
+      outline: 2px solid var(--discovery-accent);
+      outline-offset: 3px;
+    }
+  }
 }
 .page-label {
   margin-right: 4px;
@@ -250,7 +262,7 @@ const handleCollectionConfirm = async (playlist: { id: number }) => {
 .song-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 14px;
+  gap: 6px 16px;
   :deep(.context-menu-wrapper) {
     height: auto;
     min-width: 0;
@@ -259,15 +271,24 @@ const handleCollectionConfirm = async (playlist: { id: number }) => {
 .song-item {
   display: block;
   width: 100%;
-  padding: 10px;
+  padding: 10px 12px;
   text-align: left;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid transparent;
+  background: var(--app-surface);
   color: var(--discovery-text);
   cursor: pointer;
-  transition: background 0.18s ease;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
   &:hover {
-    background: rgba(255, 255, 255, 0.065);
+    background: var(--app-hover);
+    border-color: var(--app-border, #ffffff14);
+  }
+  &:hover .cover-play,
+  &:focus-visible .cover-play,
+  &.is-current .cover-play {
+    opacity: 1;
   }
   &:focus-visible {
     outline: 2px solid var(--discovery-accent);
@@ -281,18 +302,29 @@ const handleCollectionConfirm = async (playlist: { id: number }) => {
   min-width: 0;
 }
 .song-number {
-  width: 18px;
+  width: 20px;
   flex-shrink: 0;
   font-size: 11px;
-  color: var(--discovery-muted);
+  color: var(--app-muted);
   font-variant-numeric: tabular-nums;
 }
 .song-cover-wrapper {
+  position: relative;
   flex-shrink: 0;
   width: 52px;
   height: 52px;
-  border-radius: 7px;
+  border-radius: 8px;
   overflow: hidden;
+}
+.cover-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #16131a70;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.18s ease;
 }
 .song-cover {
   width: 100%;
@@ -310,20 +342,30 @@ const handleCollectionConfirm = async (playlist: { id: number }) => {
 }
 .song-name {
   font-size: 14px;
-  font-weight: 550;
+  font-weight: 600;
   line-height: 1.6;
   &.is-playing {
-    color: var(--discovery-accent);
+    color: var(--app-playing);
   }
 }
 .song-artist {
   font-size: 12px;
   line-height: 1.6;
-  margin-top: 3px;
+  margin-top: 2px;
   color: var(--discovery-muted);
 }
 .empty-state {
   grid-column: 1 / -1;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid var(--app-border, #ffffff14);
+  border-radius: 12px;
+  color: var(--discovery-muted);
+  font-size: 13px;
 }
 @container (max-width: 540px) {
   .song-list {
@@ -339,7 +381,8 @@ const handleCollectionConfirm = async (playlist: { id: number }) => {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .song-item {
+  .song-item,
+  .cover-play {
     transition: none;
   }
 }

@@ -15,7 +15,7 @@ import ContextMenu from '@/components/ContextMenu/index.vue'
 import SongListCreator from '../../components/SongListCreator.vue'
 import { deletePlay } from '../../api/play'
 import { getUserPlayListFn } from '../../utils/userInfo'
-import { ElMessage } from 'element-plus'
+import { message } from '@/utils/message'
 import Item from './item.vue'
 import { isMacOs } from '@/utils'
 
@@ -35,9 +35,9 @@ const deletePlayHandler = async (item) => {
   try {
     const res = await deletePlay([item.id])
     getUserPlayListFn()
-    ElMessage.success('删除成功')
+    message.success('删除成功')
   } catch {
-    ElMessage.error('删除失败')
+    message.error('删除失败')
   }
 }
 const handlePlaylistMenuSelect = (

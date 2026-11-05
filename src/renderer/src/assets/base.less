@@ -29,11 +29,11 @@
   //src: url('./font/苹方黑体-准-简.ttf');
   //src: url('./font/苹方字体.ttf');
 }
-@text: rgb(210, 210, 210);
-@darkText: rgb(150, 150, 150);
-@moreDark: rgba(150, 150, 150, 0.6);
-@subject: rgb(236, 65, 65);
-@bgColor: rgb(19, 19, 26);
+@text: var(--app-text);
+@darkText: var(--app-muted);
+@moreDark: var(--app-muted);
+@subject: var(--app-accent);
+@bgColor: var(--app-background);
 
 .y-player-container::-webkit-scrollbar-thumb {
   display: none;
@@ -52,7 +52,7 @@
   display: flex;
   height: 100%;
   position: relative;
-  background: rgba(19, 19, 26, 0.84);
+  background: var(--app-background);
   padding-bottom: 0;
   &.has-player {
     padding-bottom: var(--app-player-height);
@@ -84,7 +84,7 @@
     //width: 100%;
   }
   .padding-container {
-    padding: 0 32px;
+    padding: 0 var(--app-gutter);
     padding-bottom: 32px;
   }
 }
@@ -128,7 +128,7 @@
     padding: 11px 24px;
     border-radius: 24px;
     background: var(--app-accent);
-    color: #302330;
+    color: var(--app-on-accent);
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
@@ -139,13 +139,14 @@
   }
 }
 :root {
-  --app-header-height: 88px;
+  --app-header-height: 76px;
   --app-player-height: 75px;
   --app-content-width: 1360px;
   --app-gutter: clamp(20px, 3vw, 40px);
-  --app-text: #f2eff5;
-  --app-muted: #a19aaa;
-  --app-accent: #e8bdd1;
+  --app-title-size: clamp(26px, 2.3vw, 32px);
+  --app-section-gap: 28px;
+  --app-control-radius: 10px;
+  --app-control-height: 36px;
 }
 * {
   //padding: 0;
@@ -189,4 +190,11 @@ img {
 }
 .v-input--horizontal .v-input__append {
   margin-inline-start: 6px;
+}
+
+@media (max-height: 720px) {
+  :root {
+    --app-header-height: 68px;
+    --app-section-gap: 24px;
+  }
 }

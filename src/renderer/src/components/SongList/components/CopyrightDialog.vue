@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 interface Props {
   modelValue: boolean
@@ -15,14 +15,30 @@ const props = withDefaults(defineProps<Props>(), {
   confirmText: '我知道了',
   icon: 'mdi-music-off'
 })
-
+const confirmButton = ref<HTMLButtonElement | null>(null)
+let opener: HTMLElement | null = null
 const emit = defineEmits(['update:modelValue', 'confirm'])
-
 const visible = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value)
 })
-
+watch(
+  () => props.modelValue,
+  (value) => {
+    if (value)
+      opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  },
+  { flush: 'sync' }
+)
+const focusConfirm = async () => {
+  await nextTick()
+  confirmButton.value?.focus()
+}
+const restoreFocus = () => {
+  if (!props.modelValue && opener?.isConnected && !opener.closest('[inert]')) {
+    opener.focus({ preventScroll: true })
+  }
+}
 const handleClose = () => {
   visible.value = false
   emit('confirm')
@@ -30,139 +46,122 @@ const handleClose = () => {
 </script>
 
 <template>
-  <VDialog
+  <v-dialog
     v-model="visible"
     persistent
-    max-width="420"
-    transition="dialog-bottom-transition"
+    max-width="400"
+    scrim="#09090e"
+    :opacity="0.72"
+    class="copyright-dialog"
+    aria-label="播放提示"
+    @after-enter="focusConfirm"
+    @after-leave="restoreFocus"
   >
-    <VCard
-      class="copyright-dialog-card"
-      rounded="xl"
-      elevation="8"
-    >
-      <!-- 装饰性顶部渐变条 -->
-      <div class="gradient-bar" />
-
-      <VCardItem class="pb-0 pt-6 px-6">
-        <template #prepend>
-          <VAvatar
-            size="56"
-            color="warning"
-            variant="tonal"
-            class="icon-avatar"
-          >
-            <VIcon
-              :icon="icon"
-              size="32"
-            />
-          </VAvatar>
-        </template>
-
-        <VCardTitle class="text-h6 font-weight-bold mb-1">
-          {{ title }}
-        </VCardTitle>
-
-        <VCardSubtitle class="text-body-2 text-medium-emphasis">
-          播放提示
-        </VCardSubtitle>
-      </VCardItem>
-
-      <VCardText class="px-6 py-4">
-        <p class="text-body-1 text-medium-emphasis mb-0">
-          {{ message || '由于版权限制，该歌曲暂时无法播放。您可以尝试其他歌曲或稍后再试。' }}
-        </p>
-      </VCardText>
-
-      <VCardActions class="px-6 pb-6 pt-0">
-        <VSpacer />
-        <VBtn
-          color="primary"
-          variant="flat"
-          size="large"
-          min-width="120"
-          @click="handleClose"
-          class="confirm-btn"
-        >
+    <section class="copyright-dialog-card">
+      <header class="dialog-heading">
+        <span class="notice-icon"><v-icon :icon="icon" size="24" aria-hidden="true" /></span>
+        <div class="heading-copy">
+          <span>播放提示</span>
+          <h2>{{ title }}</h2>
+        </div>
+      </header>
+      <p class="notice-message">
+        {{ message || '由于版权限制，这首歌曲暂时无法播放。试试其他歌曲吧。' }}
+      </p>
+      <footer class="dialog-footer">
+        <button ref="confirmButton" type="button" class="confirm-button" @click="handleClose">
           {{ confirmText }}
-        </VBtn>
-      </VCardActions>
-    </VCard>
-  </VDialog>
+        </button>
+      </footer>
+    </section>
+  </v-dialog>
 </template>
 
 <style lang="less" scoped>
-:deep(.v-overlay__scrim) {
-  background-color: rgba(0, 0, 0, 1) !important;
-}
 .copyright-dialog-card {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), transparent);
-  backdrop-filter: blur(10px);
-
-  .gradient-bar {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg,
-      #ff6b6b 0%,
-      #ffa502 50%,
-      #ff6b6b 100%);
-    background-size: 200% 100%;
-    animation: gradient-shift 3s ease infinite;
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  border: 1px solid var(--app-border);
+  border-radius: 16px;
+  background: var(--app-panel);
+  color: var(--app-text);
+  box-shadow: var(--app-shadow);
+}
+.dialog-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 24px 0;
+}
+.notice-icon {
+  display: grid;
+  flex: 0 0 44px;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--app-border);
+  border-radius: 11px;
+  background: var(--app-surface);
+  color: var(--app-muted);
+}
+.heading-copy {
+  min-width: 0;
+  > span {
+    color: var(--app-muted);
+    font-size: 11px;
   }
-
-  .icon-avatar {
-    border-radius: 16px;
-    animation: pulse-icon 2s ease-in-out infinite;
-  }
-
-  .confirm-btn {
+  h2 {
+    margin: 4px 0 0;
+    overflow-wrap: anywhere;
+    font-size: 17px;
     font-weight: 600;
-    letter-spacing: 0.5px;
-    transition: all 0.3s ease;
-    background: rgba(var(--v-theme-primary), 0.15) !important;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(var(--v-theme-primary), 0.3);
-    color: rgb(var(--v-theme-primary)) !important;
-
-    &:hover {
-      transform: translateY(-2px);
-      background: rgba(var(--v-theme-primary), 0.25) !important;
-      box-shadow: 0 8px 32px rgba(var(--v-theme-primary), 0.3);
-      border-color: rgba(var(--v-theme-primary), 0.5);
-    }
+    line-height: 1.5;
   }
 }
-
-@keyframes gradient-shift {
-  0%, 100% {
-    background-position: 0% 50%;
+.notice-message {
+  margin: 0;
+  padding: 18px 24px 24px;
+  color: var(--app-muted);
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 24px 22px;
+}
+.confirm-button {
+  min-height: 34px;
+  max-width: 100%;
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--app-accent);
+  color: var(--app-on-accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  &:hover {
+    background: var(--app-accent-hover);
   }
-  50% {
-    background-position: 100% 50%;
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 3px;
   }
 }
-
-@keyframes pulse-icon {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
+@media (max-width: 480px) {
+  .dialog-heading {
+    padding: 20px 18px 0;
+    gap: 12px;
   }
-  50% {
-    transform: scale(1.05);
-    opacity: 0.9;
+  .notice-message {
+    padding: 16px 18px 22px;
   }
-}
-
-// 深色模式适配
-:deep(.v-theme--dark) {
-  .copyright-dialog-card {
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), transparent);
+  .dialog-footer {
+    padding: 0 18px 18px;
   }
 }
 </style>

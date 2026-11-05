@@ -62,6 +62,13 @@ const accountItems = computed(() => [
   },
   { label: '设置', icon: 'mdi-cog-outline', to: { path: '/setting' } }
 ])
+const isAccountItemActive = (item: (typeof accountItems.value)[number]) => {
+  if (route.path !== item.to.path) return false
+  if (item.label === '我喜欢的音乐' && !favoritePlaylist.value) return false
+  return Object.entries(item.to.query || {}).every(
+    ([key, value]) => String(route.query[key]) === String(value)
+  )
+}
 const gotoSetting = () => {
   flags.isOpenDetail = false
   router.push('/setting')
@@ -109,11 +116,11 @@ watch(
           >{{ item.label }}</RouterLink
         >
       </nav>
-      <div class="header-spacer" />
       <Search class="header-search no-drag" />
       <div class="account-controls no-drag">
         <button
           class="icon-button settings-button"
+          :class="{ 'is-current': route.path === '/setting' }"
           type="button"
           aria-label="设置"
           title="设置"
@@ -125,7 +132,7 @@ watch(
           v-if="store.isLogin"
           v-model="accountOpen"
           location="bottom end"
-          :offset="12"
+          :offset="10"
           :z-index="1900"
         >
           <template #activator="{ props: activatorProps }">
@@ -140,10 +147,18 @@ watch(
               <el-icon v-else :size="20"><User /></el-icon>
             </button>
           </template>
-          <div class="account-menu">
+          <div class="account-menu no-drag">
             <div class="account-menu-heading">
-              <span class="account-eyebrow">我的账户</span>
-              <strong>{{ store.profile.nickname || '音乐爱好者' }}</strong>
+              <span class="account-menu-avatar">
+                <img v-if="store.profile.avatarUrl" :src="store.profile.avatarUrl" alt="" />
+                <v-icon v-else icon="mdi-account-outline" size="22" />
+              </span>
+              <div class="account-identity">
+                <span class="account-eyebrow">我的账户</span>
+                <strong :title="store.profile.nickname || '音乐爱好者'">
+                  {{ store.profile.nickname || '音乐爱好者' }}
+                </strong>
+              </div>
             </div>
             <v-list
               class="account-menu-list"
@@ -151,14 +166,22 @@ watch(
               bg-color="transparent"
               aria-label="账户导航"
             >
-              <v-list-item
-                v-for="item in accountItems"
-                :key="item.label"
-                :to="item.to"
-                :prepend-icon="item.icon"
-                :title="item.label"
-                @click="accountOpen = false"
-              />
+              <template v-for="item in accountItems" :key="item.label">
+                <div
+                  v-if="item.to.path === '/setting'"
+                  class="account-menu-divider"
+                  role="separator"
+                />
+                <v-list-item
+                  :to="item.to"
+                  :prepend-icon="item.icon"
+                  :title="item.label"
+                  rounded="lg"
+                  :active="isAccountItemActive(item)"
+                  :aria-current="isAccountItemActive(item) ? 'page' : undefined"
+                  @click="accountOpen = false"
+                />
+              </template>
             </v-list>
           </div>
         </v-menu>
@@ -193,16 +216,16 @@ watch(
   z-index: 120;
   flex-shrink: 0;
   width: 100%;
-  height: var(--app-header-height, 88px);
-  color: #f2eff5;
-  background: rgba(19, 19, 26, 0.94);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  height: var(--app-header-height, 76px);
+  color: var(--app-text);
+  background: var(--app-background);
+  border-bottom: 1px solid var(--app-border);
   -webkit-app-region: drag;
 }
 .header-inner {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 20px;
   width: 100%;
   max-width: calc(var(--app-content-width, 1360px) + 2 * var(--app-gutter, 32px));
   height: 100%;
@@ -228,7 +251,7 @@ watch(
   justify-content: center;
   flex-shrink: 0;
   border: 0;
-  color: #c4bdce;
+  color: var(--app-secondary);
   background: transparent;
   cursor: pointer;
   transition:
@@ -236,12 +259,12 @@ watch(
     color 160ms ease;
   -webkit-app-region: no-drag;
   &:hover {
-    color: #f2eff5;
-    background: rgba(255, 255, 255, 0.065);
+    color: var(--app-text);
+    background: var(--app-border);
   }
   &:focus-visible {
-    outline: 2px solid #e8bdd1;
-    outline-offset: 4px;
+    outline: 2px solid var(--app-accent);
+    outline-offset: 3px;
   }
 }
 .icon-button {
@@ -250,71 +273,157 @@ watch(
   border-radius: 9px;
 }
 .icon-button:disabled {
-  color: #57515f;
+  color: var(--app-disabled);
   cursor: default;
   background: transparent;
+}
+.settings-button.is-current {
+  color: var(--app-accent);
+  background: var(--app-accent-soft);
 }
 .primary-navigation {
   display: flex;
   align-items: center;
-  gap: 30px;
-  flex-shrink: 0;
+  justify-content: center;
+  gap: 10px;
+  flex: 1;
+  min-width: max-content;
   height: 100%;
 }
 .navigation-link {
   display: inline-flex;
   align-items: center;
   position: relative;
-  height: 100%;
-  padding: 0 2px;
-  color: #a19aaa;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 7px;
+  color: var(--app-muted);
   font-size: 15px;
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
   transition: color 160ms ease;
   &:hover {
-    color: #f2eff5;
+    color: var(--app-text);
+    background: var(--app-surface);
   }
   &:focus-visible {
-    outline: 2px solid #e8bdd1;
-    outline-offset: 6px;
-    border-radius: 4px;
+    outline: 2px solid var(--app-accent);
+    outline-offset: 3px;
   }
   &.active {
-    color: #f2eff5;
+    color: var(--app-text);
   }
   &.active::after {
     content: '';
     position: absolute;
-    bottom: 18px;
-    left: 2px;
-    right: 2px;
+    bottom: -6px;
+    left: 12px;
+    right: 12px;
     height: 2px;
-    background: #e8bdd1;
+    background: var(--app-accent);
     border-radius: 2px;
   }
 }
-.header-spacer {
-  flex: 1;
-  min-width: 0;
-}
 .header-search {
-  width: clamp(190px, 23vw, 260px);
+  width: clamp(180px, 22vw, 250px);
   flex-shrink: 0;
+  border-color: var(--app-border);
+  background: var(--app-surface);
+  &:hover {
+    border-color: var(--app-border);
+  }
+  &:focus-within {
+    border-color: var(--app-accent-border);
+    background: var(--app-surface);
+    box-shadow: 0 0 0 3px var(--app-accent-soft);
+  }
+  :deep(.search) {
+    font-size: 13px;
+  }
+  :deep(.suggest) {
+    top: calc(100% + 12px);
+    border-color: var(--app-border);
+    background: var(--app-panel);
+    box-shadow: var(--app-shadow);
+    .list {
+      margin-top: 16px;
+      padding-bottom: 8px;
+    }
+    .item {
+      min-height: 48px;
+      height: auto;
+      padding-block: 9px;
+      &:hover {
+        background: var(--app-surface);
+      }
+      .sort {
+        flex: 0 0 20px;
+        margin-right: 12px;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      .content {
+        min-width: 0;
+        flex: 1;
+        .title {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          .name {
+            min-width: 0;
+          }
+          .score,
+          .icon {
+            flex-shrink: 0;
+          }
+        }
+      }
+      .name,
+      .desc {
+        display: block;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      .name {
+        max-width: 100%;
+      }
+      .desc {
+        color: var(--app-muted);
+      }
+    }
+    .item:nth-child(-n + 3) .sort {
+      color: var(--app-accent);
+    }
+    .suggest-box {
+      .title {
+        font-size: 12px;
+        color: var(--app-muted);
+      }
+      .item {
+        min-height: 38px;
+      }
+    }
+  }
 }
 .avatar-button {
   width: 35px;
   height: 35px;
   margin-left: 7px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--app-surface-strong);
   overflow: hidden;
 }
 .avatar-button img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.avatar-button[aria-expanded='true'] {
+  box-shadow:
+    0 0 0 2px var(--app-background),
+    0 0 0 3px var(--app-accent);
 }
 .login-button {
   gap: 7px;
@@ -335,28 +444,51 @@ watch(
   font-size: 23px;
 }
 .close-button:hover {
-  color: #ffbfc7;
-  background: rgba(245, 85, 105, 0.13);
+  color: var(--app-danger-text);
+  background: var(--app-danger-soft);
 }
 .account-menu {
-  width: 228px;
+  width: 248px;
+  max-width: calc(100vw - 24px);
   padding: 8px;
-  color: #f2eff5;
-  background: #22212b;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 16px;
-  box-shadow: 0 20px 65px rgba(0, 0, 0, 0.35);
+  color: var(--app-text);
+  background: var(--app-panel);
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  box-shadow: var(--app-shadow);
   -webkit-app-region: no-drag;
 }
 .account-menu-heading {
   display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 0 4px 6px;
+  padding: 10px 4px 16px;
+  border-bottom: 1px solid var(--app-border);
+}
+.account-menu-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 50%;
+  color: var(--app-muted);
+  background: var(--app-surface);
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+.account-identity {
+  display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 12px 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  gap: 4px;
+  min-width: 0;
 }
 .account-eyebrow {
-  color: #a19aaa;
+  color: var(--app-muted);
   font-size: 11px;
 }
 .account-menu-heading strong {
@@ -367,21 +499,41 @@ watch(
   font-weight: 600;
 }
 .account-menu-list {
-  padding: 7px 0 0;
+  padding: 0;
   color: inherit;
 }
 .account-menu-list :deep(.v-list-item) {
-  min-height: 40px;
-  padding: 0 11px;
-  border-radius: 9px;
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--app-text);
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -2px;
+  }
+  &.v-list-item--active {
+    color: var(--app-accent);
+    background: var(--app-accent-soft);
+  }
+}
+.account-menu-divider {
+  margin: 6px 4px;
+  border-top: 1px solid var(--app-border);
+}
+.account-menu-list :deep(.v-list-item--active > .v-list-item__overlay) {
+  opacity: 0;
 }
 .account-menu-list :deep(.v-list-item-title) {
   font-size: 13px;
 }
 .account-menu-list :deep(.v-list-item__prepend > .v-icon) {
-  color: #bdb4c6;
-  margin-inline-end: 15px;
+  color: currentColor;
+  opacity: 0.65;
+  margin-inline-end: 0;
   font-size: 19px;
+}
+.account-menu-list :deep(.v-list-item__prepend > .v-list-item__spacer) {
+  width: 12px;
 }
 @media (max-width: 1100px) {
   .header-inner {
@@ -389,7 +541,7 @@ watch(
     padding-right: 24px;
   }
   .primary-navigation {
-    gap: 24px;
+    gap: 6px;
   }
 }
 @media (max-width: 800px) {
@@ -404,7 +556,7 @@ watch(
     display: none;
   }
   .primary-navigation {
-    gap: 20px;
+    gap: 4px;
   }
   .header-search {
     width: 180px;
@@ -422,10 +574,15 @@ watch(
     padding-left: 82px;
   }
   .primary-navigation {
-    gap: 15px;
+    gap: 2px;
   }
   .navigation-link {
+    padding-inline: 8px;
     font-size: 13px;
+    &.active::after {
+      left: 8px;
+      right: 8px;
+    }
   }
   .header-search {
     width: 135px;
@@ -443,6 +600,41 @@ watch(
     width: 30px;
     height: 30px;
     margin-left: 0;
+  }
+}
+@media (max-width: 480px) {
+  :global(html:root) {
+    --app-header-height: 112px;
+  }
+  .header-inner {
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 10px 12px;
+    padding: 10px 16px;
+  }
+  .mac-window .header-inner {
+    padding-left: 16px;
+  }
+  .primary-navigation {
+    order: 1;
+    justify-content: flex-start;
+    height: 36px;
+    min-width: 0;
+  }
+  .mac-window .primary-navigation {
+    padding-left: 66px;
+  }
+  .account-controls {
+    order: 2;
+  }
+  .window-controls {
+    order: 3;
+    margin-right: 0;
+  }
+  .header-search {
+    order: 4;
+    flex: 0 0 100%;
+    width: 100%;
   }
 }
 </style>

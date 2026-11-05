@@ -18,19 +18,19 @@ defineProps<Props>()
 .item-label {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   justify-content: center;
 
   .label-text {
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--app-text);
     line-height: 1.4;
   }
 
   .item-desc {
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+    color: var(--app-muted);
     font-weight: 400;
     line-height: 1.5;
   }

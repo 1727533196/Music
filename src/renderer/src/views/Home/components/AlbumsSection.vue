@@ -118,7 +118,7 @@ const handleAlbumClick = (album: Album) => {
             <v-btn
               icon
               variant="tonal"
-              color="pink"
+              color="var(--app-accent)"
               size="small"
               class="album-heart discovery-heart"
               :aria-label="`收藏${album.name}`"
@@ -142,7 +142,7 @@ const handleAlbumClick = (album: Album) => {
 
     <!-- Empty State -->
     <div v-else class="empty-state text-center py-8">
-      <v-icon icon="mdi-album-off" size="64" color="grey" />
+      <v-icon icon="mdi-album-off" size="64" color="var(--app-muted)" />
       <div class="text-body-1 text-medium-emphasis mt-4">暂无推荐专辑</div>
     </div>
   </div>

@@ -190,7 +190,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <v-card class="artist-banner" rounded="xl" elevation="0">
+  <v-card class="artist-banner" theme="dark" rounded="xl" elevation="0">
     <div class="banner-background">
       <FluidBackground
         :main-color="mainColors"

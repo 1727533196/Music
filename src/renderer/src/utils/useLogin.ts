@@ -1,6 +1,6 @@
 import { anonimousLogin, captchaLogin, phoneLogin } from '@/api/login'
 import { setCookies } from '@/utils/cookies'
-import { ElMessage } from 'element-plus'
+import { message } from '@/utils/message'
 import { useUserInfo } from '@/store'
 import { getUserPlayListFn } from '@/utils/userInfo'
 
@@ -9,7 +9,7 @@ export const sendCodePhone = async (phone: string) => {
   try {
     const { data } = await captchaLogin(phone)
     if (data) {
-      ElMessage.success('验证码已发送')
+      message.success('验证码已发送')
     }
   } catch (e: any) {
     throw e
@@ -22,7 +22,7 @@ export const codeLogin = async (phone: string, code: string): Promise<any> => {
     const data = await phoneLogin(phone, code)
     const store = useUserInfo()
     store.updateProfile(data.profile)
-    ElMessage.success('登录成功')
+    message.success('登录成功')
     localStorage.setItem('token', data.token)
     setCookies(data.cookie)
     getUserPlayListFn()

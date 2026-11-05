@@ -1,104 +1,95 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useSettings } from '@/store/settings'
-import { ElMessage } from 'element-plus'
+import { message } from '@/utils/message'
 import SettingItem from './SettingItem.vue'
 
 const settings = useSettings()
-
-const form = reactive({
-  font: settings.state.font
-})
-
+const font = ref(settings.state.font)
+const changed = computed(() => font.value.trim() !== settings.state.font)
 const setFont = () => {
-  settings.setState({
-    font: form.font
-  })
-  const appEl = document.querySelector('#app') as HTMLDivElement
-  if (appEl) {
-    appEl.style.fontFamily = form.font
-    ElMessage.success({
-      message: '字体设置成功'
-    })
-  }
+  const value = font.value.trim()
+  if (!value) return
+  settings.setState({ font: value })
+  document.getElementById('app')!.style.fontFamily = value
+  font.value = value
+  message.success('界面字体已更新')
 }
+watch(
+  () => settings.state.font,
+  (value) => (font.value = value)
+)
 </script>
 
 <template>
-  <div class="settings-section">
-    <h2 class="section-title">
-      <v-icon icon="mdi-monitor" size="small" class="section-icon"></v-icon>
-      字体设置
-    </h2>
-
-    <div class="setting-item">
-      <SettingItem
-        label="自定义字体"
-        description="输入系统已安装的字体名称"
-      />
-      <div class="item-content">
-        <v-text-field
-          v-model="form.font"
-          density="compact"
-          clearable
-          hide-details="auto"
-          single-line
-          variant="outlined"
-          prepend-inner-icon="mdi-format-font"
-          placeholder="例如：Microsoft YaHei"
-          class="font-input"
-        >
-          <template #append-inner>
-            <v-btn
-              @click="setFont"
-              color="success"
-              size="small"
-              variant="tonal"
-            >
-              应用
-            </v-btn>
-          </template>
-        </v-text-field>
+  <section class="settings-section" aria-labelledby="font-settings-title">
+    <h2 id="font-settings-title" class="section-title visually-hidden">界面字体</h2>
+    <div class="setting-item font-setting">
+      <SettingItem label="界面字体" description="输入此设备已安装的字体名称。" />
+      <div class="font-editor">
+        <form class="item-content" @submit.prevent="setFont">
+          <input
+            v-model="font"
+            class="font-input settings-field-input"
+            type="text"
+            aria-label="界面字体名称"
+            aria-describedby="font-preview-label"
+            placeholder="例如：PingFang SC、Microsoft YaHei"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button
+            class="apply-font settings-apply-button"
+            type="submit"
+            :disabled="!changed || !font.trim()"
+          >
+            应用
+          </button>
+        </form>
+        <div class="font-preview">
+          <span id="font-preview-label">{{ changed ? '预览 · 应用后生效' : '当前字体预览' }}</span>
+          <div :style="{ fontFamily: font.trim() || 'inherit' }">
+            <p>我喜欢的音乐</p>
+            <small>Music for every moment · 0123456789</small>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
+  </section>
 </template>
 
 <style lang="less" scoped>
 @import '../index.less';
-
-.item-content {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
+.settings-section .font-setting {
+  align-items: start;
+  > :first-child {
+    padding-top: 7px;
+  }
+}
+.font-editor {
   min-width: 0;
-
-  :deep(.v-text-field) {
-    width: 100%;
-    max-width: 320px;
-    
-    .v-field {
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 10px;
-      transition: all 0.2s ease;
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.08);
-      }
-
-      &.v-field--focused {
-        background: rgba(255, 255, 255, 0.1);
-      }
-    }
-
-    .v-field__field input {
-      font-size: 14px;
-      color: rgba(255, 255, 255, 0.9);
-    }
-
-    .v-field__outline {
-      --v-field-border-color: rgba(255, 255, 255, 0.15);
-    }
+}
+.font-preview {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--app-surface);
+  overflow-wrap: anywhere;
+  span {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--app-muted);
+    font-size: 11px;
+  }
+  p {
+    margin: 0 0 2px;
+    color: var(--app-text);
+    font-size: 17px;
+    line-height: 1.5;
+  }
+  small {
+    color: var(--app-muted);
+    font-size: 12px;
   }
 }
 </style>

@@ -52,15 +52,16 @@ const duration = (ms: number) => {
   min-width: 0;
 }
 .section-header {
-  min-height: 40px;
-  margin-bottom: 18px;
+  min-height: 32px;
+  margin-bottom: 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   h2 {
-    font-size: 21px;
+    font-size: 20px;
     font-weight: 650;
-    letter-spacing: 0.02em;
+    line-height: 1.4;
+    letter-spacing: 0;
     color: var(--discovery-text);
   }
 }
@@ -68,11 +69,15 @@ const duration = (ms: number) => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 30px;
+  padding: 0 5px 0 9px;
+  border-radius: 8px;
   font-size: 12px;
   color: var(--discovery-muted);
   cursor: pointer;
   &:hover {
     color: var(--discovery-text);
+    background: var(--app-surface, #ffffff09);
   }
   &:focus-visible {
     outline: 2px solid var(--discovery-accent);
@@ -82,7 +87,7 @@ const duration = (ms: number) => {
 .recent-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
+  gap: 16px;
 }
 .recent-song {
   display: flex;
@@ -92,10 +97,18 @@ const duration = (ms: number) => {
   min-width: 0;
   padding: 12px;
   text-align: left;
-  border-radius: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--app-border, #ffffff14);
   color: var(--discovery-text);
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--app-surface);
   cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+  &:hover {
+    background: var(--app-surface);
+    border-color: var(--app-border);
+  }
   &:hover .cover-play,
   &:focus-visible .cover-play {
     opacity: 1;
@@ -111,7 +124,8 @@ const duration = (ms: number) => {
   width: 52px;
   height: 52px;
   overflow: hidden;
-  border-radius: 7px;
+  border-radius: 8px;
+  background: var(--app-surface, #ffffff09);
 }
 .cover-img {
   width: 100%;
@@ -123,6 +137,7 @@ const duration = (ms: number) => {
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.4);
+  color: #fff;
   opacity: 0;
   transition: opacity 0.18s;
 }
@@ -138,13 +153,13 @@ const duration = (ms: number) => {
 }
 .song-name {
   font-size: 14px;
-  font-weight: 550;
+  font-weight: 600;
   line-height: 1.6;
 }
 .song-artist {
   font-size: 12px;
   line-height: 1.6;
-  margin-top: 3px;
+  margin-top: 2px;
   color: var(--discovery-muted);
 }
 .song-duration {
@@ -154,7 +169,7 @@ const duration = (ms: number) => {
   color: var(--discovery-muted);
 }
 .empty-state {
-  min-height: 232px;
+  min-height: 160px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -162,8 +177,9 @@ const duration = (ms: number) => {
   gap: 12px;
   color: var(--discovery-muted);
   font-size: 13px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 10px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border, #ffffff14);
+  border-radius: 12px;
 }
 @container (max-width: 650px) {
   .recent-list {
@@ -180,7 +196,8 @@ const duration = (ms: number) => {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cover-play {
+  .cover-play,
+  .recent-song {
     transition: none;
   }
 }
