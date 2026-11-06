@@ -99,15 +99,16 @@ onUnmounted(() => {
   <div id="opacity-bg1" class="app-theme-background"></div>
   <MusicDetail v-model="flags.isOpenDetail" />
   <PlayListDrawer v-model="flags.isOpenDrawer" />
-  <div
-    id="box"
-    class="app-shell"
-    :class="{ 'has-player': music.state.musicUrl.length > 0 }"
-    :inert="flags.isOpenDetail"
-  >
+  <div id="box" class="app-shell" :class="{ 'has-player': music.state.musicUrl.length > 0 }">
     <div class="main">
       <Header />
-      <main ref="bodyRef" class="body" id="main-content" aria-label="音乐内容">
+      <main
+        ref="bodyRef"
+        class="body"
+        id="main-content"
+        aria-label="音乐内容"
+        :inert="flags.isOpenDetail"
+      >
         <div class="page-view" :class="{ 'page-view-contained': route.path === '/comment' }">
           <section v-if="accountRequired" class="account-required">
             <v-icon

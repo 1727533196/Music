@@ -20,7 +20,7 @@ export const isThemeMode = (value: unknown): value is ThemeMode =>
 export const isAccentColor = (value: unknown): value is AccentColor =>
   accentColors.some((option) => option.value === value)
 
-let currentMode: ThemeMode = 'dark'
+let currentMode: ThemeMode = 'system'
 let currentAccent: AccentColor = defaultAccentColor
 let systemPreference: MediaQueryList | undefined
 const listeners = new Set<(scheme: ThemeScheme, accent: string) => void>()
@@ -28,7 +28,7 @@ const systemIsDark = () =>
   (systemPreference || window.matchMedia('(prefers-color-scheme: dark)')).matches
 
 export function applyAppTheme(mode: ThemeMode, accent: AccentColor): void {
-  currentMode = isThemeMode(mode) ? mode : 'dark'
+  currentMode = isThemeMode(mode) ? mode : 'system'
   currentAccent = isAccentColor(accent) ? accent : defaultAccentColor
   const scheme: ThemeScheme =
     currentMode === 'system' ? (systemIsDark() ? 'dark' : 'light') : currentMode

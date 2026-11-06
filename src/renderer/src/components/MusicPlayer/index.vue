@@ -54,6 +54,9 @@ const player = new Player({
 })
 function click(time: number, index: number) {
   setPlaybackTime(time)
+  if (!isPlay.value) {
+    void play()
+  }
 }
 function seeked() {
   if (timeState.stop || !isPlay.value || !music.state.lyric?.length) return
@@ -162,7 +165,7 @@ async function startPlayback(lengthen: boolean, signal: AbortSignal): Promise<un
     music.state.currentTime = element.currentTime
     if (music.state.lyric?.length) {
       // 暂停期间也可能调整进度，恢复时统一按当前音频时间校准歌词。
-      player.syncIndex()
+      player.play()
     }
     transitionIsPlay.value = true
     await transitionVolume(store.volume, true, lengthen)

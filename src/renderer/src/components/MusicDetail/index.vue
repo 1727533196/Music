@@ -111,7 +111,12 @@ const containFocus = (event: KeyboardEvent) => {
   >
     <FlowBg class="detail-background" :bg="bg" :active="backgroundActive" />
     <div class="detail-scrim" />
-    <header class="detail-header window-container">
+    <div
+      class="detail-drag-region"
+      :class="{ 'window-container': modelValue }"
+      aria-hidden="true"
+    />
+    <header class="detail-header">
       <button
         ref="closeButton"
         type="button"
@@ -172,11 +177,17 @@ const containFocus = (event: KeyboardEvent) => {
   z-index: 3;
   top: 34px;
   left: 26px;
-  right: 26px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   height: 48px;
+}
+.detail-drag-region {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 82px;
+  right: 140px;
+  height: var(--app-header-height, 76px);
 }
 .detail-header-button {
   display: grid;
@@ -186,6 +197,9 @@ const containFocus = (event: KeyboardEvent) => {
   border-radius: 50%;
   color: rgba(255, 255, 255, 0.65);
   cursor: pointer;
+  :deep(.v-icon) {
+    pointer-events: none;
+  }
   transition:
     color 0.18s,
     background 0.18s;

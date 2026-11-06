@@ -210,13 +210,14 @@ function psRegistrySave(key: string, name: string, value: string): void {
 
 function psRegistryLoad(key: string, name: string): string | null {
   const script = [
+    `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)`,
     `$val = Get-ItemProperty -Path '${key}' -Name '${name}' -ErrorAction SilentlyContinue`,
     `if ($val) { Write-Output $val.${name} }`
   ].join('; ')
   const encoded = Buffer.from(script, 'utf16le').toString('base64')
   const out = execSync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, {
     windowsHide: true,
-    encoding: 'utf8'  // PowerShell 输出就是 UTF-8
+    encoding: 'utf8'  // 与脚本中显式指定的 UTF-8 输出保持一致
   }).trim()
   return out || null
 }

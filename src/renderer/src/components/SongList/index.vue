@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, nextTick, ref, useId, watch } from 'vue'
+import { computed, h, nextTick, ref, TransitionGroup, useId, watch } from 'vue'
 import type { CSSProperties } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { lookup } from '@/utils'
@@ -117,7 +117,15 @@ const collectionDialogVisible = ref(false)
 const collectionLoading = ref(false)
 const correctDialogVisible = ref(false)
 const currentMenuSongItem = ref<null | GetMusicDetailData>(null)
-const sortableList = ref<{ $el: HTMLElement }>()
+const sortableList = ref<HTMLElement | { $el: HTMLElement }>()
+const songMenu = ref<{ showMenu: (event: MouseEvent) => Promise<void> }>()
+const getListElement = () => {
+  const list = sortableList.value
+  return list instanceof HTMLElement ? list : list?.$el ?? null
+}
+const activeMenuItems = computed(() =>
+  currentMenuSongItem.value ? playlistMenuItems(currentMenuSongItem.value) : []
+)
 const loadingListHeight = ref(0)
 const loadingRowCount = ref(7)
 const reorderHelpId = useId()
@@ -146,7 +154,7 @@ const {
 } = useSongReorder({
   getIds: () => reorderIds.value,
   enabled: () => !!canDrag.value,
-  getContainer: () => sortableList.value?.$el ?? null,
+  getContainer: getListElement,
   onReorder: (ids) => emit('reorder', ids)
 })
 
@@ -172,9 +180,7 @@ watch(
     const songId = reorderFocusId
     reorderFocusId = null
     await nextTick()
-    const row = sortableList.value?.$el.querySelector<HTMLElement>(
-      `[data-song-id="${songId}"] .list`
-    )
+    const row = getListElement()?.querySelector<HTMLElement>(`[data-song-id="${songId}"] .list`)
     if (row && (document.activeElement === document.body || document.activeElement === row)) {
       row.focus({ preventScroll: true })
       row.scrollIntoView({ block: 'nearest' })
@@ -209,6 +215,29 @@ const handlePlaylistMenuSelect = (item: { label: string; value: string }, row, i
       correctDialogVisible.value = true
       break
   }
+}
+
+const openSongMenu = (event: MouseEvent) => {
+  const row = (event.target as Element).closest<HTMLElement>('.song-sort-row')
+  if (!row) return
+  const song = filterList.value.find((item) => item.id === Number(row.dataset.songId))
+  if (!song) return
+  currentMenuSongItem.value = song
+  void loadSongCommentCount(song.id)
+  void songMenu.value?.showMenu(event)
+}
+const selectSongMenu = (item: { label: string; value: string }) => {
+  const song = currentMenuSongItem.value
+  if (!song) return
+  const index = filterList.value.findIndex((row) => row.id === song.id)
+  if (index >= 0) handlePlaylistMenuSelect(item, song, index)
+}
+
+const hideFailedArtwork = (event: Event) => {
+  ;(event.target as HTMLImageElement).style.visibility = 'hidden'
+}
+const showLoadedArtwork = (event: Event) => {
+  ;(event.target as HTMLImageElement).style.visibility = ''
 }
 
 const playHandler = async (item: GetMusicDetailData, index: number) => {
@@ -276,7 +305,7 @@ watch(
   () => props.loading,
   (val) => {
     // 在旧列表卸载前记录实际高度，翻页等待时保留分页栏的位置。
-    const list = val && props.isPaging && props.total ? sortableList.value?.$el : null
+    const list = val && props.isPaging && props.total ? getListElement() : null
     loadingListHeight.value = list?.getBoundingClientRect().height || 0
     loadingRowCount.value = list?.children.length || 7
     if (props.isLoadingEndflyback && val) {
@@ -383,6 +412,7 @@ const handleCollectionConfirm = (playlist: { id: number }) => {
     :song-data="currentMenuSongItem"
     :userId="store.profile.userId!"
   />
+  <ContextMenu ref="songMenu" :items="activeMenuItems" @select="selectSongMenu" />
 
   <div
     class="song-list-container"
@@ -476,16 +506,18 @@ const handleCollectionConfirm = (playlist: { id: number }) => {
       </div>
 
       <!-- 加载时卸载列表，避免排序过渡记录隐藏行的 (0, 0) 位置 -->
-      <TransitionGroup
+      <component
+        :is="reorderMode ? TransitionGroup : 'div'"
         v-if="!loading"
         ref="sortableList"
-        name="song-reorder"
-        tag="div"
+        :name="reorderMode ? 'song-reorder' : undefined"
+        :tag="reorderMode ? 'div' : undefined"
         class="list-container"
         :id="reorderListId"
         @dragover="onDragOver"
         @dragleave="onDragLeave"
         @drop="onDrop"
+        @contextmenu="openSongMenu"
       >
         <div
           v-for="(data, i) in filterList"
@@ -498,141 +530,138 @@ const handleCollectionConfirm = (playlist: { id: number }) => {
           }"
           :data-song-id="data.id"
         >
-          <ContextMenu
-            :items="playlistMenuItems(data)"
-            @open="loadSongCommentCount(data.id)"
-            @select="(e) => handlePlaylistMenuSelect(e, data, i)"
+          <div
+            class="list"
+            :ref="(el) => setItemRef(el, data.id)"
+            :class="{
+              'disable-list': (data.privilege?.st ?? 0) < 0,
+              'is-playing': activeText(data),
+              'can-drag': canDrag
+            }"
+            :draggable="canDrag"
+            :tabindex="canDrag ? 0 : undefined"
+            :aria-label="
+              reorderable && reorderMode
+                ? `调整 ${data.name} 的顺序，当前第 ${i + 1} 首`
+                : undefined
+            "
+            :aria-describedby="reorderable && reorderMode ? reorderHelpId : undefined"
+            :aria-keyshortcuts="canDrag ? 'Alt+ArrowUp Alt+ArrowDown' : undefined"
+            @pointerdown.capture="onPointerDown"
+            @dragstart.stop="onDragStart($event, data.id)"
+            @dragend="cancelDrag"
+            @keydown.alt.up.self.prevent.stop="onReorderKey(data.id, -1)"
+            @keydown.alt.down.self.prevent.stop="onReorderKey(data.id, 1)"
+            @dblclick="() => playHandler(data, i)"
+            @mousedown="() => mousedownHandler(data)"
           >
             <div
-              class="list"
-              :ref="(el) => setItemRef(el, data.id)"
-              :class="{
-                'disable-list': (data.privilege?.st ?? 0) < 0,
-                'is-playing': activeText(data),
-                'can-drag': canDrag
-              }"
-              :draggable="canDrag"
-              :tabindex="canDrag ? 0 : undefined"
-              :aria-label="
-                reorderable && reorderMode
-                  ? `调整 ${data.name} 的顺序，当前第 ${i + 1} 首`
-                  : undefined
-              "
-              :aria-describedby="reorderable && reorderMode ? reorderHelpId : undefined"
-              :aria-keyshortcuts="canDrag ? 'Alt+ArrowUp Alt+ArrowDown' : undefined"
-              @pointerdown.capture="onPointerDown"
-              @dragstart.stop="onDragStart($event, data.id)"
-              @dragend="cancelDrag"
-              @keydown.alt.up.self.prevent.stop="onReorderKey(data.id, -1)"
-              @keydown.alt.down.self.prevent.stop="onReorderKey(data.id, 1)"
-              @dblclick="() => playHandler(data, i)"
-              @mousedown="() => mousedownHandler(data)"
+              v-for="config in columns"
+              v-show="!config.hidden"
+              :key="config.title"
+              class="item"
+              :class="[config.class, { 'secondary-column': isSecondaryColumn(config) }]"
+              :style="config.style"
             >
-              <div
-                v-for="config in columns"
-                v-show="!config.hidden"
-                :key="config.title"
-                class="item"
-                :class="[config.class, { 'secondary-column': isSecondaryColumn(config) }]"
-                :style="config.style"
-              >
-                <template v-if="config.processEl">
-                  <!-- 自定义处理元素 -->
-                  <component :is="h('div', config.processEl(h, data, i))" />
-                </template>
-                <template v-else-if="config.icon">
-                  <!-- 图标处理 -->
+              <template v-if="config.processEl">
+                <!-- 自定义处理元素 -->
+                <component :is="h('div', config.processEl(h, data, i))" />
+              </template>
+              <template v-else-if="config.icon">
+                <!-- 图标处理 -->
+                <button
+                  v-for="val in config.icon"
+                  :key="val"
+                  type="button"
+                  class="row-favorite"
+                  :class="{ liked: isLike(data) }"
+                  :aria-label="isLike(data) ? `取消喜欢 ${data.name}` : `喜欢 ${data.name}`"
+                  :aria-pressed="isLike(data)"
+                  :disabled="reorderSaving"
+                  @click="$event.detail < 2 && val === 'love' && likeMusic(data.id, !isLike(data))"
+                  @dblclick.stop
+                >
+                  <v-icon :icon="isLike(data) ? 'mdi-star' : 'mdi-star-outline'" size="19" />
+                </button>
+              </template>
+              <template v-else-if="!config.type && config.prop">
+                <!-- 普通属性 -->
+                {{ lookup(data, config.prop) }}
+              </template>
+              <template v-else-if="config.type === 'index'">
+                <!-- 索引 -->
+                <span class="row-number">{{
+                  formatCount(isPaging ? pageSize * (currentPage - 1) + (i + 1) : i + 1)
+                }}</span>
+              </template>
+              <template v-else-if="config.type === 'title'">
+                <!-- 歌曲标题 -->
+                <div class="title-box">
                   <button
-                    v-for="val in config.icon"
-                    :key="val"
                     type="button"
-                    class="row-favorite"
-                    :class="{ liked: isLike(data) }"
-                    :aria-label="isLike(data) ? `取消喜欢 ${data.name}` : `喜欢 ${data.name}`"
-                    :aria-pressed="isLike(data)"
-                    :disabled="reorderSaving"
-                    @click="
-                      $event.detail < 2 && val === 'love' && likeMusic(data.id, !isLike(data))
-                    "
+                    class="song-artwork"
+                    :aria-label="`播放 ${data.name}`"
+                    @click.stop="$event.detail < 2 && playHandler(data, i)"
                     @dblclick.stop
                   >
-                    <v-icon :icon="isLike(data) ? 'mdi-star' : 'mdi-star-outline'" size="19" />
+                    <v-icon icon="mdi-music-note" size="21" class="artwork-placeholder" />
+                    <img
+                      v-if="config.picUrl && lookup(data, config.picUrl)"
+                      :src="lookup(data, config.picUrl) + '?param=150y150'"
+                      class="pic-url"
+                      width="44"
+                      height="44"
+                      loading="lazy"
+                      decoding="async"
+                      alt=""
+                      @error="hideFailedArtwork"
+                      @load="showLoadedArtwork"
+                    />
+                    <span class="artwork-play"><v-icon icon="mdi-play" size="23" /></span>
                   </button>
-                </template>
-                <template v-else-if="!config.type && config.prop">
-                  <!-- 普通属性 -->
-                  {{ lookup(data, config.prop) }}
-                </template>
-                <template v-else-if="config.type === 'index'">
-                  <!-- 索引 -->
-                  <span class="row-number">{{
-                    formatCount(isPaging ? pageSize * (currentPage - 1) + (i + 1) : i + 1)
-                  }}</span>
-                </template>
-                <template v-else-if="config.type === 'title'">
-                  <!-- 歌曲标题 -->
-                  <div class="title-box">
-                    <button
-                      type="button"
-                      class="song-artwork"
-                      :aria-label="`播放 ${data.name}`"
-                      @click.stop="$event.detail < 2 && playHandler(data, i)"
-                      @dblclick.stop
-                    >
-                      <v-icon icon="mdi-music-note" size="21" class="artwork-placeholder" />
-                      <VImg
-                        v-if="config.picUrl && lookup(data, config.picUrl)"
-                        aspect-ratio="1/1"
-                        :src="lookup(data, config.picUrl) + '?param=150y150'"
-                        class="pic-url"
-                        cover
-                      />
-                      <span class="artwork-play"><v-icon icon="mdi-play" size="23" /></span>
-                    </button>
-                    <div class="name-box">
-                      <div class="song-title" :title="data.name">
-                        {{ lookup(data, config.prop) }}
+                  <div class="name-box">
+                    <div class="song-title" :title="data.name">
+                      {{ lookup(data, config.prop) }}
+                    </div>
+                    <div class="name-container">
+                      <div class="tag-box">
+                        <span v-if="data.fee === 1" class="song-tag vip-tag">VIP</span>
+                        <span v-if="data?.pc?.privateCloud" class="song-tag">云盘</span>
                       </div>
-                      <div class="name-container">
-                        <div class="tag-box">
-                          <span v-if="data.fee === 1" class="song-tag vip-tag">VIP</span>
-                          <span v-if="data?.pc?.privateCloud" class="song-tag">云盘</span>
-                        </div>
-                        <div class="ar-box">
-                          <template v-if="!data.ar">
-                            {{ data.artist }}
-                          </template>
-                          <template v-else>
-                            <span
-                              v-for="(ar, index) in data.ar"
-                              :key="ar.id || index"
-                              class="ar"
-                              :style="{
-                                cursor: ar.id ? 'pointer' : 'default'
-                              }"
-                              :data-no-reorder="ar.id ? '' : undefined"
-                              @click="ar.id && singerDetail(ar.id)"
-                            >
-                              {{ ar.name || data.artist || '未知艺人' }}
-                              <span v-if="index < data.ar.length - 1" class="artist-divider">
-                                /
-                              </span>
+                      <div class="ar-box">
+                        <template v-if="!data.ar">
+                          {{ data.artist }}
+                        </template>
+                        <template v-else>
+                          <span
+                            v-for="(ar, index) in data.ar"
+                            :key="ar.id || index"
+                            class="ar"
+                            :style="{
+                              cursor: ar.id ? 'pointer' : 'default'
+                            }"
+                            :data-no-reorder="ar.id ? '' : undefined"
+                            @click="ar.id && singerDetail(ar.id)"
+                          >
+                            {{ ar.name || data.artist || '未知艺人' }}
+                            <span v-if="index < data.ar.length - 1" class="artist-divider">
+                              /
                             </span>
-                          </template>
-                        </div>
+                          </span>
+                        </template>
                       </div>
                     </div>
                   </div>
-                </template>
-                <template v-else-if="config.type === 'album'">
-                  <!-- 专辑 -->
-                  {{ lookup(data, config.prop) || '未知专辑' }}
-                </template>
-              </div>
+                </div>
+              </template>
+              <template v-else-if="config.type === 'album'">
+                <!-- 专辑 -->
+                {{ lookup(data, config.prop) || '未知专辑' }}
+              </template>
             </div>
-          </ContextMenu>
+          </div>
         </div>
-      </TransitionGroup>
+      </component>
       <div
         v-else
         class="loading"
@@ -991,6 +1020,7 @@ const handleCollectionConfirm = (playlist: { id: number }) => {
       inset: 0;
       width: 100%;
       height: 100%;
+      object-fit: cover;
     }
   }
   .artwork-play {

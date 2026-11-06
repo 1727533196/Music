@@ -49,7 +49,9 @@ const duration = computed(() => {
 const elapsed = computed(() =>
   Math.min(duration.value, Math.max(0, Number(music.state.currentTime) || 0))
 )
-const progress = computed(() => (duration.value ? (elapsed.value / duration.value) * 100 : 0))
+const seekPreview = ref<number | null>(null)
+const sliderTime = computed(() => seekPreview.value ?? elapsed.value)
+const progress = computed(() => (duration.value ? (sliderTime.value / duration.value) * 100 : 0))
 const volume = computed(() => Math.min(1, Math.max(0, Number(user.volume) || 0)))
 const commentLabel = computed(() => getSongCommentLabel(props.songs?.id))
 watch(volume, (value) => {
@@ -68,7 +70,18 @@ watch(
   { immediate: true }
 )
 
+watch(
+  () => props.songs?.id,
+  () => {
+    seekPreview.value = null
+  }
+)
+
+const previewSeek = (event: Event) => {
+  seekPreview.value = Number((event.target as HTMLInputElement).value)
+}
 const seek = (event: Event) => {
+  seekPreview.value = null
   if (!canPlay.value || !duration.value || !window.$audio) return
   const seconds = Math.min(
     duration.value,
@@ -77,6 +90,7 @@ const seek = (event: Event) => {
   if (!Number.isFinite(seconds)) return
   window.$audio.time = seconds
   music.state.currentTime = seconds
+  if (!props.isPlay) emit('play')
 }
 
 const setVolume = (value: number) => {
@@ -134,12 +148,14 @@ const openComments = () => {
         min="0"
         :max="duration || 1"
         step="0.1"
-        :value="elapsed"
+        :value="sliderTime"
         :style="{ '--range-progress': `${progress}%` }"
         :disabled="!canPlay || !duration"
         aria-label="播放进度"
-        :aria-valuetext="`${timeLabel(elapsed)}，共 ${timeLabel(duration)}`"
-        @input="seek"
+        :aria-valuetext="`${timeLabel(sliderTime)}，共 ${timeLabel(duration)}`"
+        @input="previewSeek"
+        @change="seek"
+        @pointercancel="seekPreview = null"
       />
       <div class="time-labels">
         <span>{{ timeLabel(elapsed) }}</span
@@ -244,7 +260,7 @@ const openComments = () => {
   width: 100%;
   min-width: 0;
   color: rgba(255, 255, 255, 0.92);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: inherit;
   -webkit-app-region: no-drag;
 }
 .track-heading {

@@ -71,6 +71,7 @@ const showMenu = async (event) => {
   const target = event.target instanceof Element ? event.target : null
   origin =
     target?.closest('button, a[href], input, [tabindex]') ||
+    target?.closest('[data-song-id]')?.querySelector('button, a[href], input, [tabindex]') ||
     event.currentTarget.querySelector('button, a[href], input, [tabindex]') ||
     document.activeElement
   const targetBounds = target?.getBoundingClientRect()
@@ -146,10 +147,11 @@ onUnmounted(() => {
   removeListeners()
   if (menuManager.activeMenu.value?.id === menuId) menuManager.setActiveMenu(null)
 })
+defineExpose({ showMenu })
 </script>
 
 <template>
-  <div class="context-menu-wrapper" @contextmenu="showMenu">
+  <div v-if="$slots.default" class="context-menu-wrapper" @contextmenu="showMenu">
     <slot></slot>
   </div>
 

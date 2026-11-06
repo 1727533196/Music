@@ -24,11 +24,6 @@
     }
   }
 }
-@font-face {
-  //font-family: PingFang;
-  //src: url('./font/苹方黑体-准-简.ttf');
-  //src: url('./font/苹方字体.ttf');
-}
 @text: var(--app-text);
 @darkText: var(--app-muted);
 @moreDark: var(--app-muted);
@@ -162,6 +157,7 @@ html,
 body,
 #app {
   height: 100%;
+  font-family: var(--app-font-family);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: @text;

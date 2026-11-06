@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { GetMusicDetailData } from '@/api/musicList'
 import { useMusicAction } from '@/store/music'
 import { useFlags } from '@/store/flags'
@@ -10,15 +10,38 @@ interface Props {
 const props = defineProps<Props>()
 const music = useMusicAction()
 const flags = useFlags()
+const seekPreview = ref<number | null>(null)
 
 const model = computed<number>({
   get() {
-    return (music.state.currentTime / window.$audio?.el.duration) * 100
+    if (seekPreview.value !== null) return seekPreview.value
+    const duration = window.$audio?.el.duration
+    return Number.isFinite(duration) && duration > 0
+      ? (music.state.currentTime / duration) * 100
+      : 0
   },
   set(val) {
-    window.$audio.time = (val * window.$audio?.el.duration) / 100
+    seekPreview.value = val
   }
 })
+
+const seek = (value: number | null = seekPreview.value) => {
+  seekPreview.value = null
+  const duration = window.$audio?.el.duration
+  if (value === null || !Number.isFinite(value) || !Number.isFinite(duration) || duration <= 0)
+    return
+  const seconds = (Math.min(100, Math.max(0, value)) * duration) / 100
+  window.$audio.time = seconds
+  music.state.currentTime = seconds
+  if (!window.$audio.isPlay) void window.$audio.play()
+}
+
+watch(
+  () => props.songs?.id,
+  () => {
+    seekPreview.value = null
+  }
+)
 </script>
 
 <template>
@@ -27,14 +50,7 @@ const model = computed<number>({
     v-if="props.songs.ar"
     style="width: 100%"
   >
-    <v-slider v-model="model"></v-slider>
-    <!--        <el-slider-->
-    <!--          v-model="model"-->
-    <!--          @change="change"-->
-    <!--          :show-tooltip="false"-->
-    <!--          :show-stops="false"-->
-    <!--          :step="0.000001"-->
-    <!--        />-->
+    <v-slider v-model="model" @end="seek" @keyup="seek()"></v-slider>
   </div>
 </template>
 

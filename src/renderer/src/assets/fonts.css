@@ -1,0 +1,10 @@
+@font-face {
+  font-family: 'Music PingFang SC';
+  src:
+    local('PingFang SC'),
+    local('PingFangSC-Regular'),
+    url('./font/苹方字体.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}

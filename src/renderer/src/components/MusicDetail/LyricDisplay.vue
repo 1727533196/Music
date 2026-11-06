@@ -252,6 +252,8 @@ onMounted(() => {
   min-height: 0;
 }
 .lyric-container {
+  // 歌词保留原字体，不跟随界面字体设置。
+  font-family: Avenir, Helvetica, Arial, sans-serif;
   position: relative;
   height: 100%;
   width: 100%;
@@ -259,6 +261,9 @@ onMounted(() => {
   overflow: auto;
   mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
   -webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+  :deep(.y-hint-time) {
+    color: #f2f3f5;
+  }
 }
 @media (max-height: 700px) and (min-width: 761px) {
   .listening-layout {

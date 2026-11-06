@@ -1,5 +1,5 @@
 <!doctype html>
-<html class="dark" data-theme="dark" data-theme-mode="dark" data-accent="white" lang="zh-CN">
+<html class="dark" data-theme="dark" data-theme-mode="system" data-accent="white" lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="./src/assets/logo.png" />
@@ -8,30 +8,31 @@
     <meta name="theme-color" content="#121314" />
     <script>
       // Resolve saved appearance before the first stylesheet paints.
+      let saved = {}
       try {
-        const saved = JSON.parse(localStorage.getItem('USER_SETTINGS') || '{}') || {}
-        const mode = ['light', 'dark', 'system'].includes(saved.themeMode)
-          ? saved.themeMode
-          : 'dark'
-        const accent = ['white', 'graphite', 'violet', 'teal', 'amber'].includes(saved.accentColor)
-          ? saved.accentColor
-          : 'white'
-        const scheme =
-          mode === 'system'
-            ? matchMedia('(prefers-color-scheme: dark)').matches
-              ? 'dark'
-              : 'light'
-            : mode
-        document.documentElement.dataset.theme = scheme
-        document.documentElement.dataset.themeMode = mode
-        document.documentElement.dataset.accent = accent
-        document.documentElement.classList.toggle('dark', scheme === 'dark')
-        document.documentElement.style.colorScheme = scheme
-        document.querySelector('meta[name="theme-color"]').content =
-          scheme === 'dark' ? '#121314' : '#f6f7f8'
+        saved = JSON.parse(localStorage.getItem('USER_SETTINGS') || '{}') || {}
       } catch {
-        /* Invalid or unavailable storage uses the default dark appearance. */
+        /* Invalid or unavailable storage uses the default system appearance. */
       }
+      const mode = ['light', 'dark', 'system'].includes(saved.themeMode)
+        ? saved.themeMode
+        : 'system'
+      const accent = ['white', 'graphite', 'violet', 'teal', 'amber'].includes(saved.accentColor)
+        ? saved.accentColor
+        : 'white'
+      const scheme =
+        mode === 'system'
+          ? matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+          : mode
+      document.documentElement.dataset.theme = scheme
+      document.documentElement.dataset.themeMode = mode
+      document.documentElement.dataset.accent = accent
+      document.documentElement.classList.toggle('dark', scheme === 'dark')
+      document.documentElement.style.colorScheme = scheme
+      document.querySelector('meta[name="theme-color"]').content =
+        scheme === 'dark' ? '#121314' : '#f6f7f8'
     </script>
     <style>
       html {

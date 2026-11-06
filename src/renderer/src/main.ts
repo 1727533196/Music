@@ -16,6 +16,7 @@ import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 import './theme/themes.less'
+import './assets/fonts.css'
 import { initializeAppTheme } from '@/theme'
 // Components
 import App from './App.vue'

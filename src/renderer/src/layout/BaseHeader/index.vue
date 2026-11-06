@@ -83,7 +83,14 @@ watch(
 </script>
 
 <template>
-  <header class="window-container" :class="{ 'mac-window': macWindow }">
+  <header
+    class="base-header"
+    :class="{
+      'mac-window': macWindow,
+      'window-container': !flags.isOpenDetail,
+      'detail-open': flags.isOpenDetail
+    }"
+  >
     <div class="header-inner">
       <div class="history-controls no-drag" aria-label="浏览历史">
         <button
@@ -211,7 +218,7 @@ watch(
 </template>
 
 <style lang="less" scoped>
-.window-container {
+.base-header {
   position: relative;
   z-index: 120;
   flex-shrink: 0;
@@ -220,7 +227,20 @@ watch(
   color: var(--app-text);
   background: var(--app-background);
   border-bottom: 1px solid var(--app-border);
-  -webkit-app-region: drag;
+}
+.base-header.detail-open {
+  z-index: 2001;
+  visibility: hidden;
+  pointer-events: none;
+}
+.base-header.detail-open .window-controls {
+  --app-secondary: rgba(255, 255, 255, 0.65);
+  --app-text: #fff;
+  --app-border: rgba(255, 255, 255, 0.09);
+  --app-danger-text: #fff;
+  --app-danger-soft: #c42b1c;
+  visibility: visible;
+  pointer-events: auto;
 }
 .header-inner {
   display: flex;
