@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { version } from '../../../../package.json'
+
 defineProps<{
   steps: { id: string; label: string }[]
   currentStep: number
@@ -19,8 +21,8 @@ function handleGoToStep(i: number) {
     <div class="nav-logo">
       <img src="../assets/logo.png" class="logo-img" alt="logo" />
       <div class="logo-info">
-        <span class="logo-text">音乐</span>
-        <span class="logo-sub">Music Player</span>
+        <span class="logo-text">Tinglan</span>
+        <span class="logo-sub">音乐播放器</span>
       </div>
     </div>
 
@@ -50,7 +52,7 @@ function handleGoToStep(i: number) {
     </div>
 
     <div class="nav-footer">
-      <span class="nav-version">v 1.0.0</span>
+      <span class="nav-version">v {{ version }}</span>
     </div>
   </nav>
 </template>

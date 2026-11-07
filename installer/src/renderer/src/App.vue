@@ -11,6 +11,7 @@ import StepFinish from './components/StepFinish.vue'
 import InstallerFooter from './components/InstallerFooter.vue'
 
 const {
+  updateMode,
   // 常量
   steps,
   optionDefs,
@@ -159,6 +160,7 @@ watch(
 
         <!-- 底部按钮 -->
         <InstallerFooter
+          :update-mode="updateMode"
           :current-step="currentStep"
           :installing="installing"
           :install-failed="installFailed"

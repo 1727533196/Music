@@ -1,121 +1,145 @@
-//  快捷键配置文件
+import { shallowRef } from 'vue'
 import { useFlags } from '@/store/flags'
 import { useMusicAction } from '@/store/music'
+import {
+  globalShortcutDefaults,
+  shortcutIds,
+  shortcutAccelerator,
+  type ShortcutConfig,
+  type ShortcutId,
+  type ShortcutStatus
+} from '../../../shared/shortcuts'
 
-// 默认快捷键配置
-const defaultShortcuts: Record<string, string[]> = {
+const localDefaults: ShortcutConfig = {
   play_pause: ['Space'],
   prev_track: ['Control', 'ArrowLeft'],
   next_track: ['Control', 'ArrowRight'],
-  volume_up: ['Control', 'ArrowUp'],
-  volume_down: ['Control', 'ArrowDown'],
-  toggle_lyrics: ['L'],
-  search: ['Control', 'K']
+  toggle_lyrics: ['L']
 }
-
-// 获取用户配置的快捷键（从 localStorage）
-const getUserShortcuts = (): Record<string, string[]> => {
-  const shortcuts: Record<string, string[]> = {}
-
-  Object.keys(defaultShortcuts).forEach((id) => {
-    const saved = localStorage.getItem(`shortcut_${id}`)
-    if (saved) {
-      try {
-        shortcuts[id] = JSON.parse(saved)
-      } catch (e) {
-        console.error('Failed to parse shortcut:', e)
-        shortcuts[id] = defaultShortcuts[id]
-      }
-    } else {
-      shortcuts[id] = defaultShortcuts[id]
-    }
-  })
-
-  return shortcuts
-}
-
-// 检查按键组合是否匹配
-const isKeysMatch = (pressedKeys: string[], shortcutKeys: string[]): boolean => {
-  if (pressedKeys.length !== shortcutKeys.length) return false
-
-  const normalizeKey = (key: string) => (key.length === 1 ? key.toLowerCase() : key)
-  const sorted1 = pressedKeys.map(normalizeKey).sort()
-  const sorted2 = shortcutKeys.map(normalizeKey).sort()
-
-  return sorted1.every((key, index) => key === sorted2[index])
-}
-
-const keydownHandler = (event: KeyboardEvent) => {
-  const flags = useFlags()
-  const music = useMusicAction()
-
-  // 如果在输入框等元素中，不触发快捷键
-  const target = event.target as HTMLElement
-  const nativeControl =
-    target.closest('input, textarea, select, button, a, summary, [role="tab"]') ||
-    target.isContentEditable
-
-  // 构建当前按下的键组合
-  const pressedKeys: string[] = []
-  if (event.ctrlKey || event.metaKey) pressedKeys.push('Control')
-  if (event.shiftKey) pressedKeys.push('Shift')
-  if (event.altKey) pressedKeys.push('Alt')
-
-  let mainKey = event.key
-  if (mainKey === ' ') mainKey = 'Space'
-  if (!['Control', 'Shift', 'Alt', 'Meta'].includes(mainKey)) {
-    pressedKeys.push(mainKey)
+export const shortcutStatus = shallowRef<ShortcutStatus | null>(null)
+let recording = false
+let initialized = false
+const sameKeys = (a: string[], b: string[]) =>
+  a
+    .map((key) => key.toLowerCase())
+    .sort()
+    .join('+') ===
+  b
+    .map((key) => key.toLowerCase())
+    .sort()
+    .join('+')
+function savedKeys(key: string): string[] | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || 'null')
+    return Array.isArray(value) && value.length && value.every((item) => typeof item === 'string')
+      ? value
+      : null
+  } catch {
+    return null
   }
-
-  // 获取用户配置的快捷键
-  const userShortcuts = getUserShortcuts()
-  const openSearchCombination =
+}
+export function readGlobalShortcuts(): ShortcutConfig {
+  return Object.fromEntries(
+    shortcutIds.map((id) => {
+      const saved = savedKeys(`global_shortcut_${id}`)
+      const legacy = savedKeys(`shortcut_${id}`)
+      const custom =
+        legacy && !sameKeys(legacy, localDefaults[id]) && shortcutAccelerator(legacy)
+          ? legacy
+          : null
+      return [
+        id,
+        [...(saved && shortcutAccelerator(saved) ? saved : custom || globalShortcutDefaults[id])]
+      ]
+    })
+  ) as ShortcutConfig
+}
+export async function syncGlobalShortcuts() {
+  if (window.shortcuts)
+    shortcutStatus.value = await window.shortcuts.configure(readGlobalShortcuts())
+  return shortcutStatus.value
+}
+export async function setShortcutRecording(value: boolean) {
+  recording = value
+  if (window.shortcuts) shortcutStatus.value = await window.shortcuts.recording(value)
+}
+function execute(id: ShortcutId) {
+  if (recording) return
+  const audio = window.$audio
+  switch (id) {
+    case 'play_pause':
+      if (audio) {
+        if (audio.isPlay) audio.pause()
+        else void audio.play()
+      }
+      break
+    case 'prev_track':
+      useMusicAction().cutSongHandler(false)
+      break
+    case 'next_track':
+      useMusicAction().cutSongHandler(true)
+      break
+    case 'toggle_lyrics': {
+      const flags = useFlags()
+      flags.isOpenDetail = !flags.isOpenDetail
+      break
+    }
+  }
+}
+function keydown(event: KeyboardEvent) {
+  if (recording || event.repeat || event.isComposing || !(event.target instanceof HTMLElement))
+    return
+  const pressed = [
+    event.ctrlKey || event.metaKey ? 'Control' : '',
+    event.altKey ? 'Alt' : '',
+    event.shiftKey ? 'Shift' : '',
+    event.key === ' ' ? 'Space' : event.key
+  ].filter(Boolean)
+  const globals = readGlobalShortcuts()
+  if (
+    shortcutIds.some(
+      (id) => shortcutStatus.value?.[id].registered && sameKeys(pressed, globals[id])
+    )
+  )
+    return
+  if (
     (event.ctrlKey || event.metaKey || event.altKey) &&
-    isKeysMatch(pressedKeys, userShortcuts.search)
-  if (nativeControl && !openSearchCombination) return
-
-  // 查找匹配的快捷键并执行对应操作
-  for (const [id, keys] of Object.entries(userShortcuts)) {
-    if (isKeysMatch(pressedKeys, keys)) {
+    sameKeys(pressed, savedKeys('shortcut_search') || ['Control', 'K'])
+  ) {
+    event.preventDefault()
+    event.stopPropagation()
+    window.dispatchEvent(new CustomEvent('open-search'))
+    return
+  }
+  if (
+    event.target.closest('input, textarea, select, button, a, summary, [role="tab"]') ||
+    event.target.isContentEditable
+  )
+    return
+  for (const id of shortcutIds) {
+    const local = savedKeys(`shortcut_${id}`) || localDefaults[id]
+    if (
+      sameKeys(pressed, local) ||
+      (!shortcutStatus.value?.[id].registered && sameKeys(pressed, globals[id]))
+    ) {
       event.preventDefault()
       event.stopPropagation()
-
-      // 根据快捷键 ID 执行对应操作
-      switch (id) {
-        case 'play_pause':
-          if ($audio.isPlay) {
-            $audio.pause()
-          } else {
-            $audio.play()
-          }
-          break
-        case 'prev_track':
-          music.cutSongHandler(false)
-          break
-        case 'next_track':
-          music.cutSongHandler(true)
-          break
-        case 'volume_up':
-          // $audio.volume = Math.min(1, $audio.volume + 0.1)
-          break
-        case 'volume_down':
-          // $audio.volume = Math.max(0, $audio.volume - 0.1)
-          break
-        case 'toggle_lyrics':
-          flags.isOpenDetail = !flags.isOpenDetail
-          break
-        case 'search':
-          // 触发搜索，可以通过事件总线或其他方式
-          window.dispatchEvent(new CustomEvent('open-search'))
-          break
-      }
-
-      break // 只执行第一个匹配的快捷键
+      execute(id)
+      return
     }
   }
 }
-
-// 按键配置
-document.onkeydown = keydownHandler
-
-export {}
+export function initializeShortcuts(): () => void {
+  if (initialized) return () => {}
+  initialized = true
+  const unsubscribe = window.shortcuts?.onAction(execute)
+  document.addEventListener('keydown', keydown)
+  void syncGlobalShortcuts().catch(() => {
+    shortcutStatus.value = null
+  })
+  return () => {
+    initialized = false
+    unsubscribe?.()
+    document.removeEventListener('keydown', keydown)
+  }
+}

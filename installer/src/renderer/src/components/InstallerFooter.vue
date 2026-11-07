@@ -1,5 +1,6 @@
 <script setup lang="ts">
 defineProps<{
+  updateMode?: boolean
   currentStep: number
   installing: boolean
   installFailed: boolean
@@ -24,7 +25,7 @@ const emit = defineEmits<{
 
     <!-- 步骤 4（安装中/失败）：返回修改 -->
     <button
-      v-if="currentStep === 4"
+      v-if="currentStep === 4 && !updateMode"
       class="btn btn-ghost"
       :class="{ disabled: installing }"
       :disabled="installing"

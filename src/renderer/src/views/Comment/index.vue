@@ -1,25 +1,35 @@
 <script setup lang="ts">
-import { onBeforeUnmount, reactive, ref, watch } from 'vue'
-import { getCommentMusic, getMusicDetail } from '@/api/musicList'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { getMusicDetail } from '@/api/musicList'
 import type { GetMusicDetailData } from '@/api/musicList'
 import { useRoute, useRouter } from 'vue-router'
-import { useFlags } from '@/store/flags'
-
-interface CommentItem {
-  commentId: number
-  content: string
-  timeStr: string
-  likedCount: number
-  user: { userId: number; nickname: string; avatarUrl: string }
-}
-interface CommentResponse {
-  code: number
-  data: { comments: CommentItem[]; totalCount: number; hasMore?: boolean }
-}
-const flags = useFlags()
+import CommentEntry from '@/components/CommentEntry/index.vue'
+import AccessNotice from '@/components/AccessNotice/index.vue'
+import { getAccessRestriction, type AccessRestriction } from '@/utils/accessRestriction'
+import {
+  getResourceComments,
+  commentResourceKey,
+  type CommentItem,
+  type CommentResource
+} from '@/api/comment'
 const router = useRouter()
 const route = useRoute()
 const contentEl = ref<HTMLDivElement>()
+const resource = computed<CommentResource | null>(() => {
+  if (route.query.type === 'event') {
+    const threadId = route.query.threadId
+    return typeof threadId === 'string' && /^A_EV_2_\d+_\d+$/.test(threadId)
+      ? { type: 6, threadId }
+      : null
+  }
+  const id = typeof route.query.id === 'string' ? Number(route.query.id) : 0
+  return Number.isSafeInteger(id) && id > 0 ? { type: 0, id } : null
+})
+const resourceKey = computed(() => (resource.value ? commentResourceKey(resource.value) : ''))
+const isEvent = computed(() => route.query.type === 'event')
+const eventAuthor = computed(() =>
+  typeof route.query.nickname === 'string' ? route.query.nickname : '用户'
+)
 const state = reactive({
   comments: [] as CommentItem[],
   song: null as GetMusicDetailData | null,
@@ -31,19 +41,21 @@ const state = reactive({
 const songLoading = ref(false)
 const songError = ref(false)
 const commentError = ref(false)
+const restriction = ref<AccessRestriction | null>(null)
 const requestedPage = ref(1)
 let songId = 0
 let requestVersion = 0
 
 const getCommentMusicFn = async (page = 1) => {
-  if (state.loading || !songId) return
+  if (state.loading || !resource.value) return
   const version = requestVersion
-  const id = songId
+  const target = resource.value
   requestedPage.value = page
   state.loading = true
   commentError.value = false
+  restriction.value = null
   try {
-    const response = (await getCommentMusic(id, 0, page, 20, 2)) as CommentResponse
+    const response = await getResourceComments(target, page)
     if (version !== requestVersion) return
     if (response.code !== 200 || !Array.isArray(response.data?.comments)) {
       throw new Error('Invalid comment response')
@@ -64,8 +76,13 @@ const getCommentMusicFn = async (page = 1) => {
     if (page === 1) contentEl.value?.scrollTo({ top: 0 })
   } catch (error) {
     if (version === requestVersion) {
-      commentError.value = true
-      console.error('加载评论失败', error)
+      restriction.value = getAccessRestriction(error)
+      commentError.value = !restriction.value
+      if (restriction.value) {
+        state.comments = []
+        state.total = 0
+        state.hasMore = false
+      } else console.error('加载评论失败', error)
     }
   } finally {
     if (version === requestVersion) state.loading = false
@@ -99,12 +116,12 @@ const handleScroll = (event: Event) => {
   if (target.scrollHeight - target.scrollTop - target.clientHeight < 100) loadMore()
 }
 watch(
-  () => route.query.id,
-  (value) => {
+  resourceKey,
+  () => {
     requestVersion++
-    songId = Number(value)
-    if (!Number.isFinite(songId) || songId <= 0) songId = 0
+    songId = resource.value?.type === 0 ? resource.value.id : 0
     state.comments = []
+    restriction.value = null
     state.song = null
     state.total = 0
     state.currentPage = 0
@@ -115,9 +132,9 @@ watch(
     commentError.value = false
     requestedPage.value = 1
     contentEl.value?.scrollTo({ top: 0 })
-    if (songId) {
+    if (resource.value) {
       void getCommentMusicFn()
-      void getMusicDetailFn()
+      if (songId) void getMusicDetailFn()
     }
   },
   { immediate: true }
@@ -125,14 +142,17 @@ watch(
 onBeforeUnmount(() => {
   requestVersion++
 })
-const gotoUserDetail = (uid: number) => {
-  flags.isOpenDetail = false
-  router.push({ path: '/detail', query: { uid } })
-}
 </script>
 
 <template>
   <div class="comment-box">
+    <div v-if="isEvent && resource" class="info-card">
+      <div class="bg-img"><v-icon icon="mdi-message-text-outline" size="32" /></div>
+      <div class="song-info">
+        <h1 class="song-name">{{ eventAuthor }}的动态</h1>
+        <p class="singers">动态评论</p>
+      </div>
+    </div>
     <div v-if="state.song" class="info-card">
       <div
         class="bg-img"
@@ -172,10 +192,10 @@ const gotoUserDetail = (uid: number) => {
       <button type="button" @click="getMusicDetailFn">重试</button>
     </div>
 
-    <div v-if="!songId" class="empty-state invalid-song" role="status">
+    <div v-if="!resource" class="empty-state invalid-song" role="status">
       <v-icon icon="mdi-music-note-off-outline" size="34" />
-      <h2>找不到这首歌曲</h2>
-      <p>请返回歌曲列表重新打开评论。</p>
+      <h2>{{ isEvent ? '找不到这条动态' : '找不到这首歌曲' }}</h2>
+      <p>请返回{{ isEvent ? '动态' : '歌曲' }}列表重新打开评论。</p>
       <button type="button" class="retry-button" @click="router.push('/home')">去推荐页</button>
     </div>
     <div v-else class="comment-content" :aria-busy="state.loading">
@@ -183,7 +203,7 @@ const gotoUserDetail = (uid: number) => {
         <div class="comment-toolbar">
           <h2 class="title">
             <v-icon icon="mdi-comment-text-multiple-outline" size="18" class="mr-2" />
-            精彩评论
+            {{ isEvent ? '动态评论' : '精彩评论' }}
             <span v-if="state.currentPage" class="comment-count">{{
               state.total.toLocaleString()
             }}</span>
@@ -200,35 +220,18 @@ const gotoUserDetail = (uid: number) => {
           </button>
         </div>
         <div ref="contentEl" class="content" @wheel.stop @scroll.passive="handleScroll">
-          <div v-for="item in state.comments" :key="item.commentId" class="content-line">
-            <button
-              type="button"
-              :aria-label="`查看${item.user.nickname}的主页`"
-              @click="gotoUserDetail(item.user.userId)"
-              :style="{ backgroundImage: `url(${item.user.avatarUrl}?param=80y80)` }"
-              class="photo"
-            />
-            <div class="right-box">
-              <div class="comment-header">
-                <button
-                  type="button"
-                  @click="gotoUserDetail(item.user.userId)"
-                  class="name"
-                  :title="item.user.nickname"
-                >
-                  {{ item.user.nickname }}
-                </button>
-                <div class="time">{{ item.timeStr }}</div>
-              </div>
-              <div class="text">{{ item.content }}</div>
-              <div class="handle-box">
-                <span class="comment-appreciation" :aria-label="`${item.likedCount || 0} 次赞`">
-                  <v-icon icon="mdi-star-outline" size="15" />
-                  <span>{{ (item.likedCount || 0).toLocaleString() }}</span>
-                </span>
-              </div>
-            </div>
-          </div>
+          <AccessNotice
+            v-if="restriction"
+            :restriction="restriction"
+            :subject="isEvent ? '这条动态的评论' : '这首歌曲的评论'"
+          />
+          <CommentEntry
+            v-for="item in state.comments"
+            :key="resourceKey + ':' + item.commentId"
+            :comment="item"
+            :resource="resource"
+            @update="Object.assign(item, $event)"
+          />
           <div
             v-if="commentError"
             :class="state.comments.length ? 'comment-notice' : 'empty-state comment-load-error'"
@@ -247,7 +250,7 @@ const gotoUserDetail = (uid: number) => {
             </button>
           </div>
           <div
-            v-else-if="!state.comments.length && !state.loading"
+            v-else-if="!restriction && !state.comments.length && !state.loading"
             class="empty-state"
             role="status"
           >
@@ -467,14 +470,6 @@ const gotoUserDetail = (uid: number) => {
     margin-top: 15px;
   }
 }
-.comment-appreciation {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--app-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
 .comment-count {
   margin-left: 6px;
   color: var(--app-muted);
@@ -503,84 +498,6 @@ const gotoUserDetail = (uid: number) => {
       background: var(--app-muted);
     }
   }
-}
-.content-line {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 20px 0;
-  border-bottom: 1px solid var(--app-border);
-  &:last-child {
-    border-bottom: 0;
-  }
-}
-.photo {
-  flex: 0 0 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: 0;
-  padding: 0;
-  background: var(--app-surface) center / cover no-repeat;
-  cursor: pointer;
-  transition: opacity 160ms ease;
-  &:hover {
-    opacity: 0.8;
-  }
-  &:focus-visible {
-    outline: 2px solid var(--app-accent);
-    outline-offset: 3px;
-  }
-}
-.right-box {
-  min-width: 0;
-  flex: 1;
-}
-.comment-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 7px;
-}
-.name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  text-align: left;
-  color: var(--app-text);
-  cursor: pointer;
-  transition: color 160ms ease;
-  &:hover {
-    color: var(--app-accent);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--app-accent);
-    outline-offset: 3px;
-    border-radius: 3px;
-  }
-}
-.time {
-  flex-shrink: 0;
-  color: var(--app-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-.text {
-  color: var(--app-secondary);
-  font-size: 14px;
-  line-height: 1.85;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-.handle-box {
-  margin-top: 10px;
 }
 .empty-state {
   display: flex;
@@ -644,24 +561,6 @@ const gotoUserDetail = (uid: number) => {
   }
   .content {
     padding-right: 8px;
-  }
-  .content-line {
-    gap: 12px;
-  }
-  .photo {
-    flex-basis: 36px;
-    height: 36px;
-  }
-  .comment-header {
-    flex-wrap: wrap;
-    gap: 3px 12px;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .photo,
-  .name,
-  .action-btn {
-    transition: none;
   }
 }
 </style>

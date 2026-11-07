@@ -1,13 +1,29 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, protocol } from 'electron'
 import { dirname, join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import setupWindowEvents from './module'
+import { setupUpdates } from './updates'
+import { setupGlobalShortcuts } from './shortcuts'
+import { setupAudioCache } from './audioCache'
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'tinglan-audio',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      corsEnabled: true
+    }
+  }
+])
 // const { setupWindowEvents } = require('./module')
 // 创建浏览器窗口的函数
 function createWindow(): void {
   // 创建浏览器窗口
   const mainWindow = new BrowserWindow({
+    title: 'Tinglan',
     minHeight: 650,
     minWidth: 950,
     height: 750,
@@ -44,6 +60,9 @@ function createWindow(): void {
   setupWindowEvents(mainWindow)
 }
 
+// 保留原数据位置，避免显示名称变化导致开发环境的登录信息和设置丢失。
+if (is.dev) app.setPath('userData', join(app.getPath('appData'), 'music'))
+
 // 生产模式下将 userData 放在应用同目录，避免在 AppData 创建文件夹
 if (!is.dev) {
   app.setPath('userData', join(dirname(app.getPath('exe')), 'data'))
@@ -51,6 +70,13 @@ if (!is.dev) {
 
 // 当 Electron 初始化完成并准备好创建浏览器窗口时调用
 app.whenReady().then(() => {
+  setupUpdates()
+  setupGlobalShortcuts()
+  try {
+    setupAudioCache()
+  } catch {
+    console.error('音频缓存初始化失败，继续使用在线播放')
+  }
   // 设置应用程序的用户模型 ID（仅在 Windows 上有效）
   electronApp.setAppUserModelId('com.electron')
 

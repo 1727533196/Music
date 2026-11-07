@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 
-import { dirname, join, relative } from 'path'
+import { dirname, isAbsolute, join, relative, resolve } from 'path'
 // 使用 original-fs 绕过 Electron 的 asar 虚拟化
 import {
   appendFileSync,
@@ -12,8 +12,9 @@ import {
   statSync,
   writeFileSync
 } from 'original-fs'
-import { exec, execSync, spawn } from 'child_process'
+import { execSync, spawn } from 'child_process'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
+import { getUpdateContext, runUpdate, updateInProgress } from './update'
 
 // 日志文件路径 — 用临时目录，避免在 AppData 产生 music-installer 文件夹
 const LOG_DIR = join(app.getPath('temp'), 'music-installer-logs')
@@ -57,13 +58,14 @@ function logError(...args: any[]) {
 function scheduleCleanupOnExit(): void {
   const exeDir = dirname(process.execPath)
   // 只在临时目录下运行时才清理（portable 模式特征）
-  if (!exeDir.includes('Temp') && !exeDir.includes('tmp')) return
+  const withinTemp = relative(resolve(app.getPath('temp')), resolve(exeDir))
+  if (!withinTemp || withinTemp.startsWith('..') || isAbsolute(withinTemp)) return
 
   // 用 PowerShell 延迟 3 秒后删除临时解压目录（等待安装器进程完全退出）
   const psScript =
-    `Start-Sleep -Seconds 3; Remove-Item -Path '${exeDir}' -Recurse -Force -ErrorAction SilentlyContinue`
+    `Start-Sleep -Seconds 3; Remove-Item -LiteralPath '${exeDir.replace(/'/g, "''")}' -Recurse -Force -ErrorAction SilentlyContinue`
   try {
-    spawn('powershell', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', psScript], {
+    spawn('powershell', ['-NoProfile', '-WindowStyle', 'Hidden', '-EncodedCommand', Buffer.from(psScript, 'utf16le').toString('base64')], {
       detached: true,
       stdio: 'ignore'
     }).unref()
@@ -118,6 +120,9 @@ function createInstallerWindow(): void {
     // 始终打开开发者工具方便调试
     // installerWindow?.webContents.openDevTools()
   })
+  installerWindow.on('close', (event) => {
+    if (updateInProgress()) event.preventDefault()
+  })
 
   installerWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -136,9 +141,27 @@ ipcMain.on('installer:minimize', () => installerWindow?.minimize())
 ipcMain.on('installer:maximize', () => installerWindow?.maximize())
 ipcMain.on('installer:unmaximize', () => installerWindow?.unmaximize())
 ipcMain.on('installer:close', () => {
+  if (updateInProgress()) return
   scheduleCleanupOnExit()
   installerWindow?.close()
   app.quit()
+})
+
+ipcMain.handle('installer:update-context', () => getUpdateContext(getSourceAppPath()))
+ipcMain.handle('installer:run-update', async (event) => {
+  const result = await runUpdate(
+    getSourceAppPath(), getServerBinPath(),
+    (step, progress) => {
+      try {
+        if (!event.sender.isDestroyed()) event.sender.send('installer:progress', { step, progress })
+      } catch { /* A renderer reload must not interrupt file replacement. */ }
+    }, launchNcmServer
+  )
+  if (result.success && result.appPath) {
+    refreshWindowsBranding(result.appPath)
+    await launchInstalledApp(result.appPath)
+  }
+  return result
 })
 
 // ─── 获取默认安装目录 ──────────────────────────────────────────────────────────
@@ -154,9 +177,9 @@ ipcMain.handle('installer:choose-dir', async () => {
   if (result.canceled || result.filePaths.length === 0) return null
   let selected = result.filePaths[0]
   // 如果用户只选了盘符根目录（如 D:\），自动补上产品名
-  const appName = '音乐'
+  const appName = 'Tinglan'
   const lastPart = selected.split(/[\\/]/).pop() || ''
-  if (lastPart !== appName) {
+  if (lastPart !== appName && lastPart !== '音乐') {
     selected = join(selected, appName)
   }
   return selected
@@ -265,9 +288,12 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
   }
   try {
     const { installDir, createShortcut, autoStart, associateFiles, installServer } = opts
-    const appName = process.platform === 'win32' ? '音乐' : '音乐.app'
+    const appName = process.platform === 'win32' ? 'Tinglan' : 'Tinglan.app'
+    const legacyAppName = process.platform === 'win32' ? '音乐' : '音乐.app'
     // 如果安装目录已经以产品名结尾（安装器 UI 已补齐），不再重复拼接
-    const destAppPath = installDir.endsWith(appName) ? installDir : join(installDir, appName)
+    const destAppPath = installDir.endsWith(appName) || installDir.endsWith(legacyAppName)
+      ? installDir
+      : join(installDir, appName)
 
     log('=== 安装开始 ===')
     log(`安装目录: ${installDir}`)
@@ -444,7 +470,7 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
         }
       } else if (process.platform === 'win32') {
         const exePath = join(destAppPath, '音乐.exe')
-        const lnkPath = join(app.getPath('desktop'), '音乐.lnk')
+        const lnkPath = join(app.getPath('desktop'), 'Tinglan.lnk')
         try {
           // 用 PowerShell 创建 .lnk 快捷方式
           // 用 -EncodedCommand 避免路径含空格/中文/特殊字符时的引号问题
@@ -526,8 +552,8 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
         // 生成卸载脚本
         const batContent = [
           '@echo off',
-          'title 音乐 - 卸载程序',
-          'echo 正在卸载 音乐...',
+          'title Tinglan - 卸载程序',
+          'echo 正在卸载 Tinglan...',
           '',
           'echo [1/5] 关闭正在运行的程序...',
           'taskkill /f /im 音乐.exe 2>nul',
@@ -539,7 +565,7 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
           `rmdir /s /q "${destAppPath}" 2>nul`,
           '',
           'echo [3/5] 删除桌面快捷方式...',
-          `del /f /q "${app.getPath('desktop').replace(/\\/g, '\\\\')}\\\\音乐.lnk" 2>nul`,
+          `del /f /q "${app.getPath('desktop').replace(/\\/g, '\\\\')}\\\\Tinglan.lnk" 2>nul`,
           '',
           'echo [4/5] 清理文件关联...',
           'reg delete "HKCU\\Software\\Classes\\音乐.mp3" /f 2>nul',
@@ -563,7 +589,7 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
 
         // 注册到控制面板
         execSync(
-          `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\音乐" /v DisplayName /t REG_SZ /d "音乐" /f`,
+          `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\音乐" /v DisplayName /t REG_SZ /d "Tinglan" /f`,
           { windowsHide: true }
         )
         execSync(
@@ -596,6 +622,7 @@ ipcMain.handle('installer:run', async (evt, opts: InstallOptions) => {
       }
     }
 
+    refreshWindowsBranding(destAppPath)
     return { success: true, appPath: destAppPath }
   } catch (err: unknown) {
     let message = err instanceof Error ? translateError(err) : String(err)
@@ -620,23 +647,66 @@ ipcMain.handle('installer:open-url', (_evt, url: string) => {
 })
 
 // ─── 安装完成后启动主应用 ──────────────────────────────────────────────────────
-ipcMain.handle('installer:launch-app', (_evt, appPath: string) => {
+ipcMain.handle('installer:launch-app', (_evt, appPath: string) => launchInstalledApp(appPath))
+
+// 延用旧安装标识和可执行文件名，只迁移属于当前安装的显示名称。
+function refreshWindowsBranding(appPath: string): void {
+  if (process.platform !== 'win32') return
+  const quote = (value: string) => `'${value.replace(/'/g, "''")}'`
+  const exe = join(appPath, '音乐.exe')
+  const script = [
+    `$ErrorActionPreference = 'Stop'`,
+    `$exe = ${quote(exe)}`,
+    `$legacy = ${quote(join(app.getPath('desktop'), '音乐.lnk'))}`,
+    `$current = ${quote(join(app.getPath('desktop'), 'Tinglan.lnk'))}`,
+    `$shell = New-Object -ComObject WScript.Shell`,
+    `if ((Test-Path -LiteralPath $legacy) -and $shell.CreateShortcut($legacy).TargetPath -eq $exe) {`,
+    `  if (!(Test-Path -LiteralPath $current)) { Rename-Item -LiteralPath $legacy -NewName 'Tinglan.lnk' }`,
+    `  elseif ($shell.CreateShortcut($current).TargetPath -eq $exe) { Remove-Item -LiteralPath $legacy }`,
+    `}`,
+    `$key = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\音乐'`,
+    `$entry = if (Test-Path -LiteralPath $key) { Get-ItemProperty -LiteralPath $key } else { $null }`,
+    `if ($entry.InstallLocation -eq ${quote(appPath)}) { Set-ItemProperty -LiteralPath $key -Name DisplayName -Value 'Tinglan' }`
+  ].join('\n')
   try {
-    if (process.platform === 'darwin') {
-      spawn('open', [appPath], { detached: true, stdio: 'ignore' }).unref()
-    } else if (process.platform === 'win32') {
-      const exePath = join(appPath, '音乐.exe')
-      spawn(exePath, [], { detached: true, stdio: 'ignore' }).unref()
+    execSync(`powershell -NoProfile -NonInteractive -EncodedCommand ${Buffer.from(script, 'utf16le').toString('base64')}`, {
+      windowsHide: true, timeout: 10000
+    })
+    const uninstall = join(appPath, 'uninstall.bat')
+    if (existsSync(uninstall)) {
+      const { readFileSync } = require('original-fs')
+      const previous = readFileSync(uninstall, 'utf8') as string
+      let updated = previous
+        .replace('title 音乐 - 卸载程序', 'title Tinglan - 卸载程序')
+        .replace('echo 正在卸载 音乐...', 'echo 正在卸载 Tinglan...')
+      if (!existsSync(join(app.getPath('desktop'), '音乐.lnk')))
+        updated = updated.replaceAll('音乐.lnk', 'Tinglan.lnk')
+      if (updated !== previous) writeFileSync(uninstall, updated, 'utf8')
     }
+  } catch (error) {
+    logError('[branding] 更新显示名称失败:', error)
+  }
+}
+
+async function launchInstalledApp(appPath: string): Promise<boolean> {
+  try {
+    const command = process.platform === 'darwin' ? 'open' : join(appPath, '音乐.exe')
+    const args = process.platform === 'darwin' ? [appPath] : []
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(command, args, { detached: true, stdio: 'ignore' })
+      child.once('error', reject)
+      child.once('spawn', () => { child.unref(); resolve() })
+    })
     scheduleCleanupOnExit()
     setTimeout(() => {
       app.quit()
     }, 500)
     return true
   } catch {
+    dialog.showErrorBox('无法启动 Tinglan', '文件已安装完成，请尝试从原安装目录打开 Tinglan，或再次点击启动。')
     return false
   }
-})
+}
 
 // ─── 工具函数 ──────────────────────────────────────────────────────────────────
 
@@ -694,9 +764,9 @@ function getDefaultInstallDir(): string {
   if (process.platform === 'win32') {
     // 优先用环境变量（在管理员模式下也能正确指向当前用户目录）
     const localAppData = process.env['LOCALAPPDATA']
-    if (localAppData) return join(localAppData, '音乐')
+    if (localAppData) return join(localAppData, 'Tinglan')
     // 兜底：Program Files
-    return 'C:\\Program Files\\音乐'
+    return 'C:\\Program Files\\Tinglan'
   }
   return '/opt'
 }
@@ -710,7 +780,7 @@ function getSourceAppPath(): string {
     if (process.platform === 'win32') {
       return join(app.getAppPath(), '../../dist/win-unpacked')
     }
-    return join(app.getAppPath(), '../../dist/mac-arm64/音乐.app')
+    return join(app.getAppPath(), '../../dist/mac-arm64/Tinglan.app')
   }
   // 生产时：安装器包内 Resources/payload/ 下存放主应用
   const resourcesPath = process.resourcesPath
@@ -1249,4 +1319,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   scheduleCleanupOnExit()
   app.quit()
+})
+app.on('before-quit', (event) => {
+  if (updateInProgress()) event.preventDefault()
 })

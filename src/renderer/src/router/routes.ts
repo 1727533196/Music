@@ -67,6 +67,11 @@ export default [
     component: () => import('@/views/UserDetail/index.vue')
   },
   {
+    path: '/user-events',
+    name: 'userEvents',
+    component: () => import('@/views/UserEvents/index.vue')
+  },
+  {
     path: '/cloud',
     name: 'musicCloud',
     component: () => import('@/views/MusicCloud/index.vue')

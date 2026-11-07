@@ -1,5 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import {
+  globalShortcutDefaults,
+  shortcutAccelerator,
+  type ShortcutId
+} from '../../../../../shared/shortcuts'
+import {
+  readGlobalShortcuts,
+  setShortcutRecording,
+  syncGlobalShortcuts,
+  shortcutStatus
+} from '@/utils/shortcutKey'
 
 const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
 const emit = defineEmits<{
@@ -7,16 +18,10 @@ const emit = defineEmits<{
   (e: 'shortcut-reset', shortcutId: string, keys: string[]): void
 }>()
 
-const defaults: Record<string, string[]> = {
-  play_pause: ['Space'],
-  prev_track: ['Control', 'ArrowLeft'],
-  next_track: ['Control', 'ArrowRight'],
-  toggle_lyrics: ['L'],
-  volume_up: ['Control', 'ArrowUp'],
-  volume_down: ['Control', 'ArrowDown'],
-  search: ['Control', 'K']
-}
-const shortcuts = ref([
+const defaults: Record<string, string[]> = globalShortcutDefaults
+const shortcuts = ref<
+  { available: boolean; id: ShortcutId; name: string; description: string; keys: string[] }[]
+>([
   {
     available: true,
     id: 'play_pause',
@@ -44,37 +49,25 @@ const shortcuts = ref([
     name: '展开 / 收起歌词',
     description: '切换歌曲详情页',
     keys: [...defaults.toggle_lyrics]
-  },
-  {
-    available: false,
-    id: 'volume_up',
-    name: '音量增加',
-    description: '暂不可用，请使用播放器音量滑块',
-    keys: [...defaults.volume_up]
-  },
-  {
-    available: false,
-    id: 'volume_down',
-    name: '音量减少',
-    description: '暂不可用，请使用播放器音量滑块',
-    keys: [...defaults.volume_down]
-  },
-  {
-    available: false,
-    id: 'search',
-    name: '快速搜索',
-    description: '暂不可用，请使用顶部搜索框',
-    keys: [...defaults.search]
   }
 ])
 const availableShortcuts = computed(() => shortcuts.value.filter((shortcut) => shortcut.available))
-const unavailableShortcuts = computed(() =>
-  shortcuts.value.filter((shortcut) => !shortcut.available)
-)
-const editingId = ref<string | null>(null)
+const editingId = ref<ShortcutId | null>(null)
+const manualId = ref<ShortcutId | null>(null)
+const manualModifiers = ref<string[]>([])
+const manualKey = ref('Space')
+const savingId = ref<ShortcutId | null>(null)
+const modifierKeys = ['Control', 'Alt', 'Shift']
+const keyGroups = [
+  { label: '常用按键', keys: ['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '+'] },
+  { label: '功能键', keys: Array.from({ length: 24 }, (_, index) => 'F' + (index + 1)) },
+  { label: '字母', keys: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('') },
+  { label: '数字', keys: '0123456789'.split('') }
+]
+let recordingTimer: ReturnType<typeof setTimeout> | undefined
 const feedback = ref('')
 const keyLabels: Record<string, string> = {
-  Control: /Mac/i.test(navigator.platform) ? '⌘ / Ctrl' : 'Ctrl',
+  Control: /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl',
   Shift: 'Shift',
   Alt: 'Alt',
   ArrowLeft: '←',
@@ -89,17 +82,43 @@ const normalizeKeys = (keys: string[]) =>
     .map((key) => key.toLowerCase())
     .sort()
     .join('+')
-const stopRecording = () => {
+let recordingEpoch = 0
+const stopRecording = async () => {
+  recordingEpoch++
+  clearTimeout(recordingTimer)
   editingId.value = null
+  try {
+    await setShortcutRecording(false)
+    return true
+  } catch {
+    return false
+  }
 }
-const startRecording = (id: string) => {
+const startRecording = async (id: ShortcutId) => {
+  if (savingId.value) return
+  manualId.value = null
+  clearTimeout(recordingTimer)
   if (!shortcuts.value.find((entry) => entry.id === id)?.available) return
+  const epoch = ++recordingEpoch
   feedback.value = ''
-  editingId.value = id
+  try {
+    await syncGlobalShortcuts()
+    await setShortcutRecording(true)
+    if (epoch === recordingEpoch && props.active && document.hasFocus()) {
+      editingId.value = id
+      recordingTimer = setTimeout(() => {
+        if (epoch === recordingEpoch && editingId.value === id && !feedback.value)
+          feedback.value = '按键没有反应时，可用“手动设置”选择组合。按键可能被系统或其他程序拦截。'
+      }, 4000)
+    } else await setShortcutRecording(false)
+  } catch {
+    await stopRecording()
+    feedback.value = '全局快捷键服务不可用，请重启应用后重试'
+  }
 }
 
-const recordKey = (event: KeyboardEvent) => {
-  if (!editingId.value || !props.active) return
+const recordKey = async (event: KeyboardEvent) => {
+  if (!editingId.value || !props.active || savingId.value) return
   if (event.key === 'Tab') {
     stopRecording()
     return
@@ -116,73 +135,156 @@ const recordKey = (event: KeyboardEvent) => {
   if (event.shiftKey) keys.push('Shift')
   if (event.altKey) keys.push('Alt')
   keys.push(event.key === ' ' ? 'Space' : event.key)
+  await saveShortcut(editingId.value, keys)
+}
+
+function startManual(id: ShortcutId) {
+  if (savingId.value) return
+  void stopRecording()
+  const shortcut = shortcuts.value.find((entry) => entry.id === id)!
+  manualModifiers.value = shortcut.keys.filter((key) => modifierKeys.includes(key))
+  const main = shortcut.keys.find((key) => !modifierKeys.includes(key)) || 'Space'
+  manualKey.value = main.length === 1 && /^[a-z]$/i.test(main) ? main.toUpperCase() : main
+  manualId.value = id
+  feedback.value = ''
+}
+function saveManual() {
+  if (!manualId.value) return
+  void saveShortcut(manualId.value, [
+    ...modifierKeys.filter((key) => manualModifiers.value.includes(key)),
+    manualKey.value
+  ])
+}
+function registrationFeedback(id: ShortcutId, reset = false) {
+  const name = shortcuts.value.find((entry) => entry.id === id)!.name
+  const status = shortcutStatus.value?.[id]
+  feedback.value = status?.registered
+    ? (reset ? '已恢复默认组合并启用：' : '已保存并启用：') + name
+    : '已保存' +
+      name +
+      '的组合，但尚未全局启用。' +
+      (status?.message || '全局快捷键服务暂不可用，请重试。')
+}
+async function saveShortcut(id: ShortcutId, keys: string[], reset = false) {
+  if (savingId.value) return
   if (
     shortcuts.value.some(
-      (shortcut) =>
-        shortcut.id !== editingId.value && normalizeKeys(shortcut.keys) === normalizeKeys(keys)
+      (entry) => entry.id !== id && normalizeKeys(entry.keys) === normalizeKeys(keys)
     )
   ) {
     feedback.value = '这个组合已被其他操作使用，请换一个快捷键。'
     return
   }
-  const shortcut = shortcuts.value.find((entry) => entry.id === editingId.value)
-  if (!shortcut) return
-  shortcut.keys = keys
-  localStorage.setItem(`shortcut_${shortcut.id}`, JSON.stringify(keys))
-  emit('shortcut-change', shortcut.id, keys)
-  feedback.value = `已更新${shortcut.name}快捷键`
-  stopRecording()
-}
-
-const resetShortcut = (id: string) => {
-  stopRecording()
-  const shortcut = shortcuts.value.find((entry) => entry.id === id)
-  if (!shortcut) return
-  if (
-    shortcuts.value.some(
-      (entry) => entry.id !== id && normalizeKeys(entry.keys) === normalizeKeys(defaults[id])
-    )
-  ) {
-    feedback.value = '默认组合已被其他操作使用，请先修改占用它的快捷键。'
+  if (!shortcutAccelerator(keys)) {
+    feedback.value = '请选择 Ctrl / Command 或 Alt，再搭配主按键；支持 F1～F24。'
     return
   }
-  shortcut.keys = [...defaults[id]]
-  localStorage.removeItem(`shortcut_${id}`)
-  emit('shortcut-reset', id, shortcut.keys)
-  feedback.value = `已恢复${shortcut.name}的默认快捷键`
+  savingId.value = id
+  let saved = false
+  try {
+    localStorage.setItem('global_shortcut_' + id, JSON.stringify(keys))
+    shortcuts.value.find((entry) => entry.id === id)!.keys = [...keys]
+    saved = true
+    if (reset) emit('shortcut-reset', id, keys)
+    else emit('shortcut-change', id, keys)
+    await syncGlobalShortcuts()
+    if (!(await stopRecording())) throw new Error('Could not resume shortcuts')
+    manualId.value = null
+    registrationFeedback(id, reset)
+  } catch {
+    await stopRecording()
+    if (saved && shortcutStatus.value)
+      shortcutStatus.value = {
+        ...shortcutStatus.value,
+        [id]: { registered: false, message: '注册状态未确认，请点击重试。' }
+      }
+    feedback.value = saved ? '组合已保存，但注册状态未确认，请点击重试。' : '组合保存失败，请重试。'
+  } finally {
+    savingId.value = null
+  }
+}
+async function retryRegistration(id: ShortcutId) {
+  if (savingId.value) return
+  savingId.value = id
+  try {
+    if (!(await stopRecording())) throw new Error('Could not resume shortcuts')
+    await syncGlobalShortcuts()
+    registrationFeedback(id)
+  } catch {
+    feedback.value = '全局快捷键服务暂不可用，请重试。'
+  } finally {
+    savingId.value = null
+  }
+}
+const resetShortcut = async (id: ShortcutId) => {
+  await saveShortcut(id, [...defaults[id]], true)
 }
 watch(
   () => props.active,
   (active) => {
-    if (!active) stopRecording()
+    if (!active) {
+      manualId.value = null
+      void stopRecording()
+    }
   }
 )
 onMounted(() => {
+  const saved = readGlobalShortcuts()
   shortcuts.value.forEach((shortcut) => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(`shortcut_${shortcut.id}`) || 'null')
-      if (Array.isArray(saved) && saved.length && saved.every((key) => typeof key === 'string'))
-        shortcut.keys = saved
-    } catch {
-      /* 无效缓存继续使用默认组合。 */
-    }
+    shortcut.keys = [...saved[shortcut.id]]
   })
   window.addEventListener('keydown', recordKey, true)
+  window.addEventListener('blur', stopRecording)
 })
-onUnmounted(() => window.removeEventListener('keydown', recordKey, true))
+onUnmounted(() => {
+  window.removeEventListener('keydown', recordKey, true)
+  window.removeEventListener('blur', stopRecording)
+  void stopRecording()
+})
 </script>
 
 <template>
   <section class="settings-section shortcut-section" aria-labelledby="shortcut-title">
     <h2 id="shortcut-title" class="section-title">播放快捷键</h2>
     <p class="section-description">
-      在应用窗口中使用。点击右侧组合修改，按 Esc 取消；在输入框中不会触发。
+      点击组合后按键录入，或用“手动设置”选择组合。全局注册成功后可在其他窗口使用。
+      窗口内仍支持空格播放 / 暂停、L 切换歌词。
     </p>
     <div class="shortcuts-list">
       <div v-for="shortcut in availableShortcuts" :key="shortcut.id" class="shortcut-row">
         <div class="shortcut-info">
           <div class="shortcut-name">{{ shortcut.name }}</div>
           <div class="shortcut-description">{{ shortcut.description }}</div>
+          <p
+            v-if="!editingId"
+            class="shortcut-state"
+            :class="{
+              'shortcut-error':
+                savingId !== shortcut.id && shortcutStatus?.[shortcut.id]?.registered === false
+            }"
+            role="status"
+          >
+            <span v-if="savingId === shortcut.id">正在注册…</span>
+            <span v-else-if="shortcutStatus?.[shortcut.id]?.registered">已启用全局快捷键</span>
+            <span v-else-if="shortcutStatus?.[shortcut.id]"
+              >已保存，未启用{{
+                shortcutStatus?.[shortcut.id]?.message
+                  ? '：' + shortcutStatus[shortcut.id].message
+                  : ''
+              }}</span
+            >
+            <span v-else>注册状态待确认</span>
+            <button
+              v-if="!shortcutStatus?.[shortcut.id]?.registered"
+              type="button"
+              class="registration-retry"
+              :disabled="!!savingId"
+              :aria-label="`重试注册${shortcut.name}快捷键`"
+              @click="retryRegistration(shortcut.id)"
+            >
+              重试注册
+            </button>
+          </p>
         </div>
         <div class="shortcut-actions">
           <button
@@ -191,7 +293,7 @@ onUnmounted(() => window.removeEventListener('keydown', recordKey, true))
             :class="{ recording: editingId === shortcut.id }"
             :aria-label="`修改${shortcut.name}快捷键，当前 ${shortcut.keys.map(keyLabel).join(' + ')}`"
             :aria-pressed="editingId === shortcut.id"
-            :disabled="!shortcut.available"
+            :disabled="!shortcut.available || !!savingId"
             @click="startRecording(shortcut.id)"
             @blur="stopRecording"
           >
@@ -207,9 +309,19 @@ onUnmounted(() => window.removeEventListener('keydown', recordKey, true))
             </template>
           </button>
           <button
+            type="button"
+            class="shortcut-reset manual-button"
+            :disabled="!!savingId"
+            :aria-label="`手动设置${shortcut.name}快捷键`"
+            @click="startManual(shortcut.id)"
+          >
+            手动设置
+          </button>
+          <button
             v-if="editingId === shortcut.id"
             type="button"
             class="shortcut-reset"
+            :disabled="!!savingId"
             @click="stopRecording"
           >
             取消
@@ -218,32 +330,50 @@ onUnmounted(() => window.removeEventListener('keydown', recordKey, true))
             v-else-if="shortcut.available"
             type="button"
             class="shortcut-reset"
+            :disabled="!!savingId"
             :aria-label="`恢复${shortcut.name}默认快捷键`"
             @click="resetShortcut(shortcut.id)"
           >
             重置
           </button>
         </div>
+        <form
+          v-if="manualId === shortcut.id"
+          class="manual-shortcut"
+          :aria-label="`手动选择${shortcut.name}组合`"
+          @submit.prevent="saveManual"
+          @keydown.esc.stop.prevent="manualId = null"
+        >
+          <fieldset :disabled="!!savingId">
+            <legend>修饰键</legend>
+            <label v-for="modifier in modifierKeys" :key="modifier"
+              ><input v-model="manualModifiers" type="checkbox" :value="modifier" />{{
+                keyLabel(modifier)
+              }}</label
+            >
+          </fieldset>
+          <label class="main-key"
+            >主按键<select v-model="manualKey" :disabled="!!savingId">
+              <optgroup v-for="group in keyGroups" :key="group.label" :label="group.label">
+                <option v-for="key in group.keys" :key="key" :value="key">
+                  {{ keyLabel(key) }}
+                </option>
+              </optgroup>
+            </select></label
+          >
+          <div class="manual-actions">
+            <button type="button" :disabled="!!savingId" @click="manualId = null">取消</button
+            ><button type="submit" :disabled="!!savingId">
+              {{ savingId ? '保存中…' : '保存组合' }}
+            </button>
+          </div>
+          <p>至少选择 Ctrl / Command 或 Alt。组合被占用时仍可保存，释放占用后点击“重试注册”。</p>
+        </form>
       </div>
     </div>
     <p class="shortcut-feedback" role="status">
-      {{ feedback || '修改后自动保存。macOS 支持使用 Command 或 Control 作为组合键。' }}
+      {{ feedback || '按键录入后自动保存，手动设置需点击保存组合。macOS 的 Ctrl 对应 Command。' }}
     </p>
-    <details class="unavailable-shortcuts">
-      <summary>其他操作 · 暂不可用</summary>
-      <div v-for="shortcut in unavailableShortcuts" :key="shortcut.id" class="shortcut-row">
-        <div class="shortcut-info">
-          <div class="shortcut-name">{{ shortcut.name }}</div>
-          <div class="shortcut-description">{{ shortcut.description }}</div>
-        </div>
-        <div
-          class="shortcut-display shortcut-readonly"
-          :aria-label="`${shortcut.name}快捷键，暂不可用`"
-        >
-          <kbd v-for="(key, index) in shortcut.keys" :key="index">{{ keyLabel(key) }}</kbd>
-        </div>
-      </div>
-    </details>
   </section>
 </template>
 
@@ -257,7 +387,7 @@ onUnmounted(() => window.removeEventListener('keydown', recordKey, true))
 }
 .shortcut-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
@@ -285,7 +415,7 @@ onUnmounted(() => window.removeEventListener('keydown', recordKey, true))
 }
 .shortcut-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 40px;
+  grid-template-columns: minmax(0, 1fr) 64px 40px;
   align-items: center;
   gap: 12px;
   min-width: 0;
@@ -374,42 +504,117 @@ button:focus-visible {
   font-size: 12px;
   line-height: 1.6;
 }
-.unavailable-shortcuts {
-  margin-top: 12px;
-  border-top: 1px solid var(--app-border);
-  summary {
-    padding: 13px 0;
+.shortcut-error {
+  color: var(--app-danger-text);
+  font-size: 12px;
+  margin-top: 5px;
+}
+.shortcut-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 10px;
+  margin-top: 5px;
+  color: var(--app-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.registration-retry {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--app-accent);
+  font: inherit;
+  cursor: pointer;
+}
+.shortcut-state.shortcut-error {
+  color: var(--app-danger-text);
+}
+.manual-shortcut {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 14px 22px;
+  padding: 16px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-size: 12px;
+  fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    gap: 14px;
+  }
+  legend {
+    margin-bottom: 10px;
     color: var(--app-muted);
-    font-size: 12px;
+  }
+  label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  input {
+    accent-color: var(--app-accent);
+  }
+  .main-key {
+    flex-direction: column;
+    align-items: flex-start;
+    color: var(--app-muted);
+  }
+  select {
+    min-width: 120px;
+    min-height: 34px;
+    padding: 4px 8px;
+    border: 1px solid var(--app-border);
+    border-radius: 6px;
+    color: var(--app-text);
+    background: var(--app-bg);
+    font: inherit;
+  }
+  .manual-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+  }
+  button {
+    min-height: 34px;
+    padding: 4px 12px;
+    border: 1px solid var(--app-border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--app-text);
+    font: inherit;
     cursor: pointer;
-    &:focus-visible {
-      outline: 2px solid var(--app-accent);
-      outline-offset: 3px;
-    }
+  }
+  p {
+    width: 100%;
+    margin: 0;
+    color: var(--app-muted);
+    line-height: 1.7;
   }
 }
-.shortcut-readonly {
-  justify-self: end;
-  width: 188px;
+button:disabled {
   cursor: default;
-  color: var(--app-muted);
-  opacity: 0.65;
+  opacity: 0.5;
 }
-.shortcut-readonly:hover {
-  background: transparent;
-  border-color: var(--app-border);
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 3px;
 }
 @media (max-width: 600px) {
   .shortcut-row {
-    grid-template-columns: minmax(0, 1fr) 206px;
+    grid-template-columns: minmax(0, 1fr);
     gap: 14px;
   }
   .shortcut-actions {
     gap: 8px;
-    grid-template-columns: minmax(0, 1fr) 36px;
-  }
-  .shortcut-readonly {
-    width: 162px;
+    grid-template-columns: minmax(0, 1fr) 64px 36px;
   }
 }
 @media (max-width: 480px) {
@@ -418,11 +623,8 @@ button:focus-visible {
     gap: 10px;
   }
   .shortcut-actions {
-    width: min(100%, 240px);
+    width: 100%;
     justify-self: end;
-  }
-  .shortcut-readonly {
-    width: min(100%, 196px);
   }
 }
 </style>

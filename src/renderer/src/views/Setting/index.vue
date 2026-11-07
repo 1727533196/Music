@@ -7,8 +7,10 @@ import AppearanceSettings from './components/AppearanceSettings.vue'
 import NetworkSettings from './components/NetworkSettings.vue'
 import FontSettings from './components/FontSettings.vue'
 import SystemSettings from './components/SystemSettings.vue'
+import UpdateSettings from './components/UpdateSettings.vue'
 import ShortcutSettings from './components/ShortcutSettings.vue'
 import ServerSettings from './components/ServerSettings.vue'
+import PlaybackSettings from './components/PlaybackSettings.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,6 +18,7 @@ const desktop = isElectron()
 const tabs = [
   { id: 'appearance', label: '外观与歌词', icon: 'mdi-palette-outline' },
   { id: 'network', label: '网络与服务', icon: 'mdi-wifi' },
+  { id: 'playback', label: '音质与缓存', icon: 'mdi-music-box-outline' },
   { id: 'shortcuts', label: '快捷键', icon: 'mdi-keyboard-outline' },
   { id: 'general', label: '通用与关于', icon: 'mdi-tune-variant' }
 ]
@@ -97,6 +100,15 @@ const navigateTabs = async (event: KeyboardEvent, index: number) => {
       <ServerSettings v-if="desktop" />
     </section>
     <section
+      id="settings-panel-playback"
+      v-show="activeTab === 'playback'"
+      role="tabpanel"
+      aria-labelledby="settings-tab-playback"
+      class="settings-panel"
+    >
+      <PlaybackSettings />
+    </section>
+    <section
       id="settings-panel-shortcuts"
       v-show="activeTab === 'shortcuts'"
       role="tabpanel"
@@ -113,6 +125,7 @@ const navigateTabs = async (event: KeyboardEvent, index: number) => {
       class="settings-panel"
     >
       <SystemSettings :active="activeTab === 'general'" />
+      <UpdateSettings v-if="desktop" />
       <Versions />
     </section>
   </div>

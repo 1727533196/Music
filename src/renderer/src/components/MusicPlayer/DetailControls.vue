@@ -8,6 +8,7 @@ import { useFlags } from '@/store/flags'
 import useMusic from './useMusic'
 import PlayerGlyph from './PlayerGlyph.vue'
 import { getSongCommentLabel, loadSongCommentCount } from '@/utils/songComments'
+import AudioQuality from './AudioQuality.vue'
 
 const props = defineProps<{ songs: GetMusicDetailData; isPlay: boolean }>()
 const emit = defineEmits<{
@@ -222,6 +223,7 @@ const openComments = () => {
     </div>
 
     <div class="secondary-controls">
+      <AudioQuality light />
       <button
         type="button"
         class="text-button"

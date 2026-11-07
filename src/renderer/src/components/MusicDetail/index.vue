@@ -131,6 +131,7 @@ const containFocus = (event: KeyboardEvent) => {
     <div class="music-detail-container">
       <LyricDisplay
         :lyric="music.state.lyric"
+        :lyric-loading="music.lyricLoading"
         :lrcMode="music.state.lrcMode"
         :bg="bg"
         :title="music.state.songs.name || ''"

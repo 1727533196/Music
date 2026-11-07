@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { reactive, watch } from 'vue'
 import { setBaseURL } from '@/utils/request'
+import { isAudioQuality, type AudioQuality } from '../../../shared/audioCache'
 import {
   applyAppTheme,
   defaultAccentColor,
@@ -16,6 +17,7 @@ const DEFAULT_FONT =
 
 // 定义状态接口
 interface SettingsState {
+  audioQuality: AudioQuality
   baseUrl: string
   lyricBg: 'rgb' | 'shader' | 'rhythm'
   bold: boolean
@@ -25,6 +27,7 @@ interface SettingsState {
 }
 export const useSettings = defineStore('settingsId', () => {
   const state: SettingsState = reactive({
+    audioQuality: 'lossless',
     baseUrl: import.meta.env.VITE_URL,
     lyricBg: 'shader',
     bold: false,
@@ -37,6 +40,7 @@ export const useSettings = defineStore('settingsId', () => {
 
   const setState = (values?: Partial<typeof state>) => {
     Object.assign(state, values)
+    if (!isAudioQuality(state.audioQuality)) state.audioQuality = 'lossless'
     if (!isThemeMode(state.themeMode)) state.themeMode = 'system'
     if (!isAccentColor(state.accentColor)) state.accentColor = defaultAccentColor
     localStorage.setItem(
@@ -58,6 +62,7 @@ export const useSettings = defineStore('settingsId', () => {
         ;(document.querySelector('#app') as HTMLDivElement)!.style.fontFamily =
           parsedStore.font || ''
         Object.assign(state, parsedStore)
+        if (!isAudioQuality(state.audioQuality)) state.audioQuality = 'lossless'
         if (!isThemeMode(state.themeMode)) state.themeMode = 'system'
         if (!isAccentColor(state.accentColor)) state.accentColor = defaultAccentColor
       } catch (e) {

@@ -14,7 +14,9 @@ import { useUserInfo } from '@/store'
 import PlayListDrawer from '@/components/PlayListDrawer/index.vue'
 import PunchCardReminder from '@/components/PunchCardReminder/index.vue'
 import MessageHost from '@/components/MessageHost/index.vue'
-import '@/utils/shortcutKey'
+import UpdateNotice from '@/components/UpdateNotice/index.vue'
+import { useUpdates } from '@/store/updates'
+import { initializeShortcuts } from '@/utils/shortcutKey'
 import { useSettings } from '@/store/settings'
 import { useContextMenu } from './components/ContextMenu/useContextMenu'
 
@@ -26,6 +28,8 @@ const flags = useFlags()
 const route = useRoute()
 const store = useUserInfo()
 const settings = useSettings()
+let stopShortcuts: (() => void) | undefined
+const updates = useUpdates()
 const refresh = ref(0) // 登录完成后强制刷新组件
 const bodyRef = ref<HTMLElement | null>(null)
 const accountRequired = computed(() => !store.isLogin && ['/cloud', '/lately'].includes(route.path))
@@ -42,6 +46,7 @@ const { MENU_KEY, activeMenu, setActiveMenu } = useContextMenu()
 provide(MENU_KEY, { activeMenu, setActiveMenu })
 // 初始化全局属性
 onMounted(() => {
+  void updates.connect()
   if (audioInstance.value !== undefined) {
     window.$audio = audioInstance.value!
     console.log('初始化全局$audio：', window.$audio)
@@ -56,6 +61,7 @@ onMounted(() => {
   }
 
   startPunchCardTimer()
+  stopShortcuts = initializeShortcuts()
 })
 store.addEvent('login', () => {
   refresh.value = refresh.value + 1
@@ -90,11 +96,14 @@ function stopPunchCardTimer(): void {
 }
 
 onUnmounted(() => {
+  updates.disconnect()
   stopPunchCardTimer()
+  stopShortcuts?.()
 })
 </script>
 
 <template>
+  <UpdateNotice />
   <div id="opacity-bg" class="app-theme-background"></div>
   <div id="opacity-bg1" class="app-theme-background"></div>
   <MusicDetail v-model="flags.isOpenDetail" />

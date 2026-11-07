@@ -3,6 +3,7 @@ import { formattingTime } from '@/utils'
 import { GetMusicDetailData } from '@/api/musicList'
 import Volume from '@/components/MusicPlayer/Volume.vue'
 import { useFlags } from '@/store/flags'
+import AudioQuality from './AudioQuality.vue'
 
 interface Props {
   songs: GetMusicDetailData
@@ -20,6 +21,7 @@ const openDrawer = () => {
 
 <template>
   <div class="right">
+    <AudioQuality />
     <div class="playback-time">
       <div v-if="props.songs.ar" class="current-time">
         {{ formattingTime(props.currentTime * 1000) }}
@@ -49,7 +51,7 @@ const openDrawer = () => {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 18px;
+  gap: 10px;
   .playback-time {
     display: flex;
     flex-shrink: 0;

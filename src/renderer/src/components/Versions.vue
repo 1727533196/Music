@@ -16,7 +16,7 @@ const runtimeVersions = [
     <div class="app-identity">
       <img :src="logoPng" alt="" class="app-logo" />
       <div>
-        <h3>Music Player</h3>
+        <h3>Tinglan</h3>
         <p>版本 {{ version }}</p>
         <p class="app-description">让音乐陪伴每一天。</p>
       </div>

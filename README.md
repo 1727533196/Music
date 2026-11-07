@@ -1,6 +1,6 @@
 <div align="center">
 
-  <h1>Music</h1>
+  <h1>Tinglan</h1>
   <p><strong>音乐、歌词，还有属于你的歌单。</strong></p>
   <p>基于 Vue 3 与 Electron 的音乐桌面应用，支持网易云音乐、逐字歌词和流体背景。</p>
 
@@ -167,6 +167,8 @@ pnpm installer:build:win
 ```
 
 脚本依次构建 API 服务可执行文件、音乐主应用与安装器，最终产物位于 `dist/installer/`。
+
+Windows 在线更新使用 GitHub Releases 托管安装包和 `version.json`，无需另建后端。构建更新包可运行 `pnpm update:build:win`，发布步骤见 [在线更新说明](docs/updates.md)。
 
 ## 项目结构
 

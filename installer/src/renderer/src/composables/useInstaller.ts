@@ -22,7 +22,7 @@ export const optionDefs: Record<
   },
   autoStart: {
     label: '开机自动启动',
-    desc: '系统启动时自动运行音乐播放器。',
+    desc: '系统启动时自动运行 Tinglan。',
     icon: 'M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 2,11.5 2,13.5C2,15.5 3.75,17.25 3.75,17.25C7,8 17,8 17,8Z'
   },
   associateFiles: {
@@ -43,6 +43,7 @@ export const optionDefs: Record<
 }
 
 export function useInstaller() {
+  const updateMode = ref(false)
   // ─── 状态 ──────────────────────────────────────────────────────────────────────
   const currentStep = ref(0)
   const licenseAgreed = ref(false)
@@ -159,6 +160,7 @@ export function useInstaller() {
 
   // ─── 导航逻辑 ─────────────────────────────────────────────────────────────────
   function goToStep(i: number) {
+    if (updateMode.value) return
     if (i < currentStep.value && !installing.value) currentStep.value = i
   }
 
@@ -177,10 +179,10 @@ export function useInstaller() {
 
   // ─── 路径规范化 ────────────────────────────────────────────────────────────────
   function normalizeInstallPath(path: string): string {
-    const appName = '音乐'
+    const appName = 'Tinglan'
     const trimmed = path.replace(/[\\/]+$/, '')
     const lastPart = trimmed.split(/[\\/]/).pop() || ''
-    if (lastPart !== appName) {
+    if (lastPart !== appName && lastPart !== '音乐') {
       return trimmed + (trimmed.includes('\\') || trimmed.includes('/') ? '\\' : '/') + appName
     }
     return trimmed
@@ -211,8 +213,9 @@ export function useInstaller() {
   let removeProgressListener: (() => void) | null = null
 
   async function startInstall() {
+    if (installing.value) return
     // 安装前检查磁盘空间
-    if (diskInfo.total > 0 && diskInfo.available < diskInfo.required) {
+    if (!updateMode.value && diskInfo.total > 0 && diskInfo.available < diskInfo.required) {
       installFailed.value = true
       installError.value = `磁盘空间不足：需要 ${diskRequiredMB.value}，仅剩 ${diskAvailableGB.value}`
       currentStep.value = 4
@@ -232,13 +235,13 @@ export function useInstaller() {
       installProgress.value = progress
     })
 
-    const result = await window.installer.runInstall({
+    const result = await (updateMode.value ? window.installer.runUpdate() : window.installer.runInstall({
       installDir: installPath.value,
       createShortcut: options.createShortcut,
       autoStart: options.autoStart,
       associateFiles: options.associateFiles,
       installServer: options.installServer
-    })
+    })).catch((error: Error) => ({ success: false, error: error.message, appPath: undefined }))
 
     installing.value = false
 
@@ -248,6 +251,12 @@ export function useInstaller() {
     }
 
     if (result.success) {
+      installedAppPath.value = result.appPath ?? ''
+      installDone.value = true
+      if (updateMode.value) {
+        currentStep.value = 5
+        return
+      }
       // 记住本次的安装路径和选项，下次自动恢复
       window.installer.saveSettings({
         lastInstallPath: installPath.value,
@@ -256,8 +265,6 @@ export function useInstaller() {
         associateFiles: options.associateFiles,
         installServer: options.installServer
       })
-      installedAppPath.value = result.appPath ?? ''
-      installDone.value = true
       setTimeout(() => {
         currentStep.value = 5
       }, 800)
@@ -320,6 +327,22 @@ export function useInstaller() {
 
   // ─── 生命周期 ─────────────────────────────────────────────────────────────────
   onMounted(async () => {
+    try {
+      const update = await window.installer.getUpdateContext()
+      if (update) {
+        updateMode.value = true
+        installPath.value = update.installDir
+        await startInstall()
+        return
+      }
+    } catch (error) {
+      updateMode.value = true
+      currentStep.value = 4
+      installFailed.value = true
+      installError.value = error instanceof Error ? error.message : '更新请求无效，请重新下载更新'
+      installLog.value = [installError.value]
+      return
+    }
     // 先尝试恢复上次的安装路径和选项
     const saved = await window.installer.loadSettings()
     if (saved) {
@@ -337,7 +360,7 @@ export function useInstaller() {
         const defaultDir = await window.installer.getDefaultDir()
         if (defaultDir) installPath.value = defaultDir
       } catch {
-        installPath.value = isWindows ? 'C:\\Program Files\\音乐' : '/Applications'
+        installPath.value = isWindows ? 'C:\\Program Files\\Tinglan' : '/Applications'
       }
     }
     loadDiskInfo()
@@ -349,6 +372,7 @@ export function useInstaller() {
 
   // ─── 对外暴露 ─────────────────────────────────────────────────────────────────
   return {
+    updateMode,
     // 常量
     steps,
     optionDefs,

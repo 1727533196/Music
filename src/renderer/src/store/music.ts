@@ -5,20 +5,24 @@ import {
   getDynamicCover,
   getIntelliganceList,
   getLyric,
-  getMusicDetail,
   GetMusicDetailData,
-  getMusicUrl,
   updateScrobble
 } from '@/api/musicList'
 import { watch, ref, reactive } from 'vue'
 import { parseLrc, parseYrc } from '@lrc-player/parse'
 import { randomNum, Yrc } from '@/utils'
 import { useUserInfo } from '@/store/index'
-import { getMusicUrlExpiresAt } from '@/utils/musicSource'
+import { resolveAudioSource, audioCacheKey } from '@/utils/audioSource'
+import { useSettings } from '@/store/settings'
+import type { AudioQuality } from '../../../shared/audioCache'
+import { message } from '@/utils/message'
 
 export type Lyric = { time: number | boolean; text: string; line: number }
 interface State {
   musicUrl: string
+  actualQuality: AudioQuality | null
+  sourceCached: boolean
+  sourceTrial: boolean
   musicUrlExpiresAt: number
   songs: any
   currentItem: Partial<CurrentItem> | null
@@ -64,6 +68,9 @@ const normalizePlaybackQueue = (
 // 会把用户当前正在播放的列表单独存储起来，以便切换歌单时没有播放切换的歌单不会被清空
 export const useMusicAction = defineStore('musicActionId', () => {
   let state: State = reactive({
+    actualQuality: null,
+    sourceCached: false,
+    sourceTrial: false,
     musicUrl: '', // 用户当前播放器播放的音乐url
     musicUrlExpiresAt: 0,
     songs: {}, // 用户当前播放器播放的音乐
@@ -82,6 +89,9 @@ export const useMusicAction = defineStore('musicActionId', () => {
     searchList: []
   })
   const store = useUserInfo()
+  const settings = useSettings()
+  // 加载中的空数组尚不能用于判断歌曲是否有歌词，不写入播放持久化状态。
+  const lyricLoading = ref(false)
   let reorderingQueue = false
   watch(
     () => state.index,
@@ -224,30 +234,59 @@ export const useMusicAction = defineStore('musicActionId', () => {
   }
 
   // 获取歌词
-  const getLyricHandler = async (item) => {
+  const getLyricHandler = async (
+    item,
+    revision: number,
+    quality: AudioQuality,
+    silentError = false
+  ) => {
     const { id, pc } = item
-    if (pc?.privateCloud && store.profile.userId) {
-      const { lrc } = await getCloudlyric(store.profile.userId, id)
-      console.log('lrc', lrc)
-      state.lyric = parseYrc(lrc)
-      state.lrcMode = 0
-      if (state.lyric.length === 1) {
-        state.lyric = []
+    if (revision !== sourceRequestId || state.songs.id !== id) return
+    lyricLoading.value = true
+    try {
+      if (pc?.privateCloud && store.profile.userId) {
+        const { lrc } = (await getCloudlyric(store.profile.userId, id, silentError)) as {
+          lrc: string
+        }
+        if (revision !== sourceRequestId || state.songs.id !== id) return
+
+        state.lyric = parseYrc(lrc)
+        state.lrcMode = 0
+        if (state.lyric.length === 1) {
+          state.lyric = []
+        }
+        void window.audioCache
+          ?.details(
+            audioCacheKey(id, quality),
+            JSON.stringify({ lyric: state.lyric, lrcMode: state.lrcMode })
+          )
+          .catch(() => {})
+        return
       }
-      return
-    }
-    const { lrc, yrc } = await getLyric(id)
-    // 首先对歌词进行格式化处理
-    // {time: number(s), text: string}
-    if (yrc && yrc.lyric) {
-      state.lyric = parseLrc(yrc.lyric)
-      state.lrcMode = 1
-    } else {
-      state.lyric = parseYrc(lrc.lyric)
-      state.lrcMode = 0
-      if (state.lyric.length === 1) {
-        state.lyric = []
+      const { lrc, yrc } = await getLyric(id, silentError)
+      if (revision !== sourceRequestId || state.songs.id !== id) return
+      // 首先对歌词进行格式化处理
+      // {time: number(s), text: string}
+      if (yrc && yrc.lyric) {
+        state.lyric = parseLrc(yrc.lyric)
+        state.lrcMode = 1
+      } else {
+        state.lyric = parseYrc(lrc.lyric)
+        state.lrcMode = 0
+        if (state.lyric.length === 1) {
+          state.lyric = []
+        }
       }
+      void window.audioCache
+        ?.details(
+          audioCacheKey(id, quality),
+          JSON.stringify({ lyric: state.lyric, lrcMode: state.lrcMode })
+        )
+        .catch(() => {})
+    } catch {
+      /* 无歌词或离线时保留当前空状态。 */
+    } finally {
+      if (revision === sourceRequestId && state.songs.id === id) lyricLoading.value = false
     }
   }
   const updateState = (data) => {
@@ -283,6 +322,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
   const getDynamicCoverHandler = async (id: number) => {
     try {
       const { data } = await getDynamicCover(id)
+      if (state.songs.id !== id) return
       if (data.videoPlayUrl) {
         state.videoPlayUrl = data.videoPlayUrl
       } else {
@@ -309,55 +349,111 @@ export const useMusicAction = defineStore('musicActionId', () => {
     }
   }
   let sourceRequestId = 0
-  const isMusicUrlExpired = () => !state.musicUrlExpiresAt || Date.now() >= state.musicUrlExpiresAt
+  const isMusicUrlExpired = () =>
+    !state.musicUrlExpiresAt ||
+    Date.now() >= state.musicUrlExpiresAt ||
+    (state.load && state.musicUrl.startsWith('tinglan-audio:'))
 
-  // 同一首歌只替换音频地址，不重置进度、歌词和播放记录。
-  const refreshMusicUrl = async (signal: AbortSignal): Promise<boolean> => {
+  const refreshMusicUrl = async (signal: AbortSignal, bypassCache = false): Promise<boolean> => {
+    if (signal.aborted) return false
     const songId = state.songs.id
-    const previousUrl = state.musicUrl
-    const requestId = sourceRequestId
-    const requestedAt = Date.now()
-    const { data } = await getMusicUrl(songId)
+    const quality = settings.state.audioQuality
+    const requestId = ++sourceRequestId
+    if (!state.lyric?.length) lyricLoading.value = true
+    if (bypassCache && state.actualQuality && state.actualQuality !== quality)
+      await window.audioCache
+        ?.invalidate(audioCacheKey(songId, state.actualQuality))
+        .catch(() => {})
+    let source: Awaited<ReturnType<typeof resolveAudioSource>>
+    try {
+      source = await resolveAudioSource(songId, quality, bypassCache)
+    } catch (error) {
+      if (requestId === sourceRequestId) lyricLoading.value = false
+      throw error
+    }
     if (
       signal.aborted ||
       requestId !== sourceRequestId ||
       state.songs.id !== songId ||
-      state.musicUrl !== previousUrl
+      quality !== settings.state.audioQuality
     ) {
+      if (requestId === sourceRequestId) lyricLoading.value = false
       return false
     }
-    if (!data[0]?.url) {
-      throw new Error('未获取到可播放的歌曲链接')
-    }
-    state.musicUrl = data[0].url
-    state.musicUrlExpiresAt = getMusicUrlExpiresAt(data[0].expi, requestedAt)
+    state.musicUrl = source.url
+    state.musicUrlExpiresAt = source.expiresAt
+    state.actualQuality = source.qualityVerified ? source.quality : null
+    state.sourceCached = source.cached
+    state.sourceTrial = source.trial
+    if (!state.lyric?.length) {
+      let restoredLyrics = false
+      try {
+        const details = JSON.parse(source.details || '{}')
+        if (Array.isArray(details.lyric) && (details.lrcMode === 0 || details.lrcMode === 1)) {
+          state.lyric = details.lyric
+          state.lrcMode = details.lrcMode
+          restoredLyrics = true
+        }
+      } catch {
+        /* 无可用歌词快照。 */
+      }
+      if (restoredLyrics) lyricLoading.value = false
+      else void getLyricHandler(state.songs, requestId, source.quality, source.cached)
+    } else
+      void window.audioCache
+        ?.details(
+          audioCacheKey(songId, source.quality),
+          JSON.stringify({ lyric: state.lyric, lrcMode: state.lrcMode })
+        )
+        .catch(() => {})
     return true
   }
 
   // 获取音乐url并播放
   const getMusicUrlHandler = async (item: GetMusicDetailData, i?: number) => {
     const requestId = ++sourceRequestId
-    const requestedAt = Date.now()
+    const quality = settings.state.audioQuality
     try {
       $audio.el.oncanplay = null
+      lyricLoading.value = true
       state.songs = item
-      getLyricHandler(item)
-      getDynamicCoverHandler(item.id)
-      updateScrobble(item.id, state.runtimeList?.id)
-      const [{ data }, { songs }] = await Promise.all([
-        getMusicUrl(item.id),
-        getMusicDetail(item.id.toString())
-      ])
-      if (requestId !== sourceRequestId) return
-      state.songs.dt = data[0].time
+      state.lyric = []
+      state.videoPlayUrl = null
+      const source = await resolveAudioSource(item.id, quality)
+      if (requestId !== sourceRequestId || quality !== settings.state.audioQuality) {
+        if (requestId === sourceRequestId) lyricLoading.value = false
+        return false
+      }
+      void updateScrobble(item.id, state.runtimeList?.id, source.cached).catch(() => {})
+      let restoredLyrics = false
+      if (source.details) {
+        try {
+          const details = JSON.parse(source.details)
+          if (Array.isArray(details.lyric) && (details.lrcMode === 0 || details.lrcMode === 1)) {
+            state.lyric = details.lyric
+            state.lrcMode = details.lrcMode
+            restoredLyrics = true
+          }
+        } catch {
+          /* 不可用的歌词快照会重新获取。 */
+        }
+      }
+      if (restoredLyrics) lyricLoading.value = false
+      else void getLyricHandler(item, requestId, source.quality, source.cached)
+      if (!source.cached) void getDynamicCoverHandler(item.id).catch(() => {})
+      if (source.duration > 0) state.songs.dt = source.duration
       // 请求过程中可能已拖动排序，使用歌曲 ID 定位最新队列中的位置。
       const currentIndex = state.runtimeIds.indexOf(item.id)
       state.index = currentIndex === -1 ? (i === undefined ? state.index : i) : currentIndex
       $audio.reset(true)
       await $audio.pause(false)
       if (requestId !== sourceRequestId) return
-      state.musicUrl = data[0].url || ''
-      state.musicUrlExpiresAt = getMusicUrlExpiresAt(data[0].expi, requestedAt)
+      state.load = false
+      state.musicUrl = source.url
+      state.musicUrlExpiresAt = source.expiresAt
+      state.actualQuality = source.qualityVerified ? source.quality : null
+      state.sourceCached = source.cached
+      state.sourceTrial = source.trial
       $audio.cutSongHandler()
       // 监听audio是否加载完毕
       localStorage.setItem('MUSIC_CONFIG', JSON.stringify({ ...state, load: true }))
@@ -389,8 +485,25 @@ export const useMusicAction = defineStore('musicActionId', () => {
           console.error('播放失败:', error)
         }
       }
+      return true
     } catch (e) {
       console.log('getMusicUrlHandler函数错误：', e)
+      if (requestId === sourceRequestId) {
+        lyricLoading.value = false
+        try {
+          await window.$audio?.pause()
+        } catch {
+          /* 播放器可能正在卸载。 */
+        }
+        if (requestId !== sourceRequestId) return false
+        state.musicUrl = ''
+        state.musicUrlExpiresAt = 0
+        state.sourceCached = false
+        state.sourceTrial = false
+        state.actualQuality = null
+        message.error(e instanceof Error ? e.message : '暂时无法播放这首歌曲')
+      }
+      return false
     }
   }
   // const setSongCache() {
@@ -491,6 +604,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
 
   return {
     state,
+    lyricLoading,
     updateState,
     updateCurrentItem,
     updateRuntimeList,

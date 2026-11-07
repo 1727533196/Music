@@ -3,6 +3,7 @@ import SongList from '@/components/SongList/index.vue'
 import { computed, nextTick, ref, watch } from 'vue'
 import { columns } from '@/components/PlayListDrawer/config'
 import { useMusicAction } from '@/store/music'
+import { useFlags } from '@/store/flags'
 
 interface Props {
   modelValue: boolean
@@ -10,6 +11,7 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits(['update:modelValue'])
 const music = useMusicAction()
+const flags = useFlags()
 const queueTracks = computed(() => {
   const tracks = music.state.runtimeList?.tracks
   return Array.isArray(tracks) ? tracks : []
@@ -18,17 +20,35 @@ const drawer = ref<HTMLElement | null>(null)
 const closeButton = ref<HTMLButtonElement | null>(null)
 let opener: HTMLElement | null = null
 const close = () => emit('update:modelValue', false)
+const locatePlayingSong = () => {
+  const container = drawer.value?.querySelector<HTMLElement>('.song-list-container')
+  const row = container?.querySelector<HTMLElement>('.song-sort-row:has(.list.is-playing)')
+  if (!container || !row) return
+  const containerRect = container.getBoundingClientRect()
+  const rowRect = row.getBoundingClientRect()
+  container.scrollTo({
+    top:
+      container.scrollTop +
+      rowRect.top -
+      containerRect.top -
+      (container.clientHeight - rowRect.height) / 2,
+    behavior: 'instant'
+  })
+}
 watch(
   () => props.modelValue,
   async (open) => {
     if (open) {
       opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
       await nextTick()
+      if (!props.modelValue) return
+      locatePlayingSong()
       closeButton.value?.focus({ preventScroll: true })
     } else if (drawer.value?.contains(document.activeElement)) {
       opener?.focus({ preventScroll: true })
     }
-  }
+  },
+  { immediate: true }
 )
 const handleKey = (event: KeyboardEvent) => {
   if (
@@ -47,7 +67,7 @@ const handleKey = (event: KeyboardEvent) => {
   <aside
     ref="drawer"
     class="queue-drawer"
-    :class="{ 'is-open': modelValue }"
+    :class="{ 'is-open': modelValue, 'over-detail': flags.isOpenDetail }"
     :inert="!modelValue"
     :aria-hidden="!modelValue"
     aria-label="播放队列"
@@ -94,6 +114,7 @@ const handleKey = (event: KeyboardEvent) => {
 
 <style scoped lang="less">
 .queue-drawer {
+  --queue-glass-tint: color-mix(in srgb, var(--app-panel) 72%, transparent);
   position: fixed;
   z-index: 2001;
   top: calc(var(--app-header-height, 76px) + 12px);
@@ -101,13 +122,17 @@ const handleKey = (event: KeyboardEvent) => {
   bottom: calc(var(--app-player-height, 75px) + 14px);
   display: flex;
   flex-direction: column;
-  width: ~"min(390px, calc(100vw - 32px))";
+  width: ~'min(390px, calc(100vw - 32px))';
   overflow: hidden;
   border: 1px solid var(--app-border);
   border-radius: 14px;
-  background: var(--app-panel);
+  background: linear-gradient(145deg, #ffffff14, #ffffff00 60%), var(--queue-glass-tint);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  backdrop-filter: blur(28px) saturate(160%);
   color: var(--app-text);
-  box-shadow: var(--app-shadow);
+  box-shadow:
+    inset 0 1px 0 #ffffff24,
+    var(--app-shadow);
   opacity: 0;
   transform: translateX(calc(100% + 24px));
   pointer-events: none;
@@ -118,6 +143,31 @@ const handleKey = (event: KeyboardEvent) => {
     opacity: 1;
     transform: translateX(0);
     pointer-events: auto;
+  }
+  &.over-detail {
+    --app-text: #fffffff2;
+    --app-secondary: #ffffffd1;
+    --app-muted: #ffffffad;
+    --app-border: #ffffff33;
+    --app-surface: #ffffff0d;
+    --app-hover: #ffffff1a;
+    --app-accent: #fff;
+    --app-accent-border: #ffffff66;
+    --app-accent-soft: #ffffff14;
+    --app-playing: #fff;
+    --app-warning-text: #ffe0b3;
+    --app-warning-border: #ffe0b34d;
+    --app-scrollbar: #ffffff38;
+    --queue-glass-tint: #18181c38;
+    color-scheme: dark;
+    background: linear-gradient(145deg, #ffffff24, #ffffff08 65%), var(--queue-glass-tint);
+    box-shadow:
+      inset 0 1px 0 #ffffff38,
+      inset 0 -1px 0 #ffffff0a,
+      0 12px 36px #00000026;
+    :deep(.list.is-playing) {
+      background: #ffffff14;
+    }
   }
 }
 .queue-heading {
@@ -168,6 +218,13 @@ const handleKey = (event: KeyboardEvent) => {
   overscroll-behavior: contain;
   .search-container {
     margin: 2px 8px 8px;
+  }
+  .v-field {
+    color: var(--app-text);
+  }
+  .v-field__input::placeholder {
+    color: var(--app-muted);
+    opacity: 0.8;
   }
   .list {
     min-height: 60px;

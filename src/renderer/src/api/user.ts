@@ -1,4 +1,4 @@
-import request from "@/utils/request";
+import request from '@/utils/request'
 
 export type Profile = {
   avatarUrl: string // 用户头像
@@ -8,6 +8,7 @@ export type Profile = {
   vipType: number
   userId: number // 用户id
   followeds: number // 粉丝数量
+  follows?: number // 关注总数
   newFollows: number // 关注数量
   eventCount: number // 动态数量
   gender: number // 性别 0:保密 1:男性 2:女性
@@ -37,7 +38,7 @@ export type User = {
   avatarUrl: string // 用户头像
 }
 export interface getArtistDetailRes {
-  message: string,
+  message: string
   data: {
     artist: {
       albumSize: number
@@ -51,24 +52,24 @@ export interface getArtistDetailRes {
       musicSize: number
       mvSize: number
       name: string
-      rank: {rank: number, type: number}
+      rank: { rank: number; type: number }
       transNames: any[]
-    },
+    }
     blacklist: boolean
     eventCount: number
     identify: {
       actionUrl: string // 请求网易云音乐的链接
       imageDesc: string // 标签
       imageUrl: string // 标签图片
-    },
+    }
     preferShow: number
     secondaryExpertIdentiy: {}[]
     showPriMsg: boolean
     user: undefined | User
     videoCount: number
     vipRights: {}
-  },
-  code: number,
+  }
+  code: number
 }
 
 interface getUserDetailRes {
@@ -87,25 +88,45 @@ interface getUserDetailRes {
   }
 }
 // 获取用户详情  通过指定的uid获取指定用户详情信息
-export const getUserDetail = (uid: number) => request<{uid: number}, getUserDetailRes>(`/user/detail?uid=${uid}`, 'get')
+export const getUserDetail = (uid: number) =>
+  request<{ uid: number }, getUserDetailRes>(`/user/detail?uid=${uid}`, 'get')
+
+export interface ConnectionUser {
+  userId: number
+  nickname: string
+  avatarUrl?: string
+  signature?: string
+}
+interface UserFollowsResponse {
+  code: number
+  follow: ConnectionUser[]
+  more?: boolean
+}
+interface UserFollowersResponse {
+  code: number
+  followeds: ConnectionUser[]
+  more?: boolean
+}
+type ConnectionParams = { uid: number; limit: number; offset: number }
+
+export const getUserFollows = (uid: number, limit = 30, offset = 0) =>
+  request<ConnectionParams, UserFollowsResponse>('/user/follows', 'get', {
+    handleAccessRestriction: true,
+    params: { uid, limit, offset }
+  })
+
+export const getUserFollowers = (uid: number, limit = 30, offset = 0) =>
+  request<ConnectionParams, UserFollowersResponse>('/user/followeds', 'get', {
+    handleAccessRestriction: true,
+    params: { uid, limit, offset }
+  })
 
 // 获取账号信息
-export const getUserAccount = () => request<null, getUserAccountRes>('/user/account', 'get');
+export const getUserAccount = () => request<null, getUserAccountRes>('/user/account', 'get')
 
 // 获取歌手详情
-export const getArtistDetail = (id: number) => request<{id: number}, getArtistDetailRes>(`/artist/detail?id=${id}`, 'get')
+export const getArtistDetail = (id: number) =>
+  request<{ id: number }, getArtistDetailRes>(`/artist/detail?id=${id}`, 'get')
 
 // 获取用户绑定信息
 export const getUserBinding = (uid: number) => request(`/user/binding?uid=${uid}`)
-
-
-
-
-
-
-
-
-
-
-
-

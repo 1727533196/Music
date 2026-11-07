@@ -5,7 +5,7 @@
 <template>
   <div class="step-panel step-panel--welcome">
     <div class="panel-header">
-      <h2 class="panel-title">欢迎安装 <em class="panel-title-em">音乐</em></h2>
+      <h2 class="panel-title">欢迎安装 <em class="panel-title-em">Tinglan</em></h2>
       <p class="panel-sub">一款优雅的桌面音乐播放器，支持网易云音乐账号登录。</p>
     </div>
     <div class="content-card">

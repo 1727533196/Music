@@ -12,6 +12,8 @@ export interface ProgressPayload {
 }
 
 export interface InstallerAPI {
+  getUpdateContext: () => Promise<{ installDir: string; version: string } | null>
+  runUpdate: () => Promise<{ success: boolean; appPath?: string; error?: string }>
   // 窗口控制
   minimize:     () => void
   maximize:     () => void

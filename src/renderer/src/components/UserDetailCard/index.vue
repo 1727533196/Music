@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import type { Profile } from '@/api/user'
 
 interface Props {
@@ -13,6 +14,11 @@ interface Props {
   location: string
 }
 const props = defineProps<Props>()
+const followingCount = computed(() => props.userInfo.follows ?? props.userInfo.newFollows)
+const connectionsRoute = (type: 'following' | 'followers') => ({
+  name: 'follow',
+  query: { uid: props.userInfo.userId, type, nickname: props.userInfo.nickname }
+})
 const failedAvatar = ref(false)
 watch(
   () => props.userInfo.avatarUrl,
@@ -49,20 +55,23 @@ watch(
       <p v-if="userInfo.signature" class="signature" :title="userInfo.signature">
         {{ userInfo.signature }}
       </p>
-      <dl class="user-stats">
-        <div v-if="userInfo.eventCount != null">
-          <dt>动态</dt>
-          <dd>{{ userInfo.eventCount.toLocaleString() }}</dd>
-        </div>
-        <div v-if="userInfo.newFollows != null">
-          <dt>关注</dt>
-          <dd>{{ userInfo.newFollows.toLocaleString() }}</dd>
-        </div>
-        <div v-if="userInfo.followeds != null">
-          <dt>粉丝</dt>
-          <dd>{{ userInfo.followeds.toLocaleString() }}</dd>
-        </div>
-      </dl>
+      <div class="user-stats">
+        <RouterLink
+          v-if="userInfo.eventCount != null"
+          :to="{ name: 'userEvents', query: { uid: userInfo.userId, nickname: userInfo.nickname } }"
+        >
+          <span class="stat-value">{{ userInfo.eventCount.toLocaleString() }}</span>
+          <span class="stat-label">动态</span>
+        </RouterLink>
+        <RouterLink v-if="followingCount != null" :to="connectionsRoute('following')">
+          <span class="stat-value">{{ followingCount.toLocaleString() }}</span>
+          <span class="stat-label">关注</span>
+        </RouterLink>
+        <RouterLink v-if="userInfo.followeds != null" :to="connectionsRoute('followers')">
+          <span class="stat-value">{{ userInfo.followeds.toLocaleString() }}</span>
+          <span class="stat-label">粉丝</span>
+        </RouterLink>
+      </div>
     </div>
   </header>
 </template>
@@ -150,17 +159,29 @@ watch(
   flex-wrap: wrap;
   gap: 12px 24px;
   margin-top: 18px;
-  > div {
+  > div,
+  > a {
     display: flex;
     align-items: baseline;
     gap: 7px;
   }
-  dt {
-    order: 1;
+  > a {
+    border-radius: 4px;
+    text-decoration: none;
+    &:hover .stat-label,
+    &:hover .stat-value {
+      color: var(--app-accent);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 5px;
+    }
+  }
+  .stat-label {
     color: var(--app-muted);
     font-size: 12px;
   }
-  dd {
+  .stat-value {
     margin: 0;
     color: var(--app-text);
     font-size: 16px;
@@ -180,7 +201,8 @@ watch(
   }
   .user-stats {
     gap: 9px 16px;
-    > div {
+    > div,
+    > a {
       gap: 5px;
     }
   }
@@ -195,7 +217,7 @@ watch(
   }
   .user-stats {
     gap: 8px 12px;
-    dd {
+    .stat-value {
       font-size: 14px;
     }
   }

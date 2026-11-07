@@ -20,7 +20,7 @@ defineProps<{
         </div>
         <div class="finish-text">
           <h1 class="finish-title">安装成功！</h1>
-          <p class="finish-desc">音乐已成功安装到你的电脑，立即开始探索音乐世界吧。</p>
+          <p class="finish-desc">Tinglan 已成功安装到你的电脑，立即开始探索音乐世界吧。</p>
           <div class="finish-path">
             <svg viewBox="0 0 24 24">
               <path d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z" />

@@ -1,11 +1,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# 音乐 — 安装器 electron-builder 配置
+# Tinglan — 安装器 electron-builder 配置
 # 打包产物：一个独立的 DMG / NSIS 安装程序
 # 安装器内置的 payload/ 目录存放主应用 .app
 # ─────────────────────────────────────────────────────────────────────────────
 
 appId: com.electron.music.installer
-productName: 音乐安装程序
+productName: Tinglan 安装程序
 directories:
   buildResources: build
   output: ../dist/installer
@@ -34,7 +34,7 @@ mac:
     - target: dmg
       arch: arm64
   extraResources:
-    - from: '../dist/mac-arm64/音乐.app'
+    - from: '../dist/mac-arm64/Tinglan.app'
       to: 'payload/音乐.app'
       filter:
         - '**/*'
@@ -43,8 +43,8 @@ mac:
 
 dmg:
   # 安装器 DMG 名称
-  artifactName: 音乐-${version}-installer.dmg
-  title: 音乐 安装程序
+  artifactName: Tinglan-${version}-installer.dmg
+  title: Tinglan 安装程序
   # 只放安装器本体，不显示 Applications 文件夹拖拽
   window:
     width: 540
@@ -59,7 +59,7 @@ dmg:
 # ── Windows ─────────────────────────────────────────────────────────────────
 win:
   icon: ../build/icon.ico
-  executableName: 音乐安装程序
+  executableName: Tinglan安装程序
   target:
     - target: portable
       arch:
@@ -73,7 +73,7 @@ win:
       to: 'server/ncm-server.exe'
 
 portable:
-  artifactName: 音乐-安装包.exe
+  artifactName: Tinglan-安装包.exe
   requestExecutionLevel: admin
 
 # ── 其他 ─────────────────────────────────────────────────────────────────────

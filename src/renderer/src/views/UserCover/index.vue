@@ -5,6 +5,8 @@ import { getUserRecord, type GetMusicDetailData, type CurrentItem } from '@/api/
 import SongList, { type Columns } from '@/components/SongList/index.vue'
 import { columns as columnConfig } from './config'
 import { useMusicAction } from '@/store/music'
+import AccessNotice from '@/components/AccessNotice/index.vue'
+import { getAccessRestriction, type AccessRestriction } from '@/utils/accessRestriction'
 
 type Range = 'recent' | 'history'
 type RecordSong = GetMusicDetailData & { playCount: number }
@@ -21,9 +23,15 @@ const userId = computed(() => {
   const uid = typeof route.query.uid === 'string' ? Number(route.query.uid) : 0
   return Number.isSafeInteger(uid) && uid > 0 ? uid : 0
 })
-const state = reactive<Record<Range, { songs: RecordSong[]; loading: boolean; error: boolean }>>({
-  recent: { songs: [], loading: false, error: false },
-  history: { songs: [], loading: false, error: false }
+interface RecordState {
+  songs: RecordSong[]
+  loading: boolean
+  error: boolean
+  restriction: AccessRestriction | null
+}
+const state = reactive<Record<Range, RecordState>>({
+  recent: { songs: [], loading: false, error: false, restriction: null },
+  history: { songs: [], loading: false, error: false, restriction: null }
 })
 const versions = { recent: 0, history: 0 }
 const tabs: { value: Range; label: string }[] = [
@@ -56,6 +64,7 @@ async function load(range: Range) {
   const version = ++versions[range]
   state[range].loading = true
   state[range].error = false
+  state[range].restriction = null
   try {
     const response = (await getUserRecord(uid, range === 'recent' ? 1 : 0)) as RecordResponse
     if (version !== versions[range] || uid !== userId.value) return
@@ -65,8 +74,12 @@ async function load(range: Range) {
           .filter((item) => item.song?.id)
           .map((item) => ({ ...item.song, playCount: item.playCount }))
       : []
-  } catch {
-    if (version === versions[range]) state[range].error = true
+  } catch (error) {
+    if (version === versions[range]) {
+      state[range].restriction = getAccessRestriction(error)
+      state[range].error = !state[range].restriction
+      if (state[range].restriction) state[range].songs = []
+    }
   } finally {
     if (version === versions[range]) state[range].loading = false
   }
@@ -76,7 +89,7 @@ watch(
   () => {
     for (const range of ['recent', 'history'] as Range[]) {
       versions[range]++
-      state[range] = { songs: [], loading: false, error: false }
+      state[range] = { songs: [], loading: false, error: false, restriction: null }
     }
     tab.value = 'recent'
     void load('recent')
@@ -131,6 +144,12 @@ onBeforeUnmount(() => {
     <button type="button" @click="router.back()">返回上一页</button>
   </section>
   <template v-else>
+    <AccessNotice
+      v-if="current.restriction"
+      :restriction="current.restriction"
+      subject="该用户的听歌记录"
+      :user-id="userId"
+    />
     <div v-if="current.error" class="ranking-error" role="status">
       <span>{{
         current.songs.length
@@ -152,7 +171,7 @@ onBeforeUnmount(() => {
       :isNeedTitle="false"
       lazy
     />
-    <section v-else-if="!current.error" class="ranking-state" role="status">
+    <section v-else-if="!current.restriction && !current.error" class="ranking-state" role="status">
       <v-icon icon="mdi-music-note-outline" size="34" />
       <h2>暂无公开的听歌记录</h2>
       <p>

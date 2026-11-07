@@ -1,4 +1,5 @@
 import request from '../utils/request'
+import type { AudioQuality } from '../../../shared/audioCache'
 import { deleteSong } from './play'
 
 export type PlayList = Omit<GetPlayListDetailRes['playlist'], 'tracks'> & {
@@ -55,6 +56,8 @@ export interface GetPlayListDetailRes {
 }
 
 export type getMusicUrlData = {
+  level?: string
+  freeTrialInfo?: unknown
   size: number
   url: string
   time: number
@@ -190,8 +193,8 @@ export const getUserPlayListMusic = (id: number) =>
   request(`/playlist/track/all?id=${id}&limit=10&offset=0`, 'get')
 
 // 获取音乐url
-export const getMusicUrl = (id: number) =>
-  request<string, GetMusicUrlRes>(`/song/url/v1?id=${id}&level=lossless`, 'get')
+export const getMusicUrl = (id: number, level: AudioQuality = 'lossless') =>
+  request<string, GetMusicUrlRes>(`/song/url/v1?id=${id}&level=${level}`, 'get')
 
 // 获取歌单详情  可以获取歌单全部歌曲
 export const getPlayListDetail = (id: number) =>
@@ -233,8 +236,8 @@ export const likeMusicApi = (id: number, like: boolean = true) =>
   >('/like', { id, like }, 'get')
 
 // 获取歌词
-export const getLyric = (id: number | string) =>
-  request<{ id: number }, GetLyricRes>(`/lyric/new?id=${id}`, 'get')
+export const getLyric = (id: number | string, silentError = false) =>
+  request<{ id: number }, GetLyricRes>(`/lyric/new?id=${id}`, 'get', { silentError })
 
 // 获取云盘歌曲
 export const getUserCloud = (limit?: number, offset?: number) =>
@@ -297,17 +300,17 @@ export const getIntelliganceList = (pid: number, id: number, sid: number) =>
 // 歌曲动态封面
 export const getDynamicCover = (id: number) => request(`/song/dynamic/cover?id=${id}`, 'get')
 
-export const updateScrobble = (id: number, sourceid?: number) =>
-  request(`/scrobble?id=${id}&sourceid=${sourceid}`)
+export const updateScrobble = (id: number, sourceid?: number, silentError = false) =>
+  request(`/scrobble?id=${id}&sourceid=${sourceid}`, 'post', { silentError })
 
 // 获取用户播放记录
 export const getUserRecord = (uid: number, type: number = 1) =>
-  request(`/user/record?uid=${uid}&type=${type}`)
+  request(`/user/record?uid=${uid}&type=${type}`, 'get', { handleAccessRestriction: true })
 
 // 云盘歌曲信息匹配纠正
 export const updateCloudMatch = (uid: number, sid: string, asid: string) =>
   request(`/cloud/match?uid=${uid}&sid=${sid}&asid=${asid}`, 'get')
 
 // 云盘歌词
-export const getCloudlyric = (uid: number, sid: string) =>
-  request(`/cloud/lyric/get?uid=${uid}&sid=${sid}`, 'get')
+export const getCloudlyric = (uid: number, sid: string, silentError = false) =>
+  request(`/cloud/lyric/get?uid=${uid}&sid=${sid}`, 'get', { silentError })

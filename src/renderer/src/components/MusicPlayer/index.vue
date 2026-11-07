@@ -15,6 +15,7 @@ import Player from '@lrc-player/core'
 import { useFlags } from '@/store/flags'
 import { reloadAudioSource } from '@/utils/musicSource'
 import { message } from '@/utils/message'
+import { useSettings } from '@/store/settings'
 
 const orderStatus = ['icon-xihuan5', 'icon-xunhuan', 'icon-suijibofang', 'icon-danquxunhuan']
 type userAudio = {
@@ -45,6 +46,7 @@ const emit = defineEmits(['playEnd', 'cutSong'])
 const isPlay = ref(false)
 const audio = ref<userAudio>()
 const music = useMusicAction()
+const settings = useSettings()
 const flags = useFlags()
 const transitionIsPlay = ref(false)
 const { addListener, executeListener, pauseSomethingListener } = useListener(audio)
@@ -85,7 +87,11 @@ watch(
 )
 
 function setPlaybackTime(time: number) {
-  if (resumeTime !== null) {
+  if (
+    resumeTime !== null ||
+    !audio.value?.readyState ||
+    audio.value.currentSrc !== music.state.musicUrl
+  ) {
     resumeTime = time
     music.state.currentTime = time
   }
@@ -105,9 +111,23 @@ onMounted(() => {
   // 音量过渡减少为0，然后暂停
   audio.value!.pause = pause
 
-  audio.value?.addEventListener('error', (event: any) => {
-    // console.log('event.target.error', event.target.error)
-    if (event.target.error.code === 4) {
+  audio.value?.addEventListener('error', () => {
+    if (music.state.musicUrl.startsWith('tinglan-audio:')) {
+      music.state.musicUrlExpiresAt = 0
+      // 音质切换中的失败由切换流程处理，避免并发重载同一音频元素。
+      if (playController && !pendingPlay) return
+      const id = music.state.songs.id
+      void (pendingPlay || Promise.resolve()).then(() => {
+        if (
+          music.state.songs.id === id &&
+          (isPlay.value || !!audio.value?.oncanplay) &&
+          audio.value?.error &&
+          music.state.musicUrl.startsWith('tinglan-audio:')
+        ) {
+          resumeTime ??= audio.value.currentTime
+          void play()
+        }
+      })
     }
   })
 })
@@ -119,6 +139,7 @@ onUnmounted(() => {
 
 function play(lengthen: boolean = false): Promise<undefined> {
   if (pendingPlay) return pendingPlay
+  playController?.abort()
   playbackRevision++
   clearInterval(timer)
   finishTransition?.()
@@ -135,7 +156,11 @@ function play(lengthen: boolean = false): Promise<undefined> {
   return task
 }
 
-async function startPlayback(lengthen: boolean, signal: AbortSignal): Promise<undefined> {
+async function startPlayback(
+  lengthen: boolean,
+  signal: AbortSignal,
+  retriedCache = false
+): Promise<undefined> {
   const element = audio.value!
   const songId = music.state.songs.id
   const isCurrent = () => !signal.aborted && music.state.songs.id === songId
@@ -146,7 +171,14 @@ async function startPlayback(lengthen: boolean, signal: AbortSignal): Promise<un
       resumeTime ??= element.currentTime
       timeState.stop = true
       element.oncanplay = null
-      if (expired && !(await music.refreshMusicUrl(signal))) return
+      if (
+        expired &&
+        !(await music.refreshMusicUrl(
+          signal,
+          !music.state.load && !!element.error && music.state.musicUrl.startsWith('tinglan-audio:')
+        ))
+      )
+        return
       if (!isCurrent()) return
       await nextTick()
       if (!isCurrent()) return
@@ -171,6 +203,16 @@ async function startPlayback(lengthen: boolean, signal: AbortSignal): Promise<un
     await transitionVolume(store.volume, true, lengthen)
   } catch (error) {
     if (!isCurrent()) return
+    if (!retriedCache && music.state.musicUrl.startsWith('tinglan-audio:')) {
+      resumeTime ??= element.currentTime
+      try {
+        if (await music.refreshMusicUrl(signal, true))
+          return await startPlayback(lengthen, signal, true)
+      } catch {
+        /* 远程回退也失败时显示统一播放错误。 */
+      }
+      if (!isCurrent()) return
+    }
     isPlay.value = false
     transitionIsPlay.value = false
     player.pause()
@@ -181,6 +223,54 @@ async function startPlayback(lengthen: boolean, signal: AbortSignal): Promise<un
   }
   return undefined
 }
+
+watch(
+  () => settings.state.audioQuality,
+  async () => {
+    if (!audio.value || !music.state.songs.id || !music.state.musicUrl) return
+    const wasPlaying = isPlay.value
+    resumeTime ??= audio.value.currentTime
+    cancelPendingPlay()
+    finishTransition?.()
+    clearInterval(timer)
+    originPause.call(audio.value)
+    audio.value.oncanplay = null
+    player.pause()
+    transitionIsPlay.value = false
+    timeState.stop = true
+    const controller = new AbortController()
+    playController = controller
+    try {
+      if (!(await music.refreshMusicUrl(controller.signal))) return
+      await nextTick()
+      if (controller.signal.aborted) return
+      try {
+        await reloadAudioSource(audio.value, () => resumeTime ?? 0, controller.signal)
+      } catch (error) {
+        if (controller.signal.aborted || !music.state.musicUrl.startsWith('tinglan-audio:'))
+          throw error
+        if (!(await music.refreshMusicUrl(controller.signal, true))) return
+        await nextTick()
+        if (controller.signal.aborted) return
+        await reloadAudioSource(audio.value, () => resumeTime ?? 0, controller.signal)
+      }
+      if (controller.signal.aborted) return
+      music.state.currentTime = audio.value.currentTime
+      resumeTime = null
+      timeState.stop = false
+      if (playController === controller) playController = null
+      if (wasPlaying) void play()
+    } catch {
+      if (!controller.signal.aborted) {
+        isPlay.value = false
+        music.state.musicUrlExpiresAt = 0
+        message.error('切换音质失败，请重试播放')
+      }
+    } finally {
+      if (playController === controller) playController = null
+    }
+  }
+)
 
 function pause(isNeed: boolean = true, lengthen: boolean = false) {
   cancelPendingPlay()

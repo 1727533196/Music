@@ -3,6 +3,12 @@ import { message } from '@/utils/message'
 import { useSettings } from '@/store/settings'
 import { setActivePinia } from 'pinia'
 import pinia from '@/store/sotre'
+import { AccessRestrictionError, getAccessRestriction } from './accessRestriction'
+
+type RequestConfig = AxiosRequestConfig & {
+  handleAccessRestriction?: boolean
+  silentError?: boolean
+}
 
 setActivePinia(pinia)
 
@@ -18,6 +24,19 @@ export function setBaseURL(url: string) {
 }
 
 const ignoreState = ['/login/qr/check']
+function rejectRequest(
+  data: unknown,
+  config: RequestConfig | undefined,
+  source: unknown = data,
+  fallback = '请求失败，请稍后重试'
+) {
+  const restriction = config?.handleAccessRestriction && getAccessRestriction(source)
+  if (restriction) return Promise.reject(new AccessRestrictionError(restriction, data))
+  if (config?.silentError) return Promise.reject(data)
+  const detail = data as { message?: string; msg?: string } | undefined
+  message.error(detail?.message || detail?.msg || fallback)
+  return Promise.reject(data)
+}
 http.interceptors.request.use(
   (config) => {
     // const token = localStorage.getItem('token')
@@ -54,35 +73,33 @@ http.interceptors.response.use(
     const isStatusError = typeof status === 'number' && status !== 200
     const isCodeError = typeof code === 'number' && code !== 200
     if (!ignoreState.includes(url) && (isStatusError || isCodeError)) {
-      message.error(data?.message || data?.msg || `请求出现错误，当前状态码为${code || status}`)
-      return Promise.reject(data)
+      return rejectRequest(
+        data,
+        response.config,
+        { response: { status, data } },
+        `请求出现错误，当前状态码为${code || status}`
+      )
     }
     return data
   },
   (error) => {
     const data = error.response?.data ?? error
-    message.error(data.message || data.msg || error.message)
-
-    return Promise.reject(data)
+    return rejectRequest(data, error.config, error, error.message)
   }
 )
 
 type Request = {
-  <R extends unknown, D>(config: AxiosRequestConfig): Promise<D>
+  <R extends unknown, D>(config: RequestConfig): Promise<D>
   <R extends unknown, D>(
     url: string,
     method?: Method,
-    config?: AxiosRequestConfig | { data: R; params: R }
+    config?: RequestConfig | { data: R; params: R }
   ): Promise<D>
   <R extends unknown, D>(url: string, data: R, method?: Method): Promise<D>
-  <R extends unknown, D>(url: string, data: R, config?: AxiosRequestConfig): Promise<D>
+  <R extends unknown, D>(url: string, data: R, config?: RequestConfig): Promise<D>
 }
-type Url<R> = AxiosRequestConfig | string
-type Config<R> =
-  | (AxiosRequestConfig & { data: R; params: R })
-  | undefined
-  | Method
-  | AxiosRequestConfig
+type Url<R> = RequestConfig | string
+type Config<R> = (RequestConfig & { data: R; params: R }) | undefined | Method | RequestConfig
 const request: Request = <R, D>(url: Url<R>, method?: unknown | Method, config?: Config<R>) => {
   if (typeof url !== 'string') {
     return http(url)
@@ -90,7 +107,7 @@ const request: Request = <R, D>(url: Url<R>, method?: unknown | Method, config?:
     return request(url, 'post')
   } else if (typeof method === 'string') {
     return http({
-      ...(<AxiosRequestConfig>config),
+      ...(<RequestConfig>config),
       url,
       method
     })

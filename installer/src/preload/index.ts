@@ -5,6 +5,10 @@ import {contextBridge, ipcRenderer} from 'electron'
  * 渲染进程通过 window.installer.xxx 调用
  */
 const installerAPI = {
+  getUpdateContext: (): Promise<{ installDir: string; version: string } | null> =>
+    ipcRenderer.invoke('installer:update-context'),
+  runUpdate: (): Promise<{ success: boolean; appPath?: string; error?: string }> =>
+    ipcRenderer.invoke('installer:run-update'),
   // ── 窗口控制 ──────────────────────────────────────────────────────────────
   minimize: () => ipcRenderer.send('installer:minimize'),
   maximize: () => ipcRenderer.send('installer:maximize'),

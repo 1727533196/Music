@@ -6,6 +6,7 @@ import gsap from 'gsap'
 
 interface Props {
   lyric: Lyric[] | Yrc[]
+  lyricLoading?: boolean
   lrcMode: 1 | 0
   title: string
   bg?: string
@@ -14,6 +15,11 @@ interface Props {
   active?: boolean
 }
 const props = defineProps<Props>()
+// 加载期间保持上一首的布局，只在新歌词结果确定后切换。
+const hasLyrics = ref(Boolean(props.lyric.length) || Boolean(props.lyricLoading))
+watch([() => props.lyricLoading, () => Boolean(props.lyric.length)], ([loading, available]) => {
+  if (!loading) hasLyrics.value = Boolean(available)
+})
 const nowPlayingColumn = useTemplateRef<HTMLDivElement>('nowPlayingColumn')
 const coverContainer = useTemplateRef<HTMLDivElement>('coverContainer')
 const videoCover = useTemplateRef<HTMLVideoElement>('videoCover')
@@ -35,31 +41,28 @@ const syncVideo = () => {
   } else video.pause()
 }
 onMounted(() => {
-  watch(
-    () => Boolean(props.lyric.length),
-    async (_hasLyrics, _previous, onCleanup) => {
-      const column = nowPlayingColumn.value!
-      const previousRect = column.getBoundingClientRect()
-      let cancelled = false
-      let movement: gsap.core.Tween | undefined
-      onCleanup(() => {
-        cancelled = true
-        movement?.kill()
-      })
-      gsap.set(column, { clearProps: 'transform' })
-      if (!props.active || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  watch(hasLyrics, async (_hasLyrics, _previous, onCleanup) => {
+    const column = nowPlayingColumn.value!
+    const previousRect = column.getBoundingClientRect()
+    let cancelled = false
+    let movement: gsap.core.Tween | undefined
+    onCleanup(() => {
+      cancelled = true
+      movement?.kill()
+    })
+    gsap.set(column, { clearProps: 'transform' })
+    if (!props.active || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
-      // 布局先更新，再从原来的可见位置平移到新位置，快速反向切换也保持连续。
-      await nextTick()
-      if (cancelled) return
-      const nextRect = column.getBoundingClientRect()
-      movement = gsap.fromTo(
-        column,
-        { x: previousRect.left - nextRect.left, y: previousRect.top - nextRect.top },
-        { x: 0, y: 0, duration: 0.5, ease: 'power3.out', clearProps: 'transform' }
-      )
-    }
-  )
+    // 布局先更新，再从原来的可见位置平移到新位置，快速反向切换也保持连续。
+    await nextTick()
+    if (cancelled) return
+    const nextRect = column.getBoundingClientRect()
+    movement = gsap.fromTo(
+      column,
+      { x: previousRect.left - nextRect.left, y: previousRect.top - nextRect.top },
+      { x: 0, y: 0, duration: 0.5, ease: 'power3.out', clearProps: 'transform' }
+    )
+  })
 
   watch(
     coverSrc,
@@ -122,7 +125,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="listening-layout" :class="{ 'no-lyrics': !props.lyric.length }">
+  <div class="listening-layout" :class="{ 'no-lyrics': !hasLyrics }">
     <div ref="nowPlayingColumn" class="now-playing-column">
       <div class="cover-frame">
         <div ref="coverContainer" class="cover-container">
@@ -161,7 +164,7 @@ onMounted(() => {
       <!-- 保持 Teleport 目标常驻，详情与底栏共用同一个音频实例。 -->
       <div class="music-detail-bottom" />
     </div>
-    <div class="lyrics-column" v-show="props.lyric.length">
+    <div class="lyrics-column" v-show="hasLyrics">
       <!-- 歌词实例只挂载一次，空歌词时也保留此节点。 -->
       <div class="lyric-container" v-show="props.lyric.length" aria-label="同步歌词" />
     </div>
