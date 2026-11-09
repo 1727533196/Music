@@ -2,6 +2,8 @@
 import { onMounted, ref } from 'vue'
 import { useSettings } from '@/store/settings'
 import { useMusicAction } from '@/store/music'
+import AppSelect from '@/components/AppSelect/index.vue'
+import type { SelectValue } from '@/components/AppSelect/types'
 import {
   audioQualities,
   isAudioQuality,
@@ -43,8 +45,7 @@ async function clear() {
     busy.value = false
   }
 }
-function change(event: Event) {
-  const quality = (event.target as HTMLSelectElement).value
+function change(quality: SelectValue) {
   if (isAudioQuality(quality)) settings.setState({ audioQuality: quality })
 }
 onMounted(() => void refresh())
@@ -53,12 +54,14 @@ onMounted(() => void refresh())
   <section class="settings-section playback-settings">
     <h2 class="section-title">音质与音频缓存</h2>
     <div class="playback-setting-row">
-      <label for="preferred-quality">播放音质</label
-      ><select id="preferred-quality" :value="settings.state.audioQuality" @change="change">
-        <option v-for="quality in audioQualities" :key="quality.value" :value="quality.value">
-          {{ quality.label }} · {{ quality.description }}
-        </option>
-      </select>
+      <label for="preferred-quality">播放音质</label>
+      <AppSelect
+        id="preferred-quality"
+        class="quality-select"
+        :model-value="settings.state.audioQuality"
+        :options="audioQualities"
+        @change="change"
+      />
     </div>
     <p>
       切换音质会保留当前进度和播放／暂停状态；可用音质由歌曲资源与账号权限决定，播放器会显示实际返回的音质。
@@ -102,7 +105,10 @@ onMounted(() => void refresh())
   display: flex;
   gap: 8px;
 }
-select,
+.quality-select {
+  width: 210px;
+  max-width: 100%;
+}
 button {
   min-height: 34px;
   padding: 5px 10px;
@@ -117,7 +123,6 @@ button:disabled {
   opacity: 0.5;
   cursor: default;
 }
-select:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--app-accent);
   outline-offset: 3px;

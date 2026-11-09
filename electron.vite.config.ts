@@ -11,6 +11,8 @@ export default defineConfig({
   },
   renderer: {
     server: {
+      port: 8089,
+      strictPort: true,
       watch: {
         usePolling: process.platform === 'darwin',
         interval: 300

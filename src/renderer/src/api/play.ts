@@ -24,7 +24,8 @@ export const deleteSong = (op: 'add' | 'del', pid: number, tracks: number | stri
     { op, pid, tracks: String(tracks) }
   )
 
-export const checkMusic = (id: number) => request(`/check/music?id=${id}`)
+export const checkMusic = (id: number) =>
+  request<unknown, { success: boolean; message?: string; code: number }>(`/check/music?id=${id}`)
 
 // 云盘歌曲信息匹配纠正
 // uid: 用户 id, sid: 云盘的歌曲 id, asid: 要匹配的歌曲 id (取消匹配传 0)

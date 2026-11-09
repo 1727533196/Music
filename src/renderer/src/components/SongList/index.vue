@@ -7,6 +7,8 @@ import { GetMusicDetailData, PlayList } from '@/api/musicList'
 import { useUserInfo } from '@/store'
 import useMusic from '@/components/MusicPlayer/useMusic'
 import { useMusicAction } from '@/store/music'
+import { useSettings } from '@/store/settings'
+import { audioCacheKey } from '@/utils/audioSource'
 import Pagination from '@/components/Pagination/index.vue'
 import NotFound from '@/assets/not-found.png'
 import ContextMenu from '@/components/ContextMenu/index.vue'
@@ -105,6 +107,7 @@ const tableStyle = computed(() => ({
 
 const store = useUserInfo()
 const music = useMusicAction()
+const settings = useSettings()
 const { likeMusic, deleteSongHandler } = useMusic()
 const router = useRouter()
 const route = useRoute()
@@ -241,18 +244,29 @@ const showLoadedArtwork = (event: Event) => {
 }
 
 const playHandler = async (item: GetMusicDetailData, index: number) => {
-  const { success } = await checkMusic(item.id)
-  if (success === false) {
-    copyrightVisible.value = true
-    return
-  }
-
   if (music.state.runtimeList?.id === music.state.currentItem?.id) {
     if (window.$audio.isPlay && props.songs.id === item.id) {
       return
     }
     if (!window.$audio.isPlay && props.songs.id === item.id) {
       return window.$audio.play()
+    }
+  }
+
+  // 已有完整本地音频时直接播放，避免在线可用性检查阻断离线缓存。
+  const cached = await window.audioCache
+    ?.find(audioCacheKey(item.id, settings.state.audioQuality))
+    .catch(() => null)
+  if (!cached) {
+    try {
+      const { success } = await checkMusic(item.id)
+      if (success === false) {
+        copyrightVisible.value = true
+        return
+      }
+    } catch {
+      // 请求层已提示网络错误，未缓存的歌曲无法继续播放。
+      return
     }
   }
 

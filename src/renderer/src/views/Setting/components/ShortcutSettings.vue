@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import AppSelect from '@/components/AppSelect/index.vue'
+import type { SelectOption, SelectValue } from '@/components/AppSelect/types'
 import {
   globalShortcutDefaults,
   shortcutAccelerator,
@@ -77,6 +79,13 @@ const keyLabels: Record<string, string> = {
   Space: '空格'
 }
 const keyLabel = (key: string) => keyLabels[key] || (key.length === 1 ? key.toUpperCase() : key)
+const keyOptions: SelectOption[] = keyGroups.flatMap((group) =>
+  group.keys.map((key) => ({ label: keyLabel(key), value: key, description: group.label }))
+)
+function changeManualKey(value: SelectValue) {
+  if (typeof value === 'string' && keyOptions.some((option) => option.value === value))
+    manualKey.value = value
+}
 const normalizeKeys = (keys: string[]) =>
   keys
     .map((key) => key.toLowerCase())
@@ -352,15 +361,18 @@ onUnmounted(() => {
               }}</label
             >
           </fieldset>
-          <label class="main-key"
-            >主按键<select v-model="manualKey" :disabled="!!savingId">
-              <optgroup v-for="group in keyGroups" :key="group.label" :label="group.label">
-                <option v-for="key in group.keys" :key="key" :value="key">
-                  {{ keyLabel(key) }}
-                </option>
-              </optgroup>
-            </select></label
-          >
+          <div class="main-key">
+            <label :for="`shortcut-main-key-${shortcut.id}`">主按键</label>
+            <AppSelect
+              :id="`shortcut-main-key-${shortcut.id}`"
+              class="main-key-select"
+              :model-value="manualKey"
+              :options="keyOptions"
+              :disabled="!!savingId"
+              size="small"
+              @update:model-value="changeManualKey"
+            />
+          </div>
           <div class="manual-actions">
             <button type="button" :disabled="!!savingId" @click="manualId = null">取消</button
             ><button type="submit" :disabled="!!savingId">
@@ -562,19 +574,14 @@ button:focus-visible {
     accent-color: var(--app-accent);
   }
   .main-key {
+    display: flex;
     flex-direction: column;
     align-items: flex-start;
+    gap: 6px;
     color: var(--app-muted);
   }
-  select {
-    min-width: 120px;
-    min-height: 34px;
-    padding: 4px 8px;
-    border: 1px solid var(--app-border);
-    border-radius: 6px;
-    color: var(--app-text);
-    background: var(--app-bg);
-    font: inherit;
+  .main-key-select {
+    width: 160px;
   }
   .manual-actions {
     display: flex;
@@ -602,7 +609,6 @@ button:disabled {
   cursor: default;
   opacity: 0.5;
 }
-select:focus-visible,
 input:focus-visible {
   outline: 2px solid var(--app-accent);
   outline-offset: 3px;
