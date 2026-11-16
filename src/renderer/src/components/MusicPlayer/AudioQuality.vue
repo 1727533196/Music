@@ -1,16 +1,40 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useSettings } from '@/store/settings'
 import { useMusicAction } from '@/store/music'
 import { audioQualities, type AudioQuality } from '../../../../shared/audioCache'
+import { isLocalTrack } from '@/utils/playbackTrack'
+import { useFlags } from '@/store/flags'
 
 const props = defineProps<{ light?: boolean }>()
 const settings = useSettings()
 const music = useMusicAction()
+const flags = useFlags()
 const menuId = useId()
 const trigger = ref<HTMLButtonElement>()
 const menu = ref<HTMLDivElement>()
 const opened = ref(false)
+const localInfo = computed(() => {
+  const song = music.state.songs
+  return isLocalTrack(song) ? song.local : null
+})
+const localFormat = computed(() => localInfo.value?.format.toUpperCase() || '本地')
+const localSpecs = computed(() => {
+  const info = localInfo.value
+  if (!info) return []
+  return [
+    { label: '格式', value: localFormat.value },
+    ...(info.bitrate && info.bitrate > 0
+      ? [{ label: '码率', value: `${Math.round(info.bitrate / 1000)} kbps` }]
+      : []),
+    ...(info.sampleRate && info.sampleRate > 0
+      ? [{ label: '采样率', value: `${Number((info.sampleRate / 1000).toFixed(2))} kHz` }]
+      : []),
+    ...(info.bitsPerSample && info.bitsPerSample > 0
+      ? [{ label: '位深', value: `${info.bitsPerSample} bit` }]
+      : [])
+  ]
+})
 const selected = computed(() =>
   audioQualities.find((item) => item.value === settings.state.audioQuality)
 )
@@ -41,21 +65,39 @@ async function onToggle(event: Event) {
   opened.value = (event as ToggleEvent).newState === 'open'
   if (opened.value) {
     await nextTick()
-    menu.value
-      ?.querySelector<HTMLButtonElement>('[aria-checked="true"]')
-      ?.focus({ preventScroll: true })
+    if (!menu.value?.matches(':popover-open')) return
+    if (localInfo.value) menu.value.focus({ preventScroll: true })
+    else
+      menu.value
+        .querySelector<HTMLButtonElement>('[aria-checked="true"]')
+        ?.focus({ preventScroll: true })
   }
 }
 function change(quality: AudioQuality) {
+  if (localInfo.value) return
   settings.setState({ audioQuality: quality })
   close()
   trigger.value?.focus({ preventScroll: true })
 }
 function navigate(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    event.stopPropagation()
+    close()
+    trigger.value?.focus({ preventScroll: true })
+    return
+  }
+  if (event.key === 'Tab') {
+    close()
+    trigger.value?.focus({ preventScroll: true })
+    return
+  }
+  if (localInfo.value) return
   const items = [
     ...(menu.value?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') || [])
   ]
   const index = items.indexOf(document.activeElement as HTMLButtonElement)
+  if (!items.length) return
   let next: number
   if (event.key === 'ArrowDown') next = (index + 1) % items.length
   else if (event.key === 'ArrowUp') next = (index - 1 + items.length) % items.length
@@ -66,7 +108,11 @@ function navigate(event: KeyboardEvent) {
   items[next]?.focus()
 }
 onMounted(() => window.addEventListener('resize', close))
-onBeforeUnmount(() => window.removeEventListener('resize', close))
+watch([() => music.state.songs.id, () => flags.isOpenDetail], close)
+onBeforeUnmount(() => {
+  close()
+  window.removeEventListener('resize', close)
+})
 </script>
 
 <template>
@@ -76,12 +122,16 @@ onBeforeUnmount(() => window.removeEventListener('resize', close))
       type="button"
       class="quality-trigger"
       :popovertarget="menuId"
-      aria-label="播放音质"
-      aria-haspopup="menu"
+      :aria-label="localInfo ? '本地音频信息' : '播放音质'"
+      :aria-haspopup="localInfo ? 'dialog' : 'menu'"
       :aria-expanded="opened"
-      :title="playbackNote || '切换播放音质'"
+      :title="
+        localInfo
+          ? localSpecs.map((item) => item.value).join(' · ')
+          : playbackNote || '切换播放音质'
+      "
     >
-      <span>{{ selected?.label }}</span>
+      <span>{{ localInfo ? localFormat : selected?.label }}</span>
       <svg viewBox="0 0 12 12" aria-hidden="true" :class="{ rotated: opened }">
         <path d="m3 4.5 3 3 3-3" />
       </svg>
@@ -92,30 +142,43 @@ onBeforeUnmount(() => window.removeEventListener('resize', close))
       popover="auto"
       class="quality-menu"
       :class="{ 'quality-menu-light': props.light }"
-      role="menu"
-      aria-label="播放音质"
+      :role="localInfo ? 'dialog' : 'menu'"
+      :aria-label="localInfo ? '本地音频信息' : '播放音质'"
+      tabindex="-1"
       @beforetoggle="placeMenu"
       @toggle="onToggle"
       @keydown="navigate"
     >
-      <div class="menu-heading">播放音质</div>
-      <button
-        v-for="quality in audioQualities"
-        :key="quality.value"
-        type="button"
-        class="quality-option"
-        role="menuitemradio"
-        :aria-checked="settings.state.audioQuality === quality.value"
-        :tabindex="settings.state.audioQuality === quality.value ? 0 : -1"
-        @click="change(quality.value)"
-      >
-        <span class="option-label">{{ quality.label }}</span>
-        <span class="option-description">{{ quality.description }}</span>
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path v-if="settings.state.audioQuality === quality.value" d="m3.5 8 3 3 6-6" />
-        </svg>
-      </button>
-      <p class="menu-note">{{ playbackNote || '可用音质取决于歌曲资源与账号权限' }}</p>
+      <template v-if="localInfo">
+        <div class="menu-heading">本地音频</div>
+        <dl class="local-specs">
+          <div v-for="spec in localSpecs" :key="spec.label" class="local-spec">
+            <dt>{{ spec.label }}</dt>
+            <dd>{{ spec.value }}</dd>
+          </div>
+        </dl>
+        <p class="menu-note">按文件原始音质播放</p>
+      </template>
+      <template v-else>
+        <div class="menu-heading">播放音质</div>
+        <button
+          v-for="quality in audioQualities"
+          :key="quality.value"
+          type="button"
+          class="quality-option"
+          role="menuitemradio"
+          :aria-checked="settings.state.audioQuality === quality.value"
+          :tabindex="settings.state.audioQuality === quality.value ? 0 : -1"
+          @click="change(quality.value)"
+        >
+          <span class="option-label">{{ quality.label }}</span>
+          <span class="option-description">{{ quality.description }}</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path v-if="settings.state.audioQuality === quality.value" d="m3.5 8 3 3 6-6" />
+          </svg>
+        </button>
+        <p class="menu-note">{{ playbackNote || '可用音质取决于歌曲资源与账号权限' }}</p>
+      </template>
     </div>
   </div>
 </template>
@@ -172,6 +235,7 @@ svg {
   outline-offset: 3px;
 }
 .light .quality-trigger {
+  height: 32px;
   color: #ffffffb3;
   border-color: #ffffff40;
 }
@@ -206,6 +270,27 @@ svg {
   color: var(--app-muted);
   font-size: 11px;
   line-height: 16px;
+}
+.local-specs {
+  margin: 0;
+  padding: 0 10px 4px;
+}
+.local-spec {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+.local-spec dt {
+  color: var(--app-muted);
+}
+.local-spec dd {
+  margin: 0;
+  color: inherit;
+  text-align: right;
 }
 .quality-option {
   display: flex;

@@ -15,9 +15,10 @@ const { maximize, unmaximize, minimize, close } = handle()
 const accountOpen = ref(false)
 const macWindow = isElectron() && isMacOs()
 const windowControls = isElectron() && !isMacOs()
-const libraryPaths = ['/library', '/play-list', '/lately', '/detail', '/user-cover', '/local']
+const libraryPaths = ['/library', '/play-list', '/lately', '/detail', '/user-cover']
 const activeSection = computed(() => {
   if (libraryPaths.includes(route.path)) return '/library'
+  if (route.path === '/local') return '/local'
   if (route.path === '/cloud') return '/cloud'
   if (route.path === '/home' || route.path === '/') return '/home'
   return ''
@@ -25,6 +26,7 @@ const activeSection = computed(() => {
 const navigation = [
   { path: '/home', label: '推荐' },
   { path: '/library', label: '资料库' },
+  { path: '/local', label: '本地音乐' },
   { path: '/cloud', label: '云盘' }
 ]
 const historyState = computed(() => {

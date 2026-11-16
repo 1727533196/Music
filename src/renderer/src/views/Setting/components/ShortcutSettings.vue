@@ -51,6 +51,20 @@ const shortcuts = ref<
     name: '展开 / 收起歌词',
     description: '切换歌曲详情页',
     keys: [...defaults.toggle_lyrics]
+  },
+  {
+    available: true,
+    id: 'toggle_desktop_lyrics',
+    name: '显示 / 隐藏桌面歌词',
+    description: '在其他窗口上方显示歌词',
+    keys: [...defaults.toggle_desktop_lyrics]
+  },
+  {
+    available: true,
+    id: 'lock_desktop_lyrics',
+    name: '锁定 / 解锁桌面歌词',
+    description: '切换鼠标穿透，锁定后可用此快捷键解锁',
+    keys: [...defaults.lock_desktop_lyrics]
   }
 ])
 const availableShortcuts = computed(() => shortcuts.value.filter((shortcut) => shortcut.available))

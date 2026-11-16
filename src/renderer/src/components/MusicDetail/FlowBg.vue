@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import { colorExtraction, gradualChange, useRhythm } from '@/components/MusicDetail/useMusic'
-import {nextTick, onMounted, ref, watch} from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 import { findBestColors, toggleImg } from '@/utils'
 import { useMusicAction } from '@/store/music'
 import { useSettings } from '@/store/settings'
 import FluidBackground from '@/components/FluidBackground/index.vue'
+import { trackArtwork } from '@/utils/playbackTrack'
 
 interface Props {
   bg: string
   active?: boolean
 }
 
-const props    = withDefaults(defineProps<Props>(), { active: true })
-const music    = useMusicAction()
+const props = withDefaults(defineProps<Props>(), { active: true })
+const music = useMusicAction()
 const settings = useSettings()
 
 // ★ 给默认值，确保 shader 初始就有颜色可用（Lover 封面色）
@@ -20,7 +21,7 @@ const bestColors = ref<number[][]>([
   [255, 182, 210], // 粉
   [180, 140, 255], // 紫
   [255, 220, 160], // 橙金
-  [160, 200, 255], // 天蓝
+  [160, 200, 255] // 天蓝
 ])
 
 onMounted(() => {
@@ -33,8 +34,8 @@ onMounted(() => {
       if (!bg) return
 
       console.log('lyricBg', lyricBg)
-      toggleImg(bg, '200y200').then((img) => {
-        const rgb    = colorExtraction(img)
+      toggleImg(trackArtwork(bg, '200y200')).then((img) => {
+        const rgb = colorExtraction(img)
         const colors = findBestColors(rgb, 10) // ★ 提取10色，效果更丰富
 
         console.log('提取的颜色:', colors)
@@ -86,7 +87,7 @@ onMounted(() => {
 
 .content-layer {
   position: relative;
-  z-index: 10;          /* 内容层叠在背景上面 */
+  z-index: 10; /* 内容层叠在背景上面 */
   width: 100%;
   height: 100%;
 }

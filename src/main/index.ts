@@ -6,9 +6,22 @@ import setupWindowEvents from './module'
 import { setupUpdates } from './updates'
 import { setupGlobalShortcuts } from './shortcuts'
 import { setupAudioCache } from './audioCache'
+import { setupDesktopLyrics } from './desktopLyrics'
+import { setupLocalMusic } from './localMusic'
+let localMusicOwner: BrowserWindow | undefined
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'tinglan-audio',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      corsEnabled: true
+    }
+  },
+  {
+    scheme: 'tinglan-local',
     privileges: {
       standard: true,
       secure: true,
@@ -39,6 +52,8 @@ function createWindow(): void {
     frame: false
   })
 
+  localMusicOwner = mainWindow
+  setupDesktopLyrics(mainWindow)
   // 当窗口准备好显示时，显示窗口
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
@@ -69,7 +84,7 @@ if (!is.dev) {
 }
 
 // 当 Electron 初始化完成并准备好创建浏览器窗口时调用
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   setupUpdates()
   setupGlobalShortcuts()
   try {
@@ -90,6 +105,11 @@ app.whenReady().then(() => {
   ipcMain.on('ping', () => console.log('pong'))
 
   // 创建浏览器窗口
+  try {
+    await setupLocalMusic(() => localMusicOwner)
+  } catch (error) {
+    console.error('本地资料库初始化失败:', error)
+  }
   createWindow()
 
   // 当应用程序被激活时（例如在 macOS 上点击 Dock 图标），如果没有窗口打开，则重新创建一个窗口

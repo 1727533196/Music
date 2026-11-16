@@ -127,11 +127,14 @@ export default () => {
       }
     }
   }
-  const updatePlayList = async (list: CurrentItem) => {
-    playListState.playList = list.tracks
-    playListState.ids = list.tracks.map((item) => item.id)
+  const updatePlayList = async (list: CurrentItem & { tracks: GetMusicDetailData[] }) => {
+    // 此处收到的是完整详情列表；云盘歌曲等可能未计入服务端 trackCount。
+    // 按实际列表校准数量，不使用搜索结果或尚未获取完成的批次。
+    list = { ...list, trackCount: list.tracks.length }
     // 过滤掉track属性
     const { tracks, ...args } = list
+    playListState.playList = tracks
+    playListState.ids = tracks.map((item) => item.id)
     playListState.listInfo = args
     music.updateCurrentItem(list)
     getLikeMusicIds()

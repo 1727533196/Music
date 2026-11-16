@@ -285,9 +285,12 @@ export const getCommentMusic = (
   cursor?: number
 ) => request('/comment/new', 'get', { params: { id, type, pageNo, pageSize, sortType, cursor } })
 
-export const getRecordSong = (limit = 200) =>
-  request('/record/recent/song', {
-    limit: limit
+export const getRecordSong = (limit = 200, options?: { silentError?: boolean; timeout?: number }) =>
+  request<null, { data: { list: { data: GetMusicDetailData }[] } }>({
+    ...options,
+    url: '/record/recent/song',
+    method: 'post',
+    data: { limit }
   })
 
 // 心动模式/智能播放

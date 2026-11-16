@@ -1,11 +1,20 @@
-export const shortcutIds = ['play_pause', 'prev_track', 'next_track', 'toggle_lyrics'] as const
+export const shortcutIds = [
+  'play_pause',
+  'prev_track',
+  'next_track',
+  'toggle_lyrics',
+  'toggle_desktop_lyrics',
+  'lock_desktop_lyrics'
+] as const
 export type ShortcutId = (typeof shortcutIds)[number]
 export type ShortcutConfig = Record<ShortcutId, string[]>
 export const globalShortcutDefaults: ShortcutConfig = {
   play_pause: ['Control', 'Alt', 'Space'],
   prev_track: ['Control', 'Alt', 'ArrowLeft'],
   next_track: ['Control', 'Alt', 'ArrowRight'],
-  toggle_lyrics: ['Control', 'Alt', 'L']
+  toggle_lyrics: ['Control', 'Alt', 'L'],
+  toggle_desktop_lyrics: ['Control', 'Alt', 'D'],
+  lock_desktop_lyrics: ['Control', 'Alt', 'K']
 }
 export type ShortcutStatus = Record<ShortcutId, { registered: boolean; message: string }>
 export function shortcutAccelerator(keys: unknown): string | null {

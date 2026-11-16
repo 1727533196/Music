@@ -4,7 +4,9 @@ import { useMusicAction } from '@/store/music'
 import LyricDisplay from './LyricDisplay.vue'
 import FlowBg from './FlowBg.vue'
 
-const props = defineProps<{ modelValue: boolean }>()
+const props = withDefaults(defineProps<{ modelValue: boolean; windowVisible?: boolean }>(), {
+  windowVisible: true
+})
 const emit = defineEmits(['update:modelValue'])
 const music = useMusicAction()
 const backgroundActive = ref(props.modelValue)
@@ -109,7 +111,7 @@ const containFocus = (event: KeyboardEvent) => {
     @keydown="containFocus"
     @transitionend.self="focusDetail"
   >
-    <FlowBg class="detail-background" :bg="bg" :active="backgroundActive" />
+    <FlowBg class="detail-background" :bg="bg" :active="backgroundActive && windowVisible" />
     <div class="detail-scrim" />
     <div
       class="detail-drag-region"
@@ -137,7 +139,7 @@ const containFocus = (event: KeyboardEvent) => {
         :title="music.state.songs.name || ''"
         :ar="music.state.songs.ar || []"
         :videoPlayUrl="music.state.videoPlayUrl"
-        :active="modelValue"
+        :active="modelValue && windowVisible"
       />
     </div>
   </section>

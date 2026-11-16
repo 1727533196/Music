@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, nextTick, reactive, UnwrapRef, watch } fro
 import { useUserInfo } from '@/store'
 import { useMusicAction } from '@/store/music'
 import ProgressBar from '@/components/MusicPlayer/ProgressBar.vue'
-import { GetMusicDetailData } from '@/api/musicList'
+import { isLocalTrack, type PlaybackTrack, type TrackId } from '@/utils/playbackTrack'
 import DetailLeft from '@/components/MusicPlayer/DetailLeft.vue'
 import DetailCenter from '@/components/MusicPlayer/DetailCenter.vue'
 import DetailRight from '@/components/MusicPlayer/DetailRight.vue'
@@ -16,6 +16,7 @@ import { useFlags } from '@/store/flags'
 import { reloadAudioSource } from '@/utils/musicSource'
 import { message } from '@/utils/message'
 import { useSettings } from '@/store/settings'
+import { connectDesktopLyrics } from '@/utils/desktopLyrics'
 
 const orderStatus = ['icon-xihuan5', 'icon-xunhuan', 'icon-suijibofang', 'icon-danquxunhuan']
 type userAudio = {
@@ -37,8 +38,8 @@ export interface MusicPlayerInstanceType {
 }
 interface Props {
   src: string
-  ids?: number[]
-  songs: GetMusicDetailData
+  ids?: TrackId[]
+  songs: PlaybackTrack
 }
 const store = useUserInfo()
 const props = defineProps<Props>()
@@ -49,19 +50,26 @@ const music = useMusicAction()
 const settings = useSettings()
 const flags = useFlags()
 const transitionIsPlay = ref(false)
-const { addListener, executeListener, pauseSomethingListener } = useListener(audio)
+let stopDesktopLyrics: (() => void) | undefined
+const { addListener, executeListener } = useListener(audio)
 const { getPlayListDetailFn } = usePlayList()
 const player = new Player({
   click
 })
-function click(time: number, index: number) {
+function click(time: number) {
   setPlaybackTime(time)
   if (!isPlay.value) {
     void play()
   }
 }
 function seeked() {
-  if (timeState.stop || !isPlay.value || !music.state.lyric?.length) return
+  if (
+    timeState.stop ||
+    !isPlay.value ||
+    !music.state.lyric?.length ||
+    music.state.lyric.notSupportedScroll
+  )
+    return
   player.syncIndex()
 }
 let originPlay: HTMLMediaElement['play']
@@ -103,7 +111,8 @@ function setPlaybackTime(time: number) {
 }
 
 onMounted(() => {
-  player.mount(document.querySelector('.lyric-container') as HTMLDivElement, audio.value)
+  stopDesktopLyrics = connectDesktopLyrics(audio.value!)
+  player.mount(document.querySelector('.lyric-container') as HTMLDivElement, audio.value!)
   originPlay = audio.value!.play as HTMLMediaElement['play']
   originPause = audio.value!.pause as HTMLMediaElement['pause']
   // 播放，音量过渡提高
@@ -112,6 +121,14 @@ onMounted(() => {
   audio.value!.pause = pause
 
   audio.value?.addEventListener('error', () => {
+    if (isLocalTrack(music.state.songs) && !pendingPlay) {
+      music.state.musicUrlExpiresAt = 0
+      isPlay.value = false
+      transitionIsPlay.value = false
+      player.pause()
+      message.error('无法读取本地音频，请检查文件是否存在或格式是否受支持')
+      return
+    }
     if (music.state.musicUrl.startsWith('tinglan-audio:')) {
       music.state.musicUrlExpiresAt = 0
       // 音质切换中的失败由切换流程处理，避免并发重载同一音频元素。
@@ -132,6 +149,7 @@ onMounted(() => {
   })
 })
 onUnmounted(() => {
+  stopDesktopLyrics?.()
   cancelPendingPlay()
   clearInterval(timer)
   player.uninstall()
@@ -168,7 +186,7 @@ async function startPlayback(
     const expired = music.isMusicUrlExpired()
     const restoring = expired || resumeTime !== null
     if (restoring) {
-      resumeTime ??= element.currentTime
+      resumeTime ??= music.state.load ? music.state.currentTime : element.currentTime
       timeState.stop = true
       element.oncanplay = null
       if (
@@ -195,7 +213,7 @@ async function startPlayback(
     resumeTime = null
     timeState.stop = false
     music.state.currentTime = element.currentTime
-    if (music.state.lyric?.length) {
+    if (music.state.lyric?.length && !music.state.lyric.notSupportedScroll) {
       // 暂停期间也可能调整进度，恢复时统一按当前音频时间校准歌词。
       player.play()
     }
@@ -219,7 +237,11 @@ async function startPlayback(
     originPause.call(element)
     if (resumeTime !== null) music.state.musicUrlExpiresAt = 0
     console.error('恢复播放失败:', error)
-    message.error('播放失败，请稍后重试')
+    message.error(
+      isLocalTrack(music.state.songs)
+        ? '无法播放本地音频，请检查文件位置或音频格式'
+        : '播放失败，请稍后重试'
+    )
   }
   return undefined
 }
@@ -227,6 +249,7 @@ async function startPlayback(
 watch(
   () => settings.state.audioQuality,
   async () => {
+    if (isLocalTrack(music.state.songs)) return
     if (!audio.value || !music.state.songs.id || !music.state.musicUrl) return
     const wasPlaying = isPlay.value
     resumeTime ??= audio.value.currentTime
@@ -276,7 +299,7 @@ function pause(isNeed: boolean = true, lengthen: boolean = false) {
   cancelPendingPlay()
   const revision = playbackRevision
   audio.value!.oncanplay = null
-  let volume = store.volume
+  const volume = store.volume
   // 是否需要更新暂停标识， 什么时候不需要，就比如切换下一首歌的时候:
   // 这个时候会先调用pause暂停上一首进行过渡，然后在调用play播放，这个时候就不需要更新暂停标识
   isNeed && (isPlay.value = false)
@@ -354,10 +377,15 @@ const end = () => {
 const setOrderHandler = () => {
   const runtimeList = music.state.runtimeList
 
-  let newValue = (music.state.orderStatusVal + 1) % orderStatus.length
+  const newValue = (music.state.orderStatusVal + 1) % orderStatus.length
 
   // 如果上一次是心动模式并且当前播放的列表是”我喜欢的“，这次切换为其他，则重新获取”我喜欢的“列表,并更新进行时列表
-  if (runtimeList?.specialType === 5 && music.state.orderStatusVal === 0 && newValue !== 0) {
+  if (
+    runtimeList?.specialType === 5 &&
+    typeof runtimeList.id === 'number' &&
+    music.state.orderStatusVal === 0 &&
+    newValue !== 0
+  ) {
     getPlayListDetailFn(runtimeList.id, '', false)
     music.updateTracks(
       playListState.playList,
@@ -367,7 +395,7 @@ const setOrderHandler = () => {
 
   // 如果当前播放歌单不是”我喜欢的“列表，则心动模式不可用
   music.state.orderStatusVal =
-    newValue === 0 && runtimeList?.specialType !== 5
+    newValue === 0 && (runtimeList?.specialType !== 5 || runtimeList.tracks.some(isLocalTrack))
       ? 1
       : (newValue as typeof music.state.orderStatusVal)
 
@@ -377,9 +405,9 @@ const setOrderHandler = () => {
 // 执行切换事件，随后暂停time监听器，等待歌曲加载完成后会打开
 const cutSongHandler = () => {
   const type = music.state.lrcMode === 1 ? 'lrc' : 'yrc'
-  if (music.state.lyric?.length) {
+  if (music.state.lyric?.length && !music.state.lyric.notSupportedScroll) {
     player.updateAudioLrc(music.state.lyric, type)
-  }
+  } else player.pause()
   executeListener('cutSong')
 }
 

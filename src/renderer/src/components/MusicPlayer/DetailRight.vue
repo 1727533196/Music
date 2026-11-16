@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { formattingTime } from '@/utils'
-import { GetMusicDetailData } from '@/api/musicList'
+import type { PlaybackTrack } from '@/utils/playbackTrack'
 import Volume from '@/components/MusicPlayer/Volume.vue'
 import { useFlags } from '@/store/flags'
 import AudioQuality from './AudioQuality.vue'
+import DesktopLyricsToggle from './DesktopLyricsToggle.vue'
 
 interface Props {
-  songs: GetMusicDetailData
+  songs: PlaybackTrack
   currentTime: number
   audio?: HTMLAudioElement
 }
@@ -22,6 +23,7 @@ const openDrawer = () => {
 <template>
   <div class="right">
     <AudioQuality />
+    <DesktopLyricsToggle />
     <div class="playback-time">
       <div v-if="props.songs.ar" class="current-time">
         {{ formattingTime(props.currentTime * 1000) }}

@@ -1,12 +1,22 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useMusicAction } from '@/store/music'
 import { getUserCloud } from '@/api/musicList'
 import type { GetMusicDetailData, PlayList } from '@/api/musicList'
 import { columns } from './config'
 import SongList from '@/components/SongList/index.vue'
+import { useLocalCloudUpload } from '@/store/localCloudUpload'
 
 const music = useMusicAction()
+const uploads = useLocalCloudUpload()
+let reloadAfterUpload = false
+watch(
+  () => uploads.revision,
+  () => {
+    if (state.loading) reloadAfterUpload = true
+    else void getUserCloudFn(1)
+  }
+)
 const state = reactive({
   loading: false,
   ids: [] as number[],
@@ -48,7 +58,13 @@ async function getUserCloudFn(page = state.page) {
     if (version === requestVersion) loadError.value = true
     console.error('加载音乐云盘失败', error)
   } finally {
-    if (version === requestVersion) state.loading = false
+    if (version === requestVersion) {
+      state.loading = false
+      if (reloadAfterUpload) {
+        reloadAfterUpload = false
+        void getUserCloudFn(1)
+      }
+    }
   }
 }
 
@@ -115,8 +131,6 @@ void getUserCloudFn()
           :inert="state.loading || undefined"
         >
           <SongList
-            @play="music.getMusicUrlHandler"
-            @current-change="currentChange"
             is-paging
             :songs="music.state.songs"
             :columns="columns"
@@ -127,6 +141,8 @@ void getUserCloudFn()
             :page-size="state.limit"
             :total="state.total"
             :current-page="state.page"
+            @play="music.getMusicUrlHandler"
+            @current-change="currentChange"
           />
         </div>
       </template>
@@ -137,7 +153,7 @@ void getUserCloudFn()
           {{
             state.total
               ? '歌曲可能已发生变化，回到第一页看看。'
-              : '在网易云音乐上传到云盘的歌曲，会显示在这里。'
+              : '可在“本地音乐”中将电脑里的音乐上传到云盘。'
           }}
         </p>
         <button v-if="state.total" class="retry-button" @click="getUserCloudFn(1)">

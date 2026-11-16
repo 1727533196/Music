@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { Profile } from '@/api/user'
-import { getMusicUrl, PlayList } from '@/api/musicList'
+import { PlayList } from '@/api/musicList'
 import {
   asideFontSize,
   ListItem,
@@ -9,6 +9,7 @@ import {
 } from '@/layout/BaseAside/config'
 import { useAnonimousLogin } from '@/utils/useLogin'
 import { useMusicAction } from './music'
+import { isLocalTrack } from '@/utils/playbackTrack'
 export const useUserInfo = defineStore('userInfoId', {
   state: () => {
     return {
@@ -40,7 +41,7 @@ export const useUserInfo = defineStore('userInfoId', {
       }
       type key = keyof typeof val
       for (const valKey in this.profile) {
-        // @ts-ignore
+        // @ts-ignore 服务端 Profile 含额外字段，仅复制已有的本机资料字段。
         this.profile[valKey as key] = val[valKey as key]
       }
       localStorage.setItem('userId', String(this.profile.userId))
@@ -92,8 +93,8 @@ export const useUserInfo = defineStore('userInfoId', {
           item.show = this.isLogin
         }
       })
-      let playItem = asideMenuConfig.find((item) => item.mark === 'play')
-      let subscribedListItem = asideMenuConfig.find((item) => item.mark === 'subscribedList')
+      const playItem = asideMenuConfig.find((item) => item.mark === 'play')
+      const subscribedListItem = asideMenuConfig.find((item) => item.mark === 'subscribedList')
       myList.length && (playItem!.list = myList)
       subscribedList.length && (subscribedListItem!.list = subscribedList)
 
@@ -110,6 +111,21 @@ export const useUserInfo = defineStore('userInfoId', {
     },
     loadCache() {
       const isLogin = JSON.parse(localStorage.getItem('IS_LOGIN') || 'false')
+      const musicConfig = localStorage.getItem('MUSIC_CONFIG')
+      if (musicConfig) {
+        try {
+          const playback = JSON.parse(musicConfig)
+          if (
+            isLogin ||
+            isLocalTrack(playback.songs) ||
+            playback.runtimeList?.tracks?.some(isLocalTrack)
+          ) {
+            void useMusicAction().restorePlayback(playback)
+          }
+        } catch {
+          // 播放缓存损坏时正常打开应用，不影响本地音乐索引。
+        }
+      }
       if (!isLogin) {
         return
       }
@@ -121,14 +137,6 @@ export const useUserInfo = defineStore('userInfoId', {
       const profile = localStorage.getItem('PROFILE')
       if (profile) {
         this.profile = JSON.parse(profile)
-      }
-      const music = useMusicAction()
-      const musicConfig = localStorage.getItem('MUSIC_CONFIG')
-      if (musicConfig) {
-        music.updateState(JSON.parse(musicConfig))
-        // getMusicUrl(music.state.songs.id).then(({ data }) => {
-        //   music.state.musicUrl = data[0].url || ''
-        // })
       }
     }
   }

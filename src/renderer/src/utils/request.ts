@@ -4,6 +4,7 @@ import { useSettings } from '@/store/settings'
 import { setActivePinia } from 'pinia'
 import pinia from '@/store/sotre'
 import { AccessRestrictionError, getAccessRestriction } from './accessRestriction'
+import { getMusicAuthCookie } from './musicAuth'
 
 type RequestConfig = AxiosRequestConfig & {
   handleAccessRestriction?: boolean
@@ -43,10 +44,9 @@ http.interceptors.request.use(
     if (!config.params) {
       config.params = {}
     }
-    // const cookie = getCookie('MUSIC_U')
-    const cookie = localStorage.getItem(`MUSIC_U`)
+    const cookie = getMusicAuthCookie()
     if (cookie) {
-      config.params.cookie = `MUSIC_U=${cookie};`
+      config.params.cookie = cookie
     }
     // POST 请求 url 必须添加时间戳,使每次请求 url 不一样,不然请求会被缓存
     /* 由于接口做了缓存处理 ( 缓存 2 分钟,不缓存数据极容易引起网易服务器高频 ip 错误 , 可在 app.js 设置 ,

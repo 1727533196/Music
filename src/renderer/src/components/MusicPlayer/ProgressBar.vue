@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { GetMusicDetailData } from '@/api/musicList'
+import type { PlaybackTrack } from '@/utils/playbackTrack'
 import { useMusicAction } from '@/store/music'
 import { useFlags } from '@/store/flags'
 
 interface Props {
-  songs: GetMusicDetailData
+  songs: PlaybackTrack
 }
 const props = defineProps<Props>()
 const music = useMusicAction()

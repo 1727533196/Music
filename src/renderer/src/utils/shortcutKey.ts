@@ -14,7 +14,9 @@ const localDefaults: ShortcutConfig = {
   play_pause: ['Space'],
   prev_track: ['Control', 'ArrowLeft'],
   next_track: ['Control', 'ArrowRight'],
-  toggle_lyrics: ['L']
+  toggle_lyrics: ['L'],
+  toggle_desktop_lyrics: [],
+  lock_desktop_lyrics: []
 }
 export const shortcutStatus = shallowRef<ShortcutStatus | null>(null)
 let recording = false
@@ -84,6 +86,12 @@ function execute(id: ShortcutId) {
       flags.isOpenDetail = !flags.isOpenDetail
       break
     }
+    case 'toggle_desktop_lyrics':
+      void window.desktopLyrics?.command('toggle').catch(() => {})
+      break
+    case 'lock_desktop_lyrics':
+      void window.desktopLyrics?.command('toggle-lock').catch(() => {})
+      break
   }
 }
 function keydown(event: KeyboardEvent) {

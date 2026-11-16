@@ -5,19 +5,28 @@ import {
   getDynamicCover,
   getIntelliganceList,
   getLyric,
-  GetMusicDetailData,
   updateScrobble
 } from '@/api/musicList'
-import { watch, ref, reactive } from 'vue'
+import { watch, ref, reactive, onScopeDispose } from 'vue'
 import { parseLrc, parseYrc } from '@lrc-player/parse'
-import { randomNum, Yrc } from '@/utils'
+import { randomNum } from '@/utils'
 import { useUserInfo } from '@/store/index'
 import { resolveAudioSource, audioCacheKey } from '@/utils/audioSource'
 import { useSettings } from '@/store/settings'
 import type { AudioQuality } from '../../../shared/audioCache'
 import { message } from '@/utils/message'
+import {
+  isLocalTrack,
+  type PlaybackQueue,
+  type PlaybackTrack,
+  type TrackId
+} from '@/utils/playbackTrack'
+import type { LocalTrack } from '../../../shared/localMusic'
 
-export type Lyric = { time: number | boolean; text: string; line: number }
+export type Lyric = ReturnType<typeof parseYrc>[number]
+export type PlaybackLyrics = (ReturnType<typeof parseYrc> | ReturnType<typeof parseLrc>) & {
+  notSupportedScroll?: boolean
+}
 interface State {
   musicUrl: string
   actualQuality: AudioQuality | null
@@ -26,9 +35,9 @@ interface State {
   musicUrlExpiresAt: number
   songs: any
   currentItem: Partial<CurrentItem> | null
-  runtimeList: CurrentItem | null
-  runtimeIds: number[]
-  lyric: (Lyric[] & { notSupportedScroll?: boolean }) | (Yrc[] & { notSupportedScroll?: boolean })
+  runtimeList: PlaybackQueue | null
+  runtimeIds: TrackId[]
+  lyric: PlaybackLyrics
   currentTime: number
   lrcMode: 0 | 1
   bgColor: Array<Array<string>>
@@ -42,15 +51,17 @@ interface State {
 }
 
 const normalizePlaybackQueue = (
-  tracks: GetMusicDetailData[],
-  previousIds: number[],
-  songId: number | undefined,
+  tracks: PlaybackTrack[],
+  previousIds: TrackId[],
+  songId: TrackId | undefined,
   currentIndex: number,
   history: number[]
 ) => {
-  const playableTracks = tracks.filter((song) => !((song.privilege?.st ?? 0) < 0))
+  const playableTracks = tracks.filter(
+    (song) => isLocalTrack(song) || !((song.privilege?.st ?? 0) < 0)
+  )
   const ids = playableTracks.map((song) => song.id)
-  const positions = new Map<number, number>()
+  const positions = new Map<TrackId, number>()
   ids.forEach((id, index) => {
     if (!positions.has(id)) positions.set(id, index)
   })
@@ -67,7 +78,7 @@ const normalizePlaybackQueue = (
 
 // 会把用户当前正在播放的列表单独存储起来，以便切换歌单时没有播放切换的歌单不会被清空
 export const useMusicAction = defineStore('musicActionId', () => {
-  let state: State = reactive({
+  const state: State = reactive({
     actualQuality: null,
     sourceCached: false,
     sourceTrial: false,
@@ -92,6 +103,45 @@ export const useMusicAction = defineStore('musicActionId', () => {
   const settings = useSettings()
   // 加载中的空数组尚不能用于判断歌曲是否有歌词，不写入播放持久化状态。
   const lyricLoading = ref(false)
+  let lastPositionSaved = 0
+  const saveLocalPosition = () => {
+    if (!isLocalTrack(state.songs) || !state.musicUrl || lyricLoading.value) return
+    try {
+      localStorage.setItem(
+        'LOCAL_MUSIC_POSITION',
+        JSON.stringify({ id: state.songs.id, time: state.currentTime })
+      )
+      lastPositionSaved = Date.now()
+    } catch {
+      /* 存储不可用不打断播放。 */
+    }
+  }
+  watch(
+    () => state.currentTime,
+    () => {
+      if (Date.now() - lastPositionSaved >= 2000) saveLocalPosition()
+    }
+  )
+  window.addEventListener('beforeunload', saveLocalPosition)
+  onScopeDispose(() => window.removeEventListener('beforeunload', saveLocalPosition))
+  const persistPlayback = () => {
+    try {
+      // 本地元数据由主进程索引持久化，队列只保存 ID，避免占满 localStorage。
+      const tracks = state.runtimeList?.tracks.map((track) =>
+        isLocalTrack(track) ? { id: track.id, source: 'local' } : track
+      )
+      localStorage.setItem(
+        'MUSIC_CONFIG',
+        JSON.stringify({
+          ...state,
+          load: true,
+          runtimeList: state.runtimeList ? { ...state.runtimeList, tracks } : null
+        })
+      )
+    } catch (error) {
+      console.warn('保存播放队列失败', error)
+    }
+  }
   let reorderingQueue = false
   watch(
     () => state.index,
@@ -107,7 +157,11 @@ export const useMusicAction = defineStore('musicActionId', () => {
     val.name = val.specialType === 5 ? '我喜欢的歌单' : val.name
     state.currentItem = val
   }
-  const replacePlaybackQueue = (list: CurrentItem, previousIds: number[], history: number[]) => {
+  const replacePlaybackQueue = (
+    list: CurrentItem | PlaybackQueue,
+    previousIds: TrackId[],
+    history: number[]
+  ) => {
     const queue = normalizePlaybackQueue(
       Array.isArray(list.tracks) ? list.tracks : [],
       previousIds,
@@ -116,7 +170,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
       history
     )
     // 只过滤播放队列，避免修改与浏览歌单共享的对象。
-    state.runtimeList = { ...list, tracks: queue.tracks }
+    state.runtimeList = { ...list, tracks: queue.tracks } as PlaybackQueue
     state.runtimeIds = queue.ids
     reorderingQueue = true
     try {
@@ -126,7 +180,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
     }
     state.lastIndexList = queue.history
   }
-  const updateRuntimeList = (list: CurrentItem, ids: number[]) => {
+  const updateRuntimeList = (list: CurrentItem | PlaybackQueue, ids: TrackId[]) => {
     if (list.specialType !== 5 && state.orderStatusVal === 0) {
       state.orderStatusVal = 1
     }
@@ -139,7 +193,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
 
     getIntelliganceListHandler()
   }
-  const updateTracks = (tracks: GetMusicDetailData[], ids: number[]) => {
+  const updateTracks = (tracks: PlaybackTrack[], ids: TrackId[]) => {
     if (state.runtimeList) {
       replacePlaybackQueue(
         { ...state.runtimeList, tracks },
@@ -152,23 +206,27 @@ export const useMusicAction = defineStore('musicActionId', () => {
   // 只调整已有队列中的歌单歌曲，保留心动推荐和临时添加的歌曲及其位置。
   const reorderPlaylistTracks = (playlistId: number, orderedIds: number[]): void => {
     const order = new Map(orderedIds.map((id, index) => [id, index]))
-    const reorderExisting = <T extends { id: number }>(tracks: T[]): T[] => {
+    const reorderExisting = <T extends { id: TrackId }>(tracks: T[]): T[] => {
       const sorted = tracks
-        .filter((track) => order.has(track.id))
-        .sort((a, b) => order.get(a.id)! - order.get(b.id)!)
+        .filter((track) => typeof track.id === 'number' && order.has(track.id))
+        .sort((a, b) => order.get(a.id as number)! - order.get(b.id as number)!)
       let index = 0
-      return tracks.map((track) => (order.has(track.id) ? sorted[index++] : track))
+      return tracks.map((track) =>
+        typeof track.id === 'number' && order.has(track.id) ? sorted[index++] : track
+      )
     }
 
-    const reorderMetadata = (list: Partial<CurrentItem> | null | undefined): boolean => {
+    const reorderMetadata = (
+      list: Partial<CurrentItem> | PlaybackQueue | null | undefined
+    ): boolean => {
       if (list?.id !== playlistId) return false
       if (Array.isArray(list.trackIds)) list.trackIds = reorderExisting(list.trackIds)
       if (Array.isArray(list.tracks)) list.tracks = reorderExisting(list.tracks)
       return true
     }
     const reorderQueue = (
-      tracks: GetMusicDetailData[],
-      songId: number | undefined,
+      tracks: PlaybackTrack[],
+      songId: TrackId | undefined,
       currentIndex: number,
       history: number[]
     ) => {
@@ -240,6 +298,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
     quality: AudioQuality,
     silentError = false
   ) => {
+    if (isLocalTrack(item)) return
     const { id, pc } = item
     if (revision !== sourceRequestId || state.songs.id !== id) return
     lyricLoading.value = true
@@ -305,11 +364,6 @@ export const useMusicAction = defineStore('musicActionId', () => {
         index: queue.index,
         lastIndexList: queue.history
       })
-      try {
-        localStorage.setItem('MUSIC_CONFIG', JSON.stringify(restored))
-      } catch (error) {
-        console.warn('更新播放队列缓存失败', error)
-      }
     }
     reorderingQueue = true
     try {
@@ -318,12 +372,77 @@ export const useMusicAction = defineStore('musicActionId', () => {
       reorderingQueue = false
     }
   }
+  const restorePlayback = async (data: Partial<State>) => {
+    const revision = sourceRequestId
+    const previousQueue = state.runtimeList
+    const tracks = Array.isArray(data.runtimeList?.tracks) ? data.runtimeList.tracks : []
+    if (isLocalTrack(data.songs) || tracks.some(isLocalTrack)) {
+      try {
+        const library = await window.localMusic?.list()
+        if (!library) return
+        // 等待索引期间用户可能已经开始播放另一首歌。
+        if (state.musicUrl || revision !== sourceRequestId || previousQueue !== state.runtimeList)
+          return
+        const indexed = new Map(library.tracks.map((track) => [track.id, track]))
+        if (data.runtimeList) {
+          data = {
+            ...data,
+            runtimeList: {
+              ...data.runtimeList,
+              tracks: tracks.flatMap<PlaybackTrack>((track) =>
+                isLocalTrack(track)
+                  ? indexed.get(track.id)
+                    ? [indexed.get(track.id)!]
+                    : []
+                  : [track]
+              )
+            }
+          }
+        }
+        if (isLocalTrack(data.songs)) {
+          const track = indexed.get(data.songs.id)
+          const current = track || { ...data.songs, local: { ...data.songs.local, missing: true } }
+          data = { ...data, songs: current, musicUrl: '', musicUrlExpiresAt: 0, load: true }
+          // 使用已登记资源恢复暂停状态，首次播放时再次确认文件可用。
+          let duration = current.dt
+          if (track) {
+            try {
+              const resolved = await window.localMusic!.resolve(track.id)
+              data.songs = resolved.track
+              data.musicUrl = resolved.url
+              duration = resolved.track.dt
+            } catch {
+              current.local.missing = true
+            }
+          }
+          if (state.musicUrl || revision !== sourceRequestId || previousQueue !== state.runtimeList)
+            return
+          try {
+            const position = JSON.parse(localStorage.getItem('LOCAL_MUSIC_POSITION') || '{}')
+            if (
+              position.id === current.id &&
+              Number.isFinite(position.time) &&
+              position.time >= 0
+            ) {
+              data.currentTime =
+                duration > 0 ? Math.min(position.time, duration / 1000) : position.time
+            }
+          } catch {
+            /* 没有可恢复的进度。 */
+          }
+        }
+      } catch {
+        return
+      }
+    }
+    updateState(data)
+  }
   // 获取动态封面
   const getDynamicCoverHandler = async (id: number) => {
     try {
-      const { data } = await getDynamicCover(id)
+      const { data } = (await getDynamicCover(id)) as { data?: { videoPlayUrl?: string | null } }
       if (state.songs.id !== id) return
-      if (data.videoPlayUrl) {
+      if (data?.videoPlayUrl) {
         state.videoPlayUrl = data.videoPlayUrl
       } else {
         state.videoPlayUrl = null
@@ -335,28 +454,71 @@ export const useMusicAction = defineStore('musicActionId', () => {
   // 设置媒体元数据
   const updateMediaSession = (song) => {
     if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: song.title, // 歌曲名
-        artist: song.artist, // 歌手
-        album: song.album, // 专辑名
-        artwork: [
-          { src: song.coverUrl, sizes: '96x96', type: 'image/png' },
-          { src: song.coverUrl, sizes: '128x128', type: 'image/png' },
-          { src: song.coverUrl, sizes: '192x192', type: 'image/png' },
-          { src: song.coverUrl, sizes: '512x512', type: 'image/png' }
-        ]
-      })
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: song.title, // 歌曲名
+          artist: song.artist, // 歌手
+          album: song.album, // 专辑名
+          artwork: song.coverUrl ? [{ src: song.coverUrl, sizes: '512x512' }] : []
+        })
+      } catch {
+        // 封面格式不受媒体中心支持时，仍然播放音频。
+        navigator.mediaSession.metadata = null
+      }
     }
   }
   let sourceRequestId = 0
+  const resolveLocalSource = async (track: LocalTrack) => {
+    if (!window.localMusic) throw new Error('本地音乐仅在桌面应用中可用')
+    const resolved = await window.localMusic.resolve(track.id)
+    // 解析器假定末尾有空行，补齐文件末尾换行以保留最后一句。
+    const lyrics = resolved.lyric
+      ? parseYrc(resolved.lyric.replace(/\r\n?/g, '\n').trimEnd() + '\n')
+      : []
+    return {
+      url: resolved.url,
+      track: resolved.track,
+      lyrics,
+      duration: resolved.track.dt,
+      quality: null,
+      qualityVerified: false,
+      cached: false,
+      trial: false,
+      expiresAt: Number.MAX_SAFE_INTEGER,
+      details: JSON.stringify({
+        lyric: lyrics,
+        lrcMode: 0
+      })
+    }
+  }
   const isMusicUrlExpired = () =>
     !state.musicUrlExpiresAt ||
     Date.now() >= state.musicUrlExpiresAt ||
-    (state.load && state.musicUrl.startsWith('tinglan-audio:'))
+    (state.load && (state.musicUrl.startsWith('tinglan-audio:') || isLocalTrack(state.songs)))
 
   const refreshMusicUrl = async (signal: AbortSignal, bypassCache = false): Promise<boolean> => {
     if (signal.aborted) return false
     const songId = state.songs.id
+    if (isLocalTrack(state.songs)) {
+      const requestId = ++sourceRequestId
+      lyricLoading.value = true
+      try {
+        const source = await resolveLocalSource(state.songs)
+        if (signal.aborted || requestId !== sourceRequestId || state.songs.id !== songId)
+          return false
+        state.songs = source.track
+        state.musicUrl = source.url
+        state.musicUrlExpiresAt = source.expiresAt
+        state.actualQuality = null
+        state.sourceCached = false
+        state.sourceTrial = false
+        state.lyric = source.lyrics
+        state.lrcMode = 0
+        return true
+      } finally {
+        if (requestId === sourceRequestId) lyricLoading.value = false
+      }
+    }
     const quality = settings.state.audioQuality
     const requestId = ++sourceRequestId
     if (!state.lyric?.length) lyricLoading.value = true
@@ -410,23 +572,39 @@ export const useMusicAction = defineStore('musicActionId', () => {
   }
 
   // 获取音乐url并播放
-  const getMusicUrlHandler = async (item: GetMusicDetailData, i?: number) => {
+  const getMusicUrlHandler = async (item: PlaybackTrack, i?: number) => {
     const requestId = ++sourceRequestId
     const quality = settings.state.audioQuality
     try {
       $audio.el.oncanplay = null
       lyricLoading.value = true
+      state.sourceTrial = false
       state.songs = item
       state.lyric = []
       state.videoPlayUrl = null
-      const source = await resolveAudioSource(item.id, quality)
-      if (requestId !== sourceRequestId || quality !== settings.state.audioQuality) {
+      const local = isLocalTrack(item)
+      const source = isLocalTrack(item)
+        ? await resolveLocalSource(item)
+        : await resolveAudioSource(item.id, quality)
+      if (requestId !== sourceRequestId || (!local && quality !== settings.state.audioQuality)) {
         if (requestId === sourceRequestId) lyricLoading.value = false
         return false
       }
-      void updateScrobble(item.id, state.runtimeList?.id, source.cached).catch(() => {})
-      let restoredLyrics = false
-      if (source.details) {
+      if ('track' in source) {
+        state.songs = item = source.track
+        state.lyric = source.lyrics
+        state.lrcMode = 0
+      }
+      if (!local && typeof item.id === 'number') {
+        const playlistId = state.runtimeList?.id
+        void updateScrobble(
+          item.id,
+          typeof playlistId === 'number' ? playlistId : undefined,
+          source.cached
+        ).catch(() => {})
+      }
+      let restoredLyrics = 'track' in source
+      if (!restoredLyrics && source.details) {
         try {
           const details = JSON.parse(source.details)
           if (Array.isArray(details.lyric) && (details.lrcMode === 0 || details.lrcMode === 1)) {
@@ -439,8 +617,11 @@ export const useMusicAction = defineStore('musicActionId', () => {
         }
       }
       if (restoredLyrics) lyricLoading.value = false
-      else void getLyricHandler(item, requestId, source.quality, source.cached)
-      if (!source.cached) void getDynamicCoverHandler(item.id).catch(() => {})
+      else if (!local && source.quality)
+        void getLyricHandler(item, requestId, source.quality, source.cached)
+      else lyricLoading.value = false
+      if (!local && !source.cached && typeof item.id === 'number')
+        void getDynamicCoverHandler(item.id).catch(() => {})
       if (source.duration > 0) state.songs.dt = source.duration
       // 请求过程中可能已拖动排序，使用歌曲 ID 定位最新队列中的位置。
       const currentIndex = state.runtimeIds.indexOf(item.id)
@@ -456,7 +637,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
       state.sourceTrial = source.trial
       $audio.cutSongHandler()
       // 监听audio是否加载完毕
-      localStorage.setItem('MUSIC_CONFIG', JSON.stringify({ ...state, load: true }))
+      persistPlayback()
 
       updateMediaSession({
         title: item.name,
@@ -506,6 +687,68 @@ export const useMusicAction = defineStore('musicActionId', () => {
       return false
     }
   }
+  const localQueue = (tracks: LocalTrack[]): PlaybackQueue => ({
+    id: 'local:library',
+    name: '本地音乐',
+    coverImgUrl: '',
+    userId: 0,
+    updateTime: 0,
+    createTime: 0,
+    specialType: 300,
+    playCount: 0,
+    trackCount: tracks.length,
+    tags: [],
+    tracks,
+    trackIds: tracks.map((track) => ({ id: track.id })),
+    subscribed: false,
+    ordered: false,
+    subscribedCount: 0,
+    creator: { nickname: '', userId: 0, avatarUrl: '', userType: 4, vipType: 11 }
+  })
+  const playLocalTracks = async (tracks: LocalTrack[], startId?: string) => {
+    const playable = tracks.filter((track) => !track.local.missing)
+    const start = startId ? playable.find((track) => track.id === startId) : playable[0]
+    if (!start) {
+      message.error('没有可播放的本地文件，请刷新或重新定位')
+      return false
+    }
+    updateRuntimeList(
+      localQueue(playable),
+      playable.map((track) => track.id)
+    )
+    return getMusicUrlHandler(start)
+  }
+  const enqueueLocalTrack = (track: LocalTrack) => {
+    if (track.local.missing) {
+      message.error('文件不存在，请先重新定位')
+      return false
+    }
+    if (state.orderStatusVal === 0) state.orderStatusVal = 1
+    if (state.runtimeList) {
+      if (state.runtimeIds.includes(track.id)) return false
+      const tracks = [...state.runtimeList.tracks, track]
+      updateTracks(
+        tracks,
+        tracks.map((item) => item.id)
+      )
+    } else updateRuntimeList(localQueue([track]), [track.id])
+    persistPlayback()
+    return true
+  }
+  const removeLocalFromQueue = (id: string) => {
+    const queue = state.runtimeList
+    if (!queue) return
+    // 当前音频继续播放，结束或切歌时再离开；其余队列引用直接移除。
+    const tracks = queue.tracks
+      .filter((track) => track.id !== id || track.id === state.songs.id)
+      .map((track) =>
+        track.id === id && isLocalTrack(track)
+          ? { ...track, local: { ...track.local, missing: true } }
+          : track
+      )
+    replacePlaybackQueue({ ...queue, tracks }, state.runtimeIds, state.lastIndexList)
+    persistPlayback()
+  }
   // const setSongCache() {
   //   localStorage.setItem('MUSIC_CONFIG', JSON.stringify({
   //
@@ -513,18 +756,23 @@ export const useMusicAction = defineStore('musicActionId', () => {
   // }
   // 0心动 1列表循环 2随机播放 3单曲循环
   const orderTarget = (i: 0 | 1 | 2 | 3) => {
-    if (i === 0) {
-      return (state.index + 1) % state.runtimeIds.length
-    } else if (i === 1) {
-      return (state.index + 1) % state.runtimeIds.length
-    } else if (i === 2) {
-      return randomNum(0, state.runtimeIds.length - 1)
-    } else {
-      return state.index
-    }
+    const tracks = state.runtimeList?.tracks || []
+    const available = tracks
+      .map((track, index) => (!isLocalTrack(track) || !track.local.missing ? index : -1))
+      .filter((index) => index >= 0)
+    if (!available.length) return -1
+    if (i === 2) return available[randomNum(0, available.length - 1)]
+    if (i === 3 && available.includes(state.index)) return state.index
+    return available.find((index) => index > state.index) ?? available[0]
   }
   const playEnd = () => {
-    state.index = orderTarget(state?.orderStatusVal!)
+    if (!state.runtimeIds.length || !state.runtimeList?.tracks.length) return
+    const nextIndex = orderTarget(state.orderStatusVal)
+    if (nextIndex < 0) {
+      void window.$audio?.pause()
+      return
+    }
+    state.index = nextIndex
     if (state.index > state.runtimeIds.length - 1) {
       return
     }
@@ -532,18 +780,29 @@ export const useMusicAction = defineStore('musicActionId', () => {
   }
   // 切换歌曲
   const cutSongHandler = (target: boolean) => {
-    if ([0, 1, 3].includes(state?.orderStatusVal!)) {
+    if (!state.runtimeIds.length || !state.runtimeList?.tracks.length) return
+    if ([0, 1, 3].includes(state.orderStatusVal)) {
       const length = state.runtimeIds.length
       if (!length) return
-      state.index = (state.index + (target ? 1 : -1) + length) % length
+      let index = state.index
+      for (let count = 0; count < length; count++) {
+        index = (index + (target ? 1 : -1) + length) % length
+        const track = state.runtimeList.tracks[index]
+        if (!isLocalTrack(track) || !track.local.missing) {
+          state.index = index
+          break
+        }
+        if (count === length - 1) return
+      }
       getMusicUrlHandler(state.runtimeList!.tracks[state.index])
       return
     }
     if (!target) {
-      const i =
-        state.lastIndexList[state.lastIndexList.length - 1] ?? orderTarget(state?.orderStatusVal)
+      let i = state.lastIndexList.pop() ?? orderTarget(state.orderStatusVal)
+      const previous = state.runtimeList.tracks[i]
+      if (!previous || (isLocalTrack(previous) && previous.local.missing)) i = orderTarget(2)
+      if (i < 0) return
       getMusicUrlHandler(state.runtimeList!.tracks[i])
-      state.lastIndexList.splice(state.lastIndexList.length - 1)
       return
     }
     playEnd()
@@ -572,7 +831,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
 
       // 拖动进度条 (macOS Big Sur+ 支持)
       navigator.mediaSession.setActionHandler('seekto', (details) => {
-        window.$audio.time = details.seekTime
+        if (typeof details.seekTime === 'number') window.$audio.time = details.seekTime
       })
     }
   }
@@ -584,7 +843,13 @@ export const useMusicAction = defineStore('musicActionId', () => {
   const getIntelliganceListHandler = async () => {
     const runtimeList = state.runtimeList
 
-    if (state.orderStatusVal !== 0 || !runtimeList || runtimeList.specialType !== 5) {
+    if (
+      state.orderStatusVal !== 0 ||
+      !runtimeList ||
+      runtimeList.specialType !== 5 ||
+      typeof runtimeList.id !== 'number' ||
+      runtimeList.tracks.some(isLocalTrack)
+    ) {
       return
     }
 
@@ -604,6 +869,10 @@ export const useMusicAction = defineStore('musicActionId', () => {
 
   return {
     state,
+    restorePlayback,
+    playLocalTracks,
+    enqueueLocalTrack,
+    removeLocalFromQueue,
     lyricLoading,
     updateState,
     updateCurrentItem,

@@ -11,6 +11,7 @@ import UpdateSettings from './components/UpdateSettings.vue'
 import ShortcutSettings from './components/ShortcutSettings.vue'
 import ServerSettings from './components/ServerSettings.vue'
 import PlaybackSettings from './components/PlaybackSettings.vue'
+import DesktopLyricSettings from './components/DesktopLyricSettings.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -87,6 +88,7 @@ const navigateTabs = async (event: KeyboardEvent, index: number) => {
       class="settings-panel"
     >
       <AppearanceSettings />
+      <DesktopLyricSettings />
       <FontSettings />
     </section>
     <section

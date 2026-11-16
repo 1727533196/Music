@@ -1,20 +1,24 @@
 <script lang="ts" setup>
-import type { Yrc } from '@/utils'
-import type { Lyric } from '@/store/music'
+import type { PlaybackLyrics } from '@/store/music'
 import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import gsap from 'gsap'
 
 interface Props {
-  lyric: Lyric[] | Yrc[]
+  lyric: PlaybackLyrics
   lyricLoading?: boolean
   lrcMode: 1 | 0
   title: string
   bg?: string
-  ar: any[]
+  ar: { id: number; name: string }[]
   videoPlayUrl: string | null
   active?: boolean
 }
 const props = defineProps<Props>()
+const staticLyrics = computed(() =>
+  props.lyric.notSupportedScroll
+    ? props.lyric.map((line) => ('text' in line ? line.text : '')).filter(Boolean)
+    : []
+)
 // 加载期间保持上一首的布局，只在新歌词结果确定后切换。
 const hasLyrics = ref(Boolean(props.lyric.length) || Boolean(props.lyricLoading))
 watch([() => props.lyricLoading, () => Boolean(props.lyric.length)], ([loading, available]) => {
@@ -166,7 +170,14 @@ onMounted(() => {
     </div>
     <div class="lyrics-column" v-show="hasLyrics">
       <!-- 歌词实例只挂载一次，空歌词时也保留此节点。 -->
-      <div class="lyric-container" v-show="props.lyric.length" aria-label="同步歌词" />
+      <div
+        class="lyric-container"
+        v-show="props.lyric.length && !staticLyrics.length"
+        aria-label="同步歌词"
+      />
+      <div v-if="staticLyrics.length" class="static-lyrics" aria-label="歌词文本">
+        <p v-for="(text, index) in staticLyrics" :key="index">{{ text }}</p>
+      </div>
     </div>
   </div>
 </template>
@@ -253,6 +264,20 @@ onMounted(() => {
   height: 100%;
   min-width: 0;
   min-height: 0;
+}
+.static-lyrics {
+  height: 100%;
+  overflow-y: auto;
+  padding-block: 60px;
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  font-size: clamp(22px, 2.2vw, 30px);
+  font-weight: 600;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.7);
+  p {
+    margin: 0 0 24px;
+    white-space: pre-wrap;
+  }
 }
 .lyric-container {
   // 歌词保留原字体，不跟随界面字体设置。

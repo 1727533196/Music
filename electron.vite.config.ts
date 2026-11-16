@@ -7,9 +7,25 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()]
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/preload/index.ts'),
+          desktopLyrics: resolve('src/preload/desktopLyrics.ts')
+        }
+      }
+    }
   },
   renderer: {
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/renderer/index.html'),
+          desktopLyrics: resolve('src/renderer/desktop-lyrics.html')
+        }
+      }
+    },
     server: {
       port: 8089,
       strictPort: true,

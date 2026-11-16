@@ -1,47 +1,40 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, computed, onUnmounted, useTemplateRef } from 'vue'
+import { ref, watch, onUnmounted, useTemplateRef } from 'vue'
 import { findBestColors, toggleImg } from '@/utils'
 import { colorExtraction } from '@/components/MusicDetail/useMusic'
 import FluidBackground from '@/components/FluidBackground/index.vue'
-import { playListState } from '@/layout/BaseAside/usePlayList'
+import type { GetMusicDetailData } from '@/api/musicList'
 import { useFlags } from '@/store/flags'
 import PlayerGlyph from '@/components/MusicPlayer/PlayerGlyph.vue'
 
-interface Props {
-  // 如果传入了这些属性，则使用传入的值；否则从播放列表随机选取
-  name?: string
-  artist?: string
-  album?: string
-  duration?: string
-  releaseDate?: string
-  playCount?: string
-  coverImage?: string
-  backgroundImage?: string
-}
-
-const props = defineProps<Props>()
+const props = defineProps<{ songs: GetMusicDetailData[] }>()
 const flags = useFlags()
 const backgroundActive = ref(!flags.isOpenDetail)
 let backgroundStopTimer: ReturnType<typeof setTimeout> | undefined
-watch(() => flags.isOpenDetail, open => {
-  clearTimeout(backgroundStopTimer)
-  if (!open) backgroundActive.value = true
-  else {
-    // 详情页完全盖住首页后再暂停，保留进入过渡中的流动效果。
-    backgroundStopTimer = setTimeout(() => { backgroundActive.value = false }, 400)
+watch(
+  () => flags.isOpenDetail,
+  (open) => {
+    clearTimeout(backgroundStopTimer)
+    if (!open) backgroundActive.value = true
+    else {
+      // 详情页完全盖住首页后再暂停，保留进入过渡中的流动效果。
+      backgroundStopTimer = setTimeout(() => {
+        backgroundActive.value = false
+      }, 400)
+    }
   }
-})
+)
 onUnmounted(() => clearTimeout(backgroundStopTimer))
 
 const emit = defineEmits<{
-  play: []
+  play: [song: GetMusicDetailData]
   like: []
   share: []
 }>()
 
 // 从播放列表中随机选取一首歌曲（排除当前歌曲）
 const getRandomSong = (excludeCurrent = false) => {
-  const playlist = playListState.playList
+  const playlist = props.songs
   if (!playlist || playlist.length === 0) return null
 
   // 如果只有一首歌或者不需要排除当前歌曲，直接随机返回
@@ -60,46 +53,21 @@ const getRandomSong = (excludeCurrent = false) => {
   return newSong
 }
 
-// 当前显示的音乐信息
-const currentSong = ref<any>(null)
-let hasInitialized = false // 标记是否已初始化
-
-// 初始化或更新当前歌曲
+type BannerSource = GetMusicDetailData & { publishTime?: number; recommendReason?: string }
+const displaySong = (song: BannerSource) => ({
+  ...song,
+  artist: song.ar?.map((artist) => artist.name).join(' / ') || '未知艺术家',
+  album: song.al?.name || '未知专辑',
+  duration: formatDuration(song.dt || 0),
+  releaseDate: song.publishTime ? new Date(song.publishTime).toLocaleDateString() : '未知',
+  displayPlayCount: song.recommendReason || (song.pop || 0) + '✨',
+  coverImage: song.al?.picUrl || '',
+  backgroundImage: song.al?.picUrl || ''
+})
+const currentSong = ref<ReturnType<typeof displaySong> | null>(null)
 const updateCurrentSong = () => {
-  // 如果父组件传入了属性，优先使用传入的值
-  if (props.name || props.coverImage) {
-    currentSong.value = {
-      name: props.name,
-      artist: props.artist,
-      album: props.album,
-      duration: props.duration,
-      releaseDate: props.releaseDate,
-      playCount: props.playCount,
-      coverImage: props.coverImage,
-      backgroundImage: props.backgroundImage,
-    }
-    hasInitialized = true
-  } else {
-    // 否则从播放列表随机选取
-    const song = getRandomSong()
-    console.log('song', song)
-
-    if (song) {
-      currentSong.value = {
-        ...song,
-        name: song.name,
-        artist: song.ar?.map((a: any) => a.name).join(' / ') || '未知艺术家',
-        album: song.al?.name || '未知专辑',
-        duration: formatDuration(song.dt || 0),
-        releaseDate: song.publishTime ? new Date(song.publishTime).toLocaleDateString() : '未知',
-        // 网易云接口不返回真实播放次数，使用热度值或推荐理由
-        playCount: song.recommendReason || `${song.pop || 0}✨`,
-        coverImage: song.al?.picUrl || '',
-        backgroundImage: song.al?.picUrl || '',
-      }
-      hasInitialized = true
-    }
-  }
+  const song = getRandomSong()
+  currentSong.value = song ? displaySong(song) : null
 }
 
 // 格式化时长（毫秒 -> mm:ss）
@@ -115,7 +83,7 @@ const mainColors = ref<number[][]>([
   [255, 160, 210],
   [160, 120, 255],
   [255, 210, 130],
-  [100, 180, 255],
+  [100, 180, 255]
 ])
 
 // 从封面图片提取颜色
@@ -123,29 +91,31 @@ const extractColorsFromCover = () => {
   const coverUrl = currentSong.value?.coverImage
   if (!coverUrl) return
 
-  toggleImg(coverUrl, '200y200').then((img) => {
-    const rgb = colorExtraction(img)
-    const colors = findBestColors(rgb, 10) // 提取10色
+  toggleImg(coverUrl, '200y200')
+    .then((img) => {
+      const rgb = colorExtraction(img)
+      const colors = findBestColors(rgb, 10) // 提取10色
 
-    if (colors && colors.length > 0) {
-      // 创建新的数组引用以确保 Vue 能检测到变化
-      mainColors.value = [...colors]
-    }
-  }).catch(err => {
-    console.error('Failed to extract colors from cover:', err)
-  })
+      if (colors && colors.length > 0) {
+        // 创建新的数组引用以确保 Vue 能检测到变化
+        mainColors.value = colors.map((color) => color.map(Number))
+      }
+    })
+    .catch((err) => {
+      console.error('Failed to extract colors from cover:', err)
+    })
 }
 
 // 监听播放列表变化，数据加载完成后随机选取
 watch(
-  () => playListState.playList,
+  () => props.songs,
   (newList) => {
-    // 只在未初始化且列表有数据时执行
-    if (!hasInitialized && newList && newList.length > 0) {
+    // 缓存和新请求共用父级数据，账号切换不会显示上一账号的歌曲。
+    if (newList.length > 0) {
       updateCurrentSong()
     }
   },
-  { immediate: true, deep: true }
+  { immediate: true }
 )
 
 // 监听当前歌曲变化
@@ -163,30 +133,12 @@ watch(
 const nextGlyph = useTemplateRef<InstanceType<typeof PlayerGlyph>>('nextGlyph')
 const nextSong = () => {
   const song = getRandomSong(true) // true 表示排除当前歌曲
-  
+
   if (song) {
     nextGlyph.value?.animate()
-    currentSong.value = {
-      ...song,
-      name: song.name,
-      artist: song.ar?.map((a: any) => a.name).join(' / ') || '未知艺术家',
-      album: song.al?.name || '未知专辑',
-      duration: formatDuration(song.dt || 0),
-      releaseDate: song.publishTime ? new Date(song.publishTime).toLocaleDateString() : '未知',
-      playCount: song.recommendReason || `${song.pop || 0}✨`,
-      coverImage: song.al?.picUrl || '',
-      backgroundImage: song.al?.picUrl || '',
-    }
+    currentSong.value = displaySong(song)
   }
 }
-
-onMounted(() => {
-  // 如果父组件传入了属性，立即初始化
-  if (props.name || props.coverImage) {
-    updateCurrentSong()
-  }
-  // 否则等待 watch 监听到播放列表数据后自动初始化
-})
 </script>
 
 <template>
@@ -219,7 +171,7 @@ onMounted(() => {
         <h1 class="text-h4 font-weight-bold mb-3 text-white">
           {{ currentSong?.name || '未知歌曲' }}
         </h1>
-        <p class="text-body-2 text-medium-emphasis mb-4" style="max-width: 600px; line-height: 1.6;">
+        <p class="text-body-2 text-medium-emphasis mb-4" style="max-width: 600px; line-height: 1.6">
           专辑：{{ currentSong?.album || '未知专辑' }}
         </p>
 
@@ -229,8 +181,8 @@ onMounted(() => {
             variant="tonal"
             rounded="pill"
             size="large"
-            @click="emit('play', currentSong)"
             class="px-6"
+            @click="currentSong && emit('play', currentSong)"
           >
             <PlayerGlyph name="play" class="banner-action-glyph banner-play-glyph" />
             播放
@@ -258,7 +210,7 @@ onMounted(() => {
         </div>
         <div class="mb-2">
           <div class="text-caption text-medium-emphasis">歌曲热度</div>
-          <div class="text-body-1 font-weight-bold">{{ currentSong?.playCount || '0' }}</div>
+          <div class="text-body-1 font-weight-bold">{{ currentSong?.displayPlayCount || '0' }}</div>
         </div>
         <div>
           <div class="text-caption text-medium-emphasis">发行日期</div>

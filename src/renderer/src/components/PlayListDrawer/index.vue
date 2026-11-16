@@ -4,6 +4,9 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { columns } from '@/components/PlayListDrawer/config'
 import { useMusicAction } from '@/store/music'
 import { useFlags } from '@/store/flags'
+import LocalQueue from './LocalQueue.vue'
+import { isLocalTrack } from '@/utils/playbackTrack'
+import type { GetMusicDetailData } from '@/api/musicList'
 
 interface Props {
   modelValue: boolean
@@ -12,6 +15,14 @@ const props = defineProps<Props>()
 const emit = defineEmits(['update:modelValue'])
 const music = useMusicAction()
 const flags = useFlags()
+const hasLocalTracks = computed(() => music.state.runtimeList?.tracks.some(isLocalTrack))
+const onlineTracks = computed(() =>
+  queueTracks.value.filter((track): track is GetMusicDetailData => !isLocalTrack(track))
+)
+const onlineIds = computed(() =>
+  music.state.runtimeIds.filter((id): id is number => typeof id === 'number')
+)
+const localQueue = ref<InstanceType<typeof LocalQueue>>()
 const queueTracks = computed(() => {
   const tracks = music.state.runtimeList?.tracks
   return Array.isArray(tracks) ? tracks : []
@@ -21,6 +32,10 @@ const closeButton = ref<HTMLButtonElement | null>(null)
 let opener: HTMLElement | null = null
 const close = () => emit('update:modelValue', false)
 const locatePlayingSong = () => {
+  if (hasLocalTracks.value) {
+    localQueue.value?.locate()
+    return
+  }
   const container = drawer.value?.querySelector<HTMLElement>('.song-list-container')
   const row = container?.querySelector<HTMLElement>('.song-sort-row:has(.list.is-playing)')
   if (!container || !row) return
@@ -89,14 +104,15 @@ const handleKey = (event: KeyboardEvent) => {
         <v-icon icon="mdi-close" size="20" />
       </button>
     </header>
+    <LocalQueue v-if="modelValue && hasLocalTracks" ref="localQueue" />
     <SongList
-      v-if="modelValue && music.state.runtimeIds.length"
+      v-else-if="modelValue && music.state.runtimeIds.length"
       @play="music.getMusicUrlHandler"
       :columns="columns"
       :loading="false"
       :songs="music.state.songs"
-      :ids="music.state.runtimeIds"
-      :list="queueTracks"
+      :ids="onlineIds"
+      :list="onlineTracks"
       :list-info="music.state.runtimeList"
       :is-search="music.state.runtimeIds.length > 10"
       :is-paging="false"

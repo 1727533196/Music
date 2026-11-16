@@ -83,19 +83,25 @@ export const banner = () => request<null, BannerRes>('/banner')
 export const personalized = () => request<null, PersonalizedRes>('/personalized', 'get')
 
 // 获取精品歌单，供首页精选区域使用
-export const getHighQualityPlaylists = (limit = 6, before?: number) =>
+export interface HomeRequestOptions {
+  silentError?: boolean
+  timeout?: number
+}
+
+export const getHighQualityPlaylists = (limit = 6, before?: number, options?: HomeRequestOptions) =>
   request<{ limit: number; before?: number }, HighQualityPlaylistsRes>(
     '/top/playlist/highquality',
-    { limit, before },
-    'get'
+    'get',
+    { ...options, params: { limit, before } }
   )
 
 // 获取每日推荐歌单
-export const recommendSongList = () =>
-  request<null, RecommendSongListRes>('/recommend/resource', 'get')
+export const recommendSongList = (options?: HomeRequestOptions) =>
+  request<null, RecommendSongListRes>('/recommend/resource', 'get', options)
 
 // 获取每日推荐歌曲
-export const recommendSong = () => request<null, RecommendSongRes>('/recommend/songs', 'get')
+export const recommendSong = (options?: HomeRequestOptions) =>
+  request<null, RecommendSongRes>('/recommend/songs', 'get', options)
 
 export const homepage = () => request('/homepage/block/page', 'get')
 

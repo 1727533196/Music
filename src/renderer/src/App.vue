@@ -18,6 +18,7 @@ import UpdateNotice from '@/components/UpdateNotice/index.vue'
 import { useUpdates } from '@/store/updates'
 import { initializeShortcuts } from '@/utils/shortcutKey'
 import { useSettings } from '@/store/settings'
+import { useDesktopLyrics } from '@/store/desktopLyrics'
 import { useContextMenu } from './components/ContextMenu/useContextMenu'
 
 const audioInstance = ref<MusicPlayerInstanceType>()
@@ -28,6 +29,9 @@ const flags = useFlags()
 const route = useRoute()
 const store = useUserInfo()
 const settings = useSettings()
+const desktopLyrics = useDesktopLyrics()
+const windowVisible = ref(true)
+let stopWindowVisibility: (() => void) | undefined
 let stopShortcuts: (() => void) | undefined
 const updates = useUpdates()
 const refresh = ref(0) // 登录完成后强制刷新组件
@@ -46,6 +50,10 @@ const { MENU_KEY, activeMenu, setActiveMenu } = useContextMenu()
 provide(MENU_KEY, { activeMenu, setActiveMenu })
 // 初始化全局属性
 onMounted(() => {
+  stopWindowVisibility = window.lyricPublisher?.onVisibility((value) => {
+    windowVisible.value = value
+  })
+  void desktopLyrics.connect()
   void updates.connect()
   if (audioInstance.value !== undefined) {
     window.$audio = audioInstance.value!
@@ -96,6 +104,8 @@ function stopPunchCardTimer(): void {
 }
 
 onUnmounted(() => {
+  stopWindowVisibility?.()
+  desktopLyrics.disconnect()
   updates.disconnect()
   stopPunchCardTimer()
   stopShortcuts?.()
@@ -106,7 +116,7 @@ onUnmounted(() => {
   <UpdateNotice />
   <div id="opacity-bg" class="app-theme-background"></div>
   <div id="opacity-bg1" class="app-theme-background"></div>
-  <MusicDetail v-model="flags.isOpenDetail" />
+  <MusicDetail v-model="flags.isOpenDetail" :window-visible="windowVisible" />
   <PlayListDrawer v-model="flags.isOpenDrawer" />
   <div id="box" class="app-shell" :class="{ 'has-player': music.state.musicUrl.length > 0 }">
     <div class="main">

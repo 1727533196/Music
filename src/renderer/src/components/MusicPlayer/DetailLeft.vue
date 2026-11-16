@@ -5,32 +5,35 @@ import { computed, ref, useTemplateRef } from 'vue'
 import PlayerGlyph from './PlayerGlyph.vue'
 import { useUserInfo } from '@/store'
 import { useRouter } from 'vue-router'
-import { GetMusicDetailData } from '@/api/musicList'
+import { isLocalTrack, trackArtwork, type PlaybackTrack } from '@/utils/playbackTrack'
+import { useMusicAction } from '@/store/music'
+import TrialBadge from './TrialBadge.vue'
 
 interface Props {
-  songs: GetMusicDetailData
+  songs: PlaybackTrack
 }
 
 const props = defineProps<Props>()
+const music = useMusicAction()
 const flags = useFlags()
 const { likeMusic } = useMusic()
 const store = useUserInfo()
 const router = useRouter()
+const localSong = computed(() => isLocalTrack(props.songs))
 const isLike = computed(() => {
-  return store.userLikeIds.includes(props.songs.id)
+  return typeof props.songs.id === 'number' && store.userLikeIds.includes(props.songs.id)
 })
-const id = computed(() => {
-  return props.songs.id
-})
+const coverSrc = computed(() => trackArtwork(props.songs.al?.picUrl || ''))
 
 const liking = ref(false)
 const favoriteGlyph = useTemplateRef<InstanceType<typeof PlayerGlyph>>('favoriteGlyph')
 const toggleLike = async () => {
-  if (!props.songs.id || !store.isLogin || liking.value) return
+  const song = props.songs
+  if (isLocalTrack(song) || !song.id || !store.isLogin || liking.value) return
   favoriteGlyph.value?.animateFavorite(!isLike.value)
   liking.value = true
   try {
-    await likeMusic(props.songs.id, !isLike.value)
+    await likeMusic(song.id, !isLike.value)
   } finally {
     liking.value = false
   }
@@ -44,6 +47,7 @@ const closeMusicDetail = () => {
   flags.isOpenDetail = false
 }
 const gotoComment = () => {
+  if (isLocalTrack(props.songs) || !props.songs.id) return
   router.push({
     path: '/comment',
     query: {
@@ -67,9 +71,7 @@ const gotoComment = () => {
     >
       <span
         :style="{
-          backgroundImage: props.songs.al?.picUrl
-            ? `url(${props.songs.al.picUrl}?param=150y150)`
-            : undefined
+          backgroundImage: coverSrc ? `url(${JSON.stringify(coverSrc)})` : undefined
         }"
         class="picture"
         ><v-icon v-if="!props.songs.al?.picUrl" icon="mdi-music-note" size="24"
@@ -81,7 +83,9 @@ const gotoComment = () => {
     <div class="name-info">
       <div class="song-name-box">
         <span class="song-name">{{ props.songs.name }}</span>
+        <TrialBadge :trial="music.state.sourceTrial" />
         <button
+          v-if="!localSong"
           type="button"
           class="favorite-button"
           :class="{ active: isLike }"
@@ -96,7 +100,7 @@ const gotoComment = () => {
         </button>
       </div>
       <div class="name-container">
-        <template v-for="(item, i) in props.songs.ar">
+        <template v-for="(item, i) in props.songs.ar" :key="`${item.id}-${i}`">
           <span class="name">{{ item.name }}</span>
           <span v-if="i !== props.songs.ar.length - 1"> / </span>
         </template>
@@ -104,10 +108,12 @@ const gotoComment = () => {
     </div>
   </div>
   <div v-show="flags.isOpenDetail" class="left detail-left">
-    <el-icon :size="25" @click="closeMusicDetail" class="close np-drag"><ArrowDown /></el-icon>
-    <i v-if="isLike" @click="likeMusic(id, false)" class="iconfont icon-xihuan1"></i>
-    <i v-else @click="likeMusic(id)" class="iconfont icon-xihuan"></i>
-    <el-icon style="cursor: pointer" @click="gotoComment" :size="20"><ChatDotSquare /></el-icon>
+    <el-icon :size="25" class="close np-drag" @click="closeMusicDetail"><ArrowDown /></el-icon>
+    <template v-if="!localSong">
+      <i v-if="isLike" class="iconfont icon-xihuan1" @click="toggleLike"></i>
+      <i v-else class="iconfont icon-xihuan" @click="toggleLike"></i>
+      <el-icon style="cursor: pointer" :size="20" @click="gotoComment"><ChatDotSquare /></el-icon>
+    </template>
     <div class="more">
       <el-icon :size="10"><MoreFilled /></el-icon>
     </div>

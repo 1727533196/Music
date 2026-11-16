@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import type { GetMusicDetailData } from '@/api/musicList'
+import { isLocalTrack, type PlaybackTrack } from '@/utils/playbackTrack'
 import { useMusicAction } from '@/store/music'
 import { useUserInfo } from '@/store'
 import { useFlags } from '@/store/flags'
 import useMusic from './useMusic'
 import PlayerGlyph from './PlayerGlyph.vue'
-import { getSongCommentLabel, loadSongCommentCount } from '@/utils/songComments'
 import AudioQuality from './AudioQuality.vue'
+import DetailMoreMenu from './DetailMoreMenu.vue'
+import TrialBadge from './TrialBadge.vue'
 
-const props = defineProps<{ songs: GetMusicDetailData; isPlay: boolean }>()
+const props = defineProps<{ songs: PlaybackTrack; isPlay: boolean }>()
 const emit = defineEmits<{
   play: []
   pause: []
@@ -21,12 +21,12 @@ const emit = defineEmits<{
 const music = useMusicAction()
 const user = useUserInfo()
 const flags = useFlags()
-const router = useRouter()
 const { likeMusic } = useMusic()
 const liking = ref(false)
 const favoriteGlyph = useTemplateRef<InstanceType<typeof PlayerGlyph>>('favoriteGlyph')
 const lastVolume = ref(user.volume > 0 ? user.volume : 1)
 const hasSong = computed(() => Boolean(props.songs?.id))
+const localSong = computed(() => isLocalTrack(props.songs))
 const canPlay = computed(() => hasSong.value && Boolean(music.state.musicUrl))
 const canSkip = computed(() => canPlay.value && music.state.runtimeIds.length > 0)
 const previousGlyph = useTemplateRef<InstanceType<typeof PlayerGlyph>>('previousGlyph')
@@ -38,7 +38,9 @@ const skipSong = (next: boolean) => {
   emit('cutSong', next)
 }
 const artist = computed(() => props.songs?.ar?.map((item) => item.name).join(' / ') || '未知艺术家')
-const isLiked = computed(() => user.userLikeIds.includes(props.songs?.id))
+const isLiked = computed(
+  () => typeof props.songs?.id === 'number' && user.userLikeIds.includes(props.songs.id)
+)
 const modeNames = ['心动模式', '列表循环', '随机播放', '单曲循环']
 const modeIcons = ['mdi-heart-multiple-outline', 'mdi-repeat', 'mdi-shuffle', 'mdi-repeat-once']
 const modeName = computed(() => modeNames[music.state.orderStatusVal])
@@ -54,7 +56,6 @@ const seekPreview = ref<number | null>(null)
 const sliderTime = computed(() => seekPreview.value ?? elapsed.value)
 const progress = computed(() => (duration.value ? (sliderTime.value / duration.value) * 100 : 0))
 const volume = computed(() => Math.min(1, Math.max(0, Number(user.volume) || 0)))
-const commentLabel = computed(() => getSongCommentLabel(props.songs?.id))
 watch(volume, (value) => {
   if (value > 0) lastVolume.value = value
 })
@@ -62,14 +63,6 @@ const timeLabel = (seconds: number) => {
   const whole = Math.max(0, Math.floor(seconds))
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
 }
-
-watch(
-  () => [props.songs?.id, flags.isOpenDetail] as const,
-  ([id, open]) => {
-    if (id && open) void loadSongCommentCount(id)
-  },
-  { immediate: true }
-)
 
 watch(
   () => props.songs?.id,
@@ -104,19 +97,15 @@ const setVolume = (value: number) => {
 const changeVolume = (event: Event) => setVolume(Number((event.target as HTMLInputElement).value))
 const toggleMute = () => setVolume(volume.value > 0 ? 0 : lastVolume.value)
 const toggleLike = async () => {
-  if (!hasSong.value || !user.isLogin || liking.value) return
+  const song = props.songs
+  if (isLocalTrack(song) || !song.id || !user.isLogin || liking.value) return
   favoriteGlyph.value?.animateFavorite(!isLiked.value)
   liking.value = true
   try {
-    await likeMusic(props.songs.id, !isLiked.value)
+    await likeMusic(song.id, !isLiked.value)
   } finally {
     liking.value = false
   }
-}
-const openComments = () => {
-  if (!hasSong.value) return
-  void router.push({ path: '/comment', query: { id: props.songs.id } })
-  flags.isOpenDetail = false
 }
 </script>
 
@@ -124,10 +113,14 @@ const openComments = () => {
   <div class="detail-controls">
     <div class="track-heading">
       <div class="track-meta">
-        <h1 :title="songs?.name || '暂无播放歌曲'">{{ songs?.name || '暂无播放歌曲' }}</h1>
+        <div class="track-title-row">
+          <h1 :title="songs?.name || '暂无播放歌曲'">{{ songs?.name || '暂无播放歌曲' }}</h1>
+          <TrialBadge :trial="music.state.sourceTrial" light />
+        </div>
         <p :title="artist">{{ hasSong ? artist : '选择一首喜欢的音乐' }}</p>
       </div>
       <button
+        v-if="!localSong"
         type="button"
         class="icon-button favorite-button"
         :class="{ active: isLiked }"
@@ -224,35 +217,29 @@ const openComments = () => {
 
     <div class="secondary-controls">
       <AudioQuality light />
-      <button
-        type="button"
-        class="text-button"
-        :disabled="!hasSong"
-        :title="commentLabel"
-        @click="openComments"
-      >
-        <v-icon icon="mdi-comment-text-outline" size="17" /><span>{{ commentLabel }}</span>
-      </button>
-      <button
-        type="button"
-        class="icon-button mode-button"
-        :disabled="!canPlay"
-        :title="`${modeName}，点击切换`"
-        :aria-label="`${modeName}，切换播放模式`"
-        @click="emit('setOrderHandler')"
-      >
-        <v-icon :icon="modeIcon" size="20" />
-      </button>
-      <button
-        type="button"
-        class="text-button"
-        :class="{ active: flags.isOpenDrawer }"
-        title="播放队列"
-        :aria-pressed="flags.isOpenDrawer"
-        @click.stop="flags.isOpenDrawer = !flags.isOpenDrawer"
-      >
-        <v-icon icon="mdi-playlist-music" size="21" /><span>待播列表</span>
-      </button>
+      <div class="secondary-actions">
+        <button
+          type="button"
+          class="icon-button"
+          :disabled="!canPlay"
+          :title="`${modeName}，点击切换`"
+          :aria-label="`${modeName}，切换播放模式`"
+          @click="emit('setOrderHandler')"
+        >
+          <v-icon :icon="modeIcon" size="20" />
+        </button>
+        <button
+          type="button"
+          class="icon-button"
+          title="待播列表"
+          aria-label="待播列表"
+          :aria-pressed="flags.isOpenDrawer"
+          @click.stop="flags.isOpenDrawer = !flags.isOpenDrawer"
+        >
+          <v-icon icon="mdi-playlist-music" size="21" />
+        </button>
+        <DetailMoreMenu :song-id="songs?.id" />
+      </div>
     </div>
   </div>
 </template>
@@ -294,8 +281,16 @@ const openComments = () => {
     color: rgba(255, 255, 255, 0.56);
   }
 }
-.icon-button,
-.text-button {
+.track-title-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.track-title-row h1 {
+  min-width: 0;
+}
+.icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -410,9 +405,6 @@ const openComments = () => {
     transform: scale(0.94);
   }
 }
-.mode-button {
-  color: rgba(255, 255, 255, 0.56);
-}
 .skip-button {
   width: 44px;
   height: 48px;
@@ -458,21 +450,23 @@ const openComments = () => {
 .secondary-controls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  gap: 12px;
   margin-top: 5px;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.6);
 }
-.text-button {
-  gap: 5px;
-  min-height: 30px;
-  padding: 3px 2px;
-  font-size: 11px;
-  white-space: nowrap;
+.secondary-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  .icon-button:hover:not(:disabled),
+  .icon-button[aria-pressed='true'] {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .icon-button,
-  .text-button,
   .range::-webkit-slider-runnable-track {
     transition: none;
   }

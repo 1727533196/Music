@@ -2,37 +2,40 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserInfo } from '@/store'
+import { useSettings } from '@/store/settings'
 import ArtistBanner from './components/ArtistBanner.vue'
 import SongsSection from './components/SongsSection.vue'
 import RecentSection from './components/RecentSection.vue'
 import AlbumsSection from './components/AlbumsSection.vue'
 import MixSection from './components/MixSection.vue'
-import usePlayList from '@/layout/BaseAside/usePlayList'
 import { useMusicAction } from '@/store/music'
 import type { GetMusicDetailData } from '@/api/musicList'
-import { getHighQualityPlaylists, recommendSongList } from '@/api/home'
+import { getHighQualityPlaylists, recommendSongList, recommendSong } from '@/api/home'
 import { getRecordSong } from '@/api/musicList'
+import {
+  homeCacheKey,
+  readHomeCache,
+  writeHomeCache,
+  clearHomePersonalCache
+} from '@/utils/homeCache'
 import { playListMock as dailyQueue } from '@/views/DailyRecommend/dailyRecommendSongsConfig'
 import { playListMock as recentQueue } from '@/views/LatelyPlay/config'
 
-// 使用现有的 usePlayList hook
-const { getRecommendSongs } = usePlayList()
 const music = useMusicAction()
 const user = useUserInfo()
+const settings = useSettings()
 const router = useRouter()
 const homeLoading = ref(false)
 const login = () => window.$login?.show()
-
-// 转换 API 数据为组件所需格式（复用 SongList 的数据格式）
 const dailySongs = ref<GetMusicDetailData[]>([])
-
-// 最近播放的歌曲
 const recentSongs = ref<GetMusicDetailData[]>([])
-
-// 每日推荐歌单
-const albums = ref<any[]>([])
-
-// 精品歌单
+interface HomeAlbum {
+  id: number
+  name: string
+  cover: string
+  artist: string
+  trackCount: number
+}
 interface FeaturedMix {
   id: number
   name: string
@@ -40,8 +43,13 @@ interface FeaturedMix {
   description: string
   playCount: number
 }
+interface CachedMixes {
+  items: FeaturedMix[]
+  cursor?: number
+  hasMore: boolean
+}
+const albums = ref<HomeAlbum[]>([])
 const MIX_FETCH_SIZE = 6
-// 接口游标与展示页分开，调整窗口后缓存中的歌单仍可连续翻阅。
 const mixItems = ref<FeaturedMix[]>([])
 const mixPageSize = ref(6)
 const mixHasMore = ref(true)
@@ -50,6 +58,7 @@ let mixLayoutVersion = 0
 const mixPage = ref(1)
 const mixLoading = ref(false)
 const mixError = ref(false)
+const personalError = ref(false)
 const mixes = computed(() => {
   const start = (mixPage.value - 1) * mixPageSize.value
   return mixItems.value.slice(start, start + mixPageSize.value)
@@ -57,6 +66,80 @@ const mixes = computed(() => {
 const mixHasNextPage = computed(
   () => mixItems.value.length > mixPage.value * mixPageSize.value || mixHasMore.value
 )
+// 每个区域只在成功响应后写入；服务未就绪时保留已有画面。
+const quietRequest = { silentError: true, timeout: 6000 }
+const retryDelays = [1000, 2000, 4000, 8000, 15000, 30000]
+let retryTimer: ReturnType<typeof setTimeout> | undefined
+let retryAttempt = 0
+let contextVersion = 0
+let active = true
+let server = ''
+let account = ''
+let lastRefreshAt = 0
+let personalInFlight = false
+let lastFailedMixPage = 1
+let needsMixRefresh = true
+const pendingPersonal = new Set<'songs' | 'albums' | 'recent'>()
+const cacheKey = (section: string, publicData = false) =>
+  homeCacheKey(server, publicData ? 'public' : account, section)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object'
+const validSong = (value: unknown): value is GetMusicDetailData =>
+  isRecord(value) &&
+  typeof value.id === 'number' &&
+  Number.isFinite(value.id) &&
+  typeof value.name === 'string' &&
+  typeof value.dt === 'number' &&
+  isRecord(value.al) &&
+  typeof value.al.picUrl === 'string' &&
+  Array.isArray(value.ar) &&
+  value.ar.every((artist) => isRecord(artist) && typeof artist.name === 'string')
+const validSongs = (value: unknown): value is GetMusicDetailData[] =>
+  Array.isArray(value) && value.length <= 60 && value.every(validSong)
+const validAlbums = (value: unknown): value is HomeAlbum[] =>
+  Array.isArray(value) &&
+  value.length <= 60 &&
+  value.every(
+    (item) =>
+      isRecord(item) &&
+      typeof item.id === 'number' &&
+      Number.isFinite(item.id) &&
+      typeof item.name === 'string' &&
+      typeof item.cover === 'string' &&
+      typeof item.artist === 'string' &&
+      typeof item.trackCount === 'number'
+  )
+const validMixes = (value: unknown): value is CachedMixes =>
+  isRecord(value) &&
+  Array.isArray(value.items) &&
+  value.items.length <= 12 &&
+  typeof value.hasMore === 'boolean' &&
+  (value.cursor === undefined ||
+    (typeof value.cursor === 'number' && Number.isFinite(value.cursor))) &&
+  value.items.every(
+    (item) =>
+      isRecord(item) &&
+      typeof item.id === 'number' &&
+      Number.isFinite(item.id) &&
+      typeof item.name === 'string' &&
+      typeof item.cover === 'string' &&
+      typeof item.description === 'string' &&
+      typeof item.playCount === 'number'
+  )
+
+function scheduleRetry() {
+  if (
+    !active ||
+    retryTimer ||
+    (!mixError.value && !personalError.value) ||
+    retryAttempt >= retryDelays.length
+  )
+    return
+  retryTimer = setTimeout(() => {
+    retryTimer = undefined
+    void refreshFailed()
+  }, retryDelays[retryAttempt++])
+}
 
 const updateMixPageSize = (size: number) => {
   if (mixPageSize.value === size) return
@@ -65,61 +148,75 @@ const updateMixPageSize = (size: number) => {
   mixPage.value = 1
 }
 
-const loadMixPage = async (page = 1) => {
-  if (mixLoading.value || page < 1) return
+const loadMixPage = async (page = 1, refresh = false) => {
+  if (mixLoading.value || page < 1 || !active) return
+  const version = contextVersion
   const pageSize = mixPageSize.value
   const layoutVersion = mixLayoutVersion
   const start = (page - 1) * pageSize
   const end = start + pageSize
-  if (mixItems.value.length >= end || (!mixHasMore.value && mixItems.value.length > start)) {
+  if (
+    !refresh &&
+    (mixItems.value.length >= end || (!mixHasMore.value && mixItems.value.length > start))
+  ) {
     mixPage.value = page
     mixError.value = false
     return
   }
-  if (!mixHasMore.value) return
-
+  if (!refresh && !mixHasMore.value) return
   mixLoading.value = true
-  mixError.value = false
+  // 刷新失败时保持旧列表和游标；不能在请求发出前清空缓存。
+  const items = refresh ? [] : [...mixItems.value]
+  let cursor = refresh ? undefined : mixCursor
+  let hasMore = refresh || mixHasMore.value
   try {
-    while (mixItems.value.length < end && mixHasMore.value) {
-      const before = mixCursor
-      const { playlists, more, lasttime } = await getHighQualityPlaylists(MIX_FETCH_SIZE, before)
-      const items = playlists || []
-      const knownIds = new Set(mixItems.value.map((item) => item.id))
-      const added = items.filter((item) => {
+    while (items.length < end && hasMore) {
+      const before = cursor
+      const response = await getHighQualityPlaylists(MIX_FETCH_SIZE, before, quietRequest)
+      if (!active || version !== contextVersion) return
+      if (!Array.isArray(response.playlists)) throw new Error('Invalid featured playlists')
+      const knownIds = new Set(items.map((item) => item.id))
+      const added = response.playlists.filter((item) => {
         if (knownIds.has(item.id)) return false
         knownIds.add(item.id)
         return true
       })
-      mixItems.value.push(
+      items.push(
         ...added.map((item) => ({
           id: item.id,
           name: item.name,
           cover: item.coverImgUrl,
-          description: `${item.trackCount}首`,
+          description: item.trackCount + '首',
           playCount: item.playCount
         }))
       )
-      const cursor = Number(lasttime || items[items.length - 1]?.updateTime)
-      const hasCursor = Number.isFinite(cursor) && cursor > 0 && (!before || cursor < before)
-      mixCursor = hasCursor ? cursor : undefined
-      mixHasMore.value = Boolean(more && added.length && hasCursor)
-      // 请求期间窗口变化时，只缓存数据，保留新布局的首页。
-      if (layoutVersion !== mixLayoutVersion) return
+      const nextCursor = Number(
+        response.lasttime || response.playlists[response.playlists.length - 1]?.updateTime
+      )
+      const hasCursor =
+        Number.isFinite(nextCursor) && nextCursor > 0 && (!before || nextCursor < before)
+      cursor = hasCursor ? nextCursor : undefined
+      hasMore = Boolean(response.more && added.length && hasCursor)
     }
-    // 已到末尾时保留当前页面，避免翻到一页空白。
-    if (mixItems.value.length > start) {
-      mixPage.value = page
-    }
+    mixItems.value = items
+    mixCursor = cursor
+    mixHasMore.value = hasMore
+    mixError.value = false
+    needsMixRefresh = false
+    if (refresh) writeHomeCache(cacheKey('mixes', true), { items, cursor, hasMore })
+    if (layoutVersion === mixLayoutVersion && items.length > start) mixPage.value = page
   } catch (error) {
+    if (version !== contextVersion || !active) return
     mixError.value = true
-    // 请求层显示错误，保留当前页以便用户再次点击重试。
-    console.error('Failed to load 精选歌单:', error)
+    lastFailedMixPage = page
+    console.warn('首页精选歌单暂时无法更新，保留缓存', error)
   } finally {
-    mixLoading.value = false
+    if (version === contextVersion && active) {
+      mixLoading.value = false
+      scheduleRetry()
+    }
   }
 }
-
 const navigateMixes = (direction: 'prev' | 'next') => {
   void loadMixPage(mixPage.value + (direction === 'prev' ? -1 : 1))
 }
@@ -153,7 +250,7 @@ const handleRecentPlay = (item: GetMusicDetailData) => {
 }
 
 // 喜欢歌曲
-const handleLike = (item: GetMusicDetailData) => {
+const handleLike = (item?: unknown) => {
   console.log('Like:', item)
 }
 
@@ -161,46 +258,173 @@ const handleShare = () => {
   console.log('Share')
 }
 
-let personalRequestVersion = 0
 const loadPersonalSections = async () => {
-  const version = ++personalRequestVersion
-  dailySongs.value = []
-  albums.value = []
-  recentSongs.value = []
-  homeLoading.value = user.isLogin
-  if (!user.isLogin) return
-  const isCurrent = () => version === personalRequestVersion && user.isLogin
-  // 各区域独立更新，日推或播放记录请求失败时仍可展示精品歌单。
-  const results = await Promise.allSettled([
-    getRecommendSongs().then((data) => {
-      if (isCurrent()) dailySongs.value = data.dailySongs || []
-    }),
-    recommendSongList().then(({ recommend }) => {
-      if (!isCurrent()) return
-      albums.value = (recommend || []).map((item) => ({
-        id: item.id,
-        name: item.name,
-        cover: item.picUrl,
-        artist: item.creator?.nickname || '未知',
-        trackCount: item.trackCount
-      }))
-    }),
-    getRecordSong(10).then(({ data }) => {
-      if (!isCurrent()) return
-      recentSongs.value = (data?.list || []).slice(0, 3).map((item: any) => item.data)
+  if (!active || !account || personalInFlight || !pendingPersonal.size) return
+  personalInFlight = true
+  homeLoading.value = true
+  const version = contextVersion
+  const isCurrent = () => active && version === contextVersion
+  const save = (section: 'songs' | 'albums' | 'recent', data: unknown) => {
+    pendingPersonal.delete(section)
+    writeHomeCache(cacheKey(section), data)
+  }
+  await Promise.allSettled(
+    [...pendingPersonal].map(async (section) => {
+      if (section === 'songs') {
+        const { data } = await recommendSong(quietRequest)
+        if (!validSongs(data?.dailySongs)) throw new Error('Invalid daily songs')
+        if (isCurrent()) {
+          dailySongs.value = data.dailySongs
+          save(section, data.dailySongs)
+        }
+      } else if (section === 'albums') {
+        const { recommend } = await recommendSongList(quietRequest)
+        if (!Array.isArray(recommend)) throw new Error('Invalid recommended albums')
+        const items = recommend.slice(0, 60).map((item) => ({
+          id: item.id,
+          name: item.name,
+          cover: item.picUrl,
+          artist: item.creator?.nickname || '未知',
+          trackCount: item.trackCount
+        }))
+        if (!validAlbums(items)) throw new Error('Invalid recommended album data')
+        if (isCurrent()) {
+          albums.value = items
+          save(section, items)
+        }
+      } else {
+        const { data } = await getRecordSong(10, quietRequest)
+        if (!Array.isArray(data?.list)) throw new Error('Invalid recent songs')
+        const songs = data.list.slice(0, 3).map((item) => item.data)
+        if (!validSongs(songs)) throw new Error('Invalid recent song data')
+        if (isCurrent()) {
+          recentSongs.value = songs
+          save(section, songs)
+        }
+      }
     })
-  ])
-  const sections = ['每日推荐歌曲', '每日歌单', '最近播放']
-  if (isCurrent()) homeLoading.value = false
-  results.forEach((result, index) => {
-    if (result.status === 'rejected') {
-      console.error(`Failed to load ${sections[index]}:`, result.reason)
-    }
-  })
+  )
+  if (!isCurrent()) return
+  personalInFlight = false
+  homeLoading.value = false
+  personalError.value = pendingPersonal.size > 0
+  scheduleRetry()
 }
-watch(() => [user.isLogin, user.profile.userId], loadPersonalSections, { immediate: true })
-onBeforeUnmount(() => personalRequestVersion++)
-onMounted(() => void loadMixPage())
+
+async function refreshFailed() {
+  if (!active) return
+  const version = contextVersion
+  await Promise.all([
+    mixError.value || needsMixRefresh
+      ? loadMixPage(needsMixRefresh ? 1 : lastFailedMixPage, needsMixRefresh)
+      : Promise.resolve(),
+    loadPersonalSections()
+  ])
+  if (version !== contextVersion || !active) return
+  if (!mixError.value && !personalError.value) {
+    retryAttempt = 0
+    clearTimeout(retryTimer)
+    retryTimer = undefined
+  }
+}
+function retryHome() {
+  clearTimeout(retryTimer)
+  retryTimer = undefined
+  retryAttempt = 0
+  void refreshFailed()
+}
+function onReconnect() {
+  if (Date.now() - lastRefreshAt > 5 * 60 * 1000 && !homeLoading.value && !mixLoading.value) {
+    lastRefreshAt = Date.now()
+    needsMixRefresh = true
+    if (account) {
+      pendingPersonal.add('songs')
+      pendingPersonal.add('albums')
+      pendingPersonal.add('recent')
+    }
+  }
+  retryHome()
+}
+watch(
+  () => [settings.state.baseUrl, user.isLogin ? user.profile.userId : null] as const,
+  ([baseUrl, id]) => {
+    const nextAccount = typeof id === 'number' && id > 0 ? String(id) : ''
+    if (account && !nextAccount) clearHomePersonalCache(server, account)
+    contextVersion++
+    clearTimeout(retryTimer)
+    retryTimer = undefined
+    retryAttempt = 0
+    server = baseUrl
+    account = nextAccount
+    lastRefreshAt = Date.now()
+    personalInFlight = false
+    homeLoading.value = false
+    personalError.value = false
+    mixLoading.value = false
+    mixError.value = false
+    needsMixRefresh = true
+    mixPage.value = 1
+    mixCursor = undefined
+    mixHasMore.value = true
+    dailySongs.value = []
+    albums.value = []
+    recentSongs.value = []
+    mixItems.value = []
+    pendingPersonal.clear()
+    const featured = readHomeCache(cacheKey('mixes', true), validMixes)
+    if (featured) {
+      mixItems.value = featured.data.items
+      mixCursor = featured.data.cursor
+      mixHasMore.value = featured.data.hasMore
+    }
+    if (account) {
+      const songs = readHomeCache(cacheKey('songs'), validSongs)
+      const recommendations = readHomeCache(cacheKey('albums'), validAlbums)
+      const recent = readHomeCache(cacheKey('recent'), validSongs)
+      if (songs) {
+        dailySongs.value = songs.data
+      }
+      if (recommendations) {
+        albums.value = recommendations.data
+      }
+      if (recent) {
+        recentSongs.value = recent.data
+      }
+      pendingPersonal.add('songs')
+      pendingPersonal.add('albums')
+      pendingPersonal.add('recent')
+    }
+    void refreshFailed()
+  },
+  { immediate: true }
+)
+let disposeServerStatus: (() => void) | undefined
+onMounted(() => {
+  window.addEventListener('online', onReconnect)
+  window.addEventListener('focus', onReconnect)
+  disposeServerStatus = window.electron?.ipcRenderer.on(
+    'server:status',
+    (_event, status: { running: boolean }) => {
+      try {
+        if (
+          status?.running &&
+          ['localhost', '127.0.0.1', '[::1]'].includes(new URL(server).hostname)
+        )
+          retryHome()
+      } catch {
+        /* 自定义地址仍可通过网络恢复或手动重试。 */
+      }
+    }
+  )
+})
+onBeforeUnmount(() => {
+  active = false
+  contextVersion++
+  clearTimeout(retryTimer)
+  disposeServerStatus?.()
+  window.removeEventListener('online', onReconnect)
+  window.removeEventListener('focus', onReconnect)
+})
 </script>
 
 <template>
@@ -208,6 +432,7 @@ onMounted(() => void loadMixPage())
     <!-- Song Banner -->
     <ArtistBanner
       v-if="dailySongs.length"
+      :songs="dailySongs"
       @play="handlePlay"
       @like="handleLike"
       @share="handleShare"
