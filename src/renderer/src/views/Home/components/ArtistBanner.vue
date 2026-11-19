@@ -1,30 +1,56 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted, useTemplateRef } from 'vue'
+import { computed, ref, watch, onUnmounted, useTemplateRef } from 'vue'
 import { findBestColors, toggleImg } from '@/utils'
 import { colorExtraction } from '@/components/MusicDetail/useMusic'
 import FluidBackground from '@/components/FluidBackground/index.vue'
 import type { GetMusicDetailData } from '@/api/musicList'
 import { useFlags } from '@/store/flags'
 import PlayerGlyph from '@/components/MusicPlayer/PlayerGlyph.vue'
+import {
+  isBannerPalette,
+  readBannerAppearance,
+  writeBannerAppearance
+} from '@/utils/bannerAppearance'
 
-const props = defineProps<{ songs: GetMusicDetailData[] }>()
+const props = withDefaults(
+  defineProps<{
+    songs: GetMusicDetailData[]
+    appearanceKey?: string
+    active?: boolean
+    refreshToken?: number
+    refreshing?: boolean
+  }>(),
+  { appearanceKey: 'home-banner', active: true, refreshToken: 0, refreshing: false }
+)
+const savedAppearance = readBannerAppearance(props.appearanceKey)
+let paletteCover = savedAppearance?.cover || ''
+let colorRequest = 0
+let alive = true
+let seenRefreshToken = 0
+let manualDuringRefresh = false
 const flags = useFlags()
-const backgroundActive = ref(!flags.isOpenDetail)
+const backgroundActive = ref(props.active && !flags.isOpenDetail)
 let backgroundStopTimer: ReturnType<typeof setTimeout> | undefined
 watch(
-  () => flags.isOpenDetail,
-  (open) => {
+  () => [flags.isOpenDetail, props.active] as const,
+  ([open, active]) => {
     clearTimeout(backgroundStopTimer)
-    if (!open) backgroundActive.value = true
+    if (!active) backgroundActive.value = false
+    else if (!open) backgroundActive.value = true
     else {
       // 详情页完全盖住首页后再暂停，保留进入过渡中的流动效果。
       backgroundStopTimer = setTimeout(() => {
         backgroundActive.value = false
       }, 400)
     }
-  }
+  },
+  { immediate: true }
 )
-onUnmounted(() => clearTimeout(backgroundStopTimer))
+onUnmounted(() => {
+  clearTimeout(backgroundStopTimer)
+  alive = false
+  colorRequest++
+})
 
 const emit = defineEmits<{
   play: [song: GetMusicDetailData]
@@ -36,21 +62,10 @@ const emit = defineEmits<{
 const getRandomSong = (excludeCurrent = false) => {
   const playlist = props.songs
   if (!playlist || playlist.length === 0) return null
-
-  // 如果只有一首歌或者不需要排除当前歌曲，直接随机返回
-  if (!excludeCurrent || playlist.length === 1) {
-    const randomIndex = Math.floor(Math.random() * playlist.length)
-    return playlist[randomIndex]
-  }
-
-  // 排除当前歌曲，随机选择其他歌曲
-  let newSong
-  do {
-    const randomIndex = Math.floor(Math.random() * playlist.length)
-    newSong = playlist[randomIndex]
-  } while (newSong?.id === currentSong.value?.id)
-
-  return newSong
+  const previousId = currentSong.value?.id ?? savedAppearance?.songId
+  const otherSongs = excludeCurrent ? playlist.filter((song) => song.id !== previousId) : []
+  const candidates = otherSongs.length ? otherSongs : playlist
+  return candidates[Math.floor(Math.random() * candidates.length)]
 }
 
 type BannerSource = GetMusicDetailData & { publishTime?: number; recommendReason?: string }
@@ -65,9 +80,9 @@ const displaySong = (song: BannerSource) => ({
   backgroundImage: song.al?.picUrl || ''
 })
 const currentSong = ref<ReturnType<typeof displaySong> | null>(null)
-const updateCurrentSong = () => {
-  const song = getRandomSong()
+const selectSong = (song: GetMusicDetailData | null) => {
   currentSong.value = song ? displaySong(song) : null
+  rememberAppearance()
 }
 
 // 格式化时长（毫秒 -> mm:ss）
@@ -79,52 +94,81 @@ const formatDuration = (ms: number) => {
 }
 
 // 提取的主色调数组
-const mainColors = ref<number[][]>([
-  [255, 160, 210],
-  [160, 120, 255],
-  [255, 210, 130],
-  [100, 180, 255]
-])
+const mainColors = ref<number[][]>(
+  savedAppearance?.colors || [
+    [255, 160, 210],
+    [160, 120, 255],
+    [255, 210, 130],
+    [100, 180, 255]
+  ]
+)
+// Canvas 首帧就绪前也沿用当前颜色，不露出组件默认的浅紫底色。
+const backgroundFallback = computed(() => `rgb(${mainColors.value[0].join(', ')})`)
+
+function rememberAppearance() {
+  if (!currentSong.value || !paletteCover) return
+  writeBannerAppearance(props.appearanceKey, {
+    songId: currentSong.value.id,
+    cover: paletteCover,
+    colors: mainColors.value
+  })
+}
 
 // 从封面图片提取颜色
 const extractColorsFromCover = () => {
+  const request = ++colorRequest
   const coverUrl = currentSong.value?.coverImage
-  if (!coverUrl) return
+  if (!coverUrl || coverUrl === paletteCover) return
 
   toggleImg(coverUrl, '200y200')
     .then((img) => {
+      // 换歌、卸载或账号切换后，旧封面的慢请求不能把颜色再改回去。
+      if (!alive || request !== colorRequest || currentSong.value?.coverImage !== coverUrl) return
       const rgb = colorExtraction(img)
-      const colors = findBestColors(rgb, 10) // 提取10色
+      const colors = findBestColors(rgb, Math.min(10, rgb.length))
+        .filter((color) => Array.isArray(color))
+        .map((color) => color.map(Number))
 
-      if (colors && colors.length > 0) {
+      if (isBannerPalette(colors)) {
         // 创建新的数组引用以确保 Vue 能检测到变化
-        mainColors.value = colors.map((color) => color.map(Number))
+        mainColors.value = colors
+        paletteCover = coverUrl
+        rememberAppearance()
       }
     })
     .catch((err) => {
+      if (!alive || request !== colorRequest) return
       console.error('Failed to extract colors from cover:', err)
     })
 }
 
 // 监听播放列表变化，数据加载完成后随机选取
 watch(
-  () => props.songs,
-  (newList) => {
-    // 缓存和新请求共用父级数据，账号切换不会显示上一账号的歌曲。
-    if (newList.length > 0) {
-      updateCurrentSong()
-    }
+  () => [props.songs, props.refreshToken] as const,
+  ([newList, token]) => {
+    const refreshed = token > seenRefreshToken
+    seenRefreshToken = token
+    // 缓存用于保留首屏外观；真正拿到新数据后才换一次推荐，不把歌曲固定死。
+    const selectedId = currentSong.value?.id ?? savedAppearance?.songId
+    const retained = newList.find((item) => item.id === selectedId)
+    const song =
+      refreshed && !manualDuringRefresh ? getRandomSong(true) : retained || getRandomSong()
+    selectSong(song)
+    if (refreshed) manualDuringRefresh = false
   },
   { immediate: true }
 )
 
 // 监听当前歌曲变化
 watch(
-  () => currentSong.value?.coverImage, // 只监听封面图片的变化
-  (newCover, oldCover) => {
-    if (newCover && newCover !== oldCover) {
-      extractColorsFromCover()
+  () => [currentSong.value?.coverImage, props.refreshing] as const,
+  ([newCover, refreshing]) => {
+    if (refreshing) {
+      colorRequest++
+      return
     }
+    if (newCover) extractColorsFromCover()
+    manualDuringRefresh = false
   },
   { immediate: true } // 立即执行一次以处理初始值
 )
@@ -136,7 +180,8 @@ const nextSong = () => {
 
   if (song) {
     nextGlyph.value?.animate()
-    currentSong.value = displaySong(song)
+    if (props.refreshing) manualDuringRefresh = true
+    selectSong(song)
   }
 }
 </script>
@@ -148,6 +193,7 @@ const nextSong = () => {
         :main-color="mainColors"
         :brightness="0.8"
         :active="backgroundActive"
+        :style="{ backgroundColor: backgroundFallback }"
         class="fluid-bg"
       />
     </div>
@@ -156,6 +202,7 @@ const nextSong = () => {
       <!-- Artist Avatar -->
       <v-img
         :src="currentSong?.coverImage"
+        :transition="false"
         cover
         class="artist-avatar"
         rounded="lg"

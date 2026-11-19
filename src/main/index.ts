@@ -8,6 +8,7 @@ import { setupGlobalShortcuts } from './shortcuts'
 import { setupAudioCache } from './audioCache'
 import { setupDesktopLyrics } from './desktopLyrics'
 import { setupLocalMusic } from './localMusic'
+import { setupAudioOutput } from './audioOutput'
 let localMusicOwner: BrowserWindow | undefined
 protocol.registerSchemesAsPrivileged([
   {
@@ -54,6 +55,7 @@ function createWindow(): void {
 
   localMusicOwner = mainWindow
   setupDesktopLyrics(mainWindow)
+  setupAudioOutput(mainWindow)
   // 当窗口准备好显示时，显示窗口
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()

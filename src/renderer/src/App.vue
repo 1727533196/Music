@@ -17,6 +17,7 @@ import MessageHost from '@/components/MessageHost/index.vue'
 import UpdateNotice from '@/components/UpdateNotice/index.vue'
 import { useUpdates } from '@/store/updates'
 import { initializeShortcuts } from '@/utils/shortcutKey'
+import { connectDeviceVolume } from '@/utils/deviceVolume'
 import { useSettings } from '@/store/settings'
 import { useDesktopLyrics } from '@/store/desktopLyrics'
 import { useContextMenu } from './components/ContextMenu/useContextMenu'
@@ -33,6 +34,7 @@ const desktopLyrics = useDesktopLyrics()
 const windowVisible = ref(true)
 let stopWindowVisibility: (() => void) | undefined
 let stopShortcuts: (() => void) | undefined
+let stopDeviceVolume: (() => void) | undefined
 const updates = useUpdates()
 const refresh = ref(0) // 登录完成后强制刷新组件
 const bodyRef = ref<HTMLElement | null>(null)
@@ -59,6 +61,7 @@ onMounted(() => {
     window.$audio = audioInstance.value!
     console.log('初始化全局$audio：', window.$audio)
   }
+  stopDeviceVolume = connectDeviceVolume(store, () => audioInstance.value?.el)
   window.$login = login.value!
   document.addEventListener('click', () => {
     flags.isOpenDrawer = false
@@ -109,6 +112,7 @@ onUnmounted(() => {
   updates.disconnect()
   stopPunchCardTimer()
   stopShortcuts?.()
+  stopDeviceVolume?.()
 })
 </script>
 
@@ -145,7 +149,9 @@ onUnmounted(() => {
             <button type="button" @click="login?.show()">登录账号</button>
           </section>
           <router-view v-else v-slot="{ Component }">
-            <component :key="refresh" :is="Component"></component>
+            <KeepAlive :key="refresh" include="Home" :max="1">
+              <component :key="refresh" :is="Component"></component>
+            </KeepAlive>
           </router-view>
         </div>
       </main>

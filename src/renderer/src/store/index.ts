@@ -9,7 +9,7 @@ import {
 } from '@/layout/BaseAside/config'
 import { useAnonimousLogin } from '@/utils/useLogin'
 import { useMusicAction } from './music'
-import { isLocalTrack } from '@/utils/playbackTrack'
+import { readStoredVolume } from '@/utils/deviceVolume'
 export const useUserInfo = defineStore('userInfoId', {
   state: () => {
     return {
@@ -24,7 +24,7 @@ export const useUserInfo = defineStore('userInfoId', {
       isLogin: false, // 是否登录
       userPlayListInfo: [] as PlayList[], // 用户歌单列表信息
       userLikeIds: [] as number[], // 用户喜欢列表ids
-      volume: Number(localStorage.getItem('volume')) || 1, // 用户当前播放器音量
+      volume: readStoredVolume(), // 0（静音）也是有效的保存值
       events: {
         login: () => {}
       },
@@ -115,13 +115,8 @@ export const useUserInfo = defineStore('userInfoId', {
       if (musicConfig) {
         try {
           const playback = JSON.parse(musicConfig)
-          if (
-            isLogin ||
-            isLocalTrack(playback.songs) ||
-            playback.runtimeList?.tracks?.some(isLocalTrack)
-          ) {
-            void useMusicAction().restorePlayback(playback)
-          }
+          // 记住的是本机的待播状态；未登录的免费/试听歌曲也可恢复，仍不自动播放。
+          void useMusicAction().restorePlayback(playback)
         } catch {
           // 播放缓存损坏时正常打开应用，不影响本地音乐索引。
         }

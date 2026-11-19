@@ -22,6 +22,11 @@ import {
   type TrackId
 } from '@/utils/playbackTrack'
 import type { LocalTrack } from '../../../shared/localMusic'
+import {
+  playbackSeconds,
+  readPlaybackPosition,
+  writePlaybackPosition
+} from '@/utils/playbackPosition'
 
 export type Lyric = ReturnType<typeof parseYrc>[number]
 export type PlaybackLyrics = (ReturnType<typeof parseYrc> | ReturnType<typeof parseLrc>) & {
@@ -103,28 +108,41 @@ export const useMusicAction = defineStore('musicActionId', () => {
   const settings = useSettings()
   // 加载中的空数组尚不能用于判断歌曲是否有歌词，不写入播放持久化状态。
   const lyricLoading = ref(false)
+  const mediaDuration = ref(0)
+  const pendingPosition = ref<{ id: TrackId; time: number; token: number } | null>(null)
+  let positionToken = 0
   let lastPositionSaved = 0
-  const saveLocalPosition = () => {
-    if (!isLocalTrack(state.songs) || !state.musicUrl || lyricLoading.value) return
-    try {
-      localStorage.setItem(
-        'LOCAL_MUSIC_POSITION',
-        JSON.stringify({ id: state.songs.id, time: state.currentTime })
-      )
-      lastPositionSaved = Date.now()
-    } catch {
-      /* 存储不可用不打断播放。 */
-    }
+  let restoringPosition = false
+  const savePlaybackPosition = (ended = false) => {
+    if (restoringPosition || !state.songs?.id) return
+    writePlaybackPosition(state.songs.id, state.currentTime, Number(state.songs.dt) / 1000, ended)
+    lastPositionSaved = Date.now()
+  }
+  const replacePositionRestore = (time: number) => {
+    const pending = pendingPosition.value
+    if (!pending || pending.id !== state.songs.id) return
+    const target = playbackSeconds(time, Number(state.songs.dt) / 1000)
+    pendingPosition.value = { ...pending, time: target, token: ++positionToken }
+    state.currentTime = target
+    savePlaybackPosition()
+  }
+  const completePositionRestore = (token: number) => {
+    if (pendingPosition.value?.token === token) pendingPosition.value = null
+  }
+  const markPlaybackEnded = () => {
+    pendingPosition.value = null
+    state.currentTime = 0
+    savePlaybackPosition(true)
   }
   watch(
     () => state.currentTime,
     () => {
-      if (Date.now() - lastPositionSaved >= 2000) saveLocalPosition()
+      if (Date.now() - lastPositionSaved >= 2000) savePlaybackPosition()
     }
   )
-  window.addEventListener('beforeunload', saveLocalPosition)
-  onScopeDispose(() => window.removeEventListener('beforeunload', saveLocalPosition))
+  let changingTrack = false
   const persistPlayback = () => {
+    if (changingTrack || !state.songs?.id) return
     try {
       // 本地元数据由主进程索引持久化，队列只保存 ID，避免占满 localStorage。
       const tracks = state.runtimeList?.tracks.map((track) =>
@@ -142,6 +160,12 @@ export const useMusicAction = defineStore('musicActionId', () => {
       console.warn('保存播放队列失败', error)
     }
   }
+  const saveBeforeClose = () => {
+    savePlaybackPosition()
+    persistPlayback()
+  }
+  window.addEventListener('beforeunload', saveBeforeClose)
+  onScopeDispose(() => window.removeEventListener('beforeunload', saveBeforeClose))
   let reorderingQueue = false
   watch(
     () => state.index,
@@ -373,18 +397,70 @@ export const useMusicAction = defineStore('musicActionId', () => {
     }
   }
   const restorePlayback = async (data: Partial<State>) => {
+    const song = data?.songs
+    if (
+      !data ||
+      typeof data !== 'object' ||
+      !song ||
+      typeof song !== 'object' ||
+      !(
+        (typeof song.id === 'number' && Number.isFinite(song.id) && song.id > 0) ||
+        isLocalTrack(song)
+      ) ||
+      typeof song.name !== 'string' ||
+      !Array.isArray(song.ar) ||
+      !song.ar.every((artist) => artist && typeof artist.name === 'string') ||
+      !song.al ||
+      typeof song.al.name !== 'string' ||
+      !Number.isFinite(song.dt) ||
+      song.dt < 0 ||
+      (isLocalTrack(song) && (!song.local || typeof song.local.filePath !== 'string'))
+    )
+      return
+    data = { ...data, musicUrl: typeof data.musicUrl === 'string' ? data.musicUrl : '' }
+    if (data.runtimeList && Array.isArray(data.runtimeList.tracks)) {
+      data = {
+        ...data,
+        runtimeList: {
+          ...data.runtimeList,
+          tracks: data.runtimeList.tracks.filter(
+            (track) =>
+              track &&
+              typeof track === 'object' &&
+              (isLocalTrack(track) ||
+                (typeof track.id === 'number' && Number.isFinite(track.id) && track.id > 0))
+          )
+        }
+      }
+    }
     const revision = sourceRequestId
-    const previousQueue = state.runtimeList
     const tracks = Array.isArray(data.runtimeList?.tracks) ? data.runtimeList.tracks : []
-    if (isLocalTrack(data.songs) || tracks.some(isLocalTrack)) {
+    const hasLocal = isLocalTrack(data.songs) || tracks.some(isLocalTrack)
+    const id = data.songs.id as TrackId
+    const time = readPlaybackPosition(id, data.currentTime, Number(data.songs.dt) / 1000)
+    // 先恢复界面，再等待本地索引；媒体尚未加载时，初始 0 不能覆盖这个目标。
+    restoringPosition = true
+    mediaDuration.value = 0
+    try {
+      updateState({
+        ...data,
+        currentTime: time,
+        load: true,
+        ...(isLocalTrack(data.songs) ? { musicUrl: '', musicUrlExpiresAt: 0 } : {})
+      })
+      pendingPosition.value = { id, time, token: ++positionToken }
+    } finally {
+      restoringPosition = false
+    }
+    const previousQueue = state.runtimeList
+    const isCurrent = () =>
+      revision === sourceRequestId && previousQueue === state.runtimeList && state.songs.id === id
+    if (hasLocal) {
       try {
         const library = await window.localMusic?.list()
-        if (!library) return
-        // 等待索引期间用户可能已经开始播放另一首歌。
-        if (state.musicUrl || revision !== sourceRequestId || previousQueue !== state.runtimeList)
-          return
+        if (!library || !isCurrent()) return
         const indexed = new Map(library.tracks.map((track) => [track.id, track]))
-        if (data.runtimeList) {
+        if (data.runtimeList)
           data = {
             ...data,
             runtimeList: {
@@ -398,44 +474,34 @@ export const useMusicAction = defineStore('musicActionId', () => {
               )
             }
           }
-        }
         if (isLocalTrack(data.songs)) {
           const track = indexed.get(data.songs.id)
           const current = track || { ...data.songs, local: { ...data.songs.local, missing: true } }
-          data = { ...data, songs: current, musicUrl: '', musicUrlExpiresAt: 0, load: true }
-          // 使用已登记资源恢复暂停状态，首次播放时再次确认文件可用。
-          let duration = current.dt
+          data = { ...data, songs: current, musicUrl: '', musicUrlExpiresAt: 0 }
           if (track) {
             try {
               const resolved = await window.localMusic!.resolve(track.id)
               data.songs = resolved.track
               data.musicUrl = resolved.url
-              duration = resolved.track.dt
             } catch {
               current.local.missing = true
             }
           }
-          if (state.musicUrl || revision !== sourceRequestId || previousQueue !== state.runtimeList)
-            return
-          try {
-            const position = JSON.parse(localStorage.getItem('LOCAL_MUSIC_POSITION') || '{}')
-            if (
-              position.id === current.id &&
-              Number.isFinite(position.time) &&
-              position.time >= 0
-            ) {
-              data.currentTime =
-                duration > 0 ? Math.min(position.time, duration / 1000) : position.time
-            }
-          } catch {
-            /* 没有可恢复的进度。 */
-          }
+          if (!isCurrent()) return
+        }
+        if (!isCurrent()) return
+        const restoredTime = playbackSeconds(time, Number(data.songs?.dt) / 1000)
+        restoringPosition = true
+        try {
+          updateState({ ...data, currentTime: restoredTime, load: true })
+          pendingPosition.value = { id, time: restoredTime, token: ++positionToken }
+        } finally {
+          restoringPosition = false
         }
       } catch {
-        return
+        /* 无可用索引时仍保留已恢复的暂停界面，不覆盖用户的新操作。 */
       }
     }
-    updateState(data)
   }
   // 获取动态封面
   const getDynamicCoverHandler = async (id: number) => {
@@ -573,13 +639,20 @@ export const useMusicAction = defineStore('musicActionId', () => {
 
   // 获取音乐url并播放
   const getMusicUrlHandler = async (item: PlaybackTrack, i?: number) => {
+    savePlaybackPosition()
+    persistPlayback()
+    changingTrack = true
     const requestId = ++sourceRequestId
     const quality = settings.state.audioQuality
+    pendingPosition.value = null
+    mediaDuration.value = 0
+    state.currentTime = 0
     try {
       $audio.el.oncanplay = null
       lyricLoading.value = true
       state.sourceTrial = false
       state.songs = item
+      savePlaybackPosition()
       state.lyric = []
       state.videoPlayUrl = null
       const local = isLocalTrack(item)
@@ -635,6 +708,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
       state.actualQuality = source.qualityVerified ? source.quality : null
       state.sourceCached = source.cached
       state.sourceTrial = source.trial
+      changingTrack = false
       $audio.cutSongHandler()
       // 监听audio是否加载完毕
       persistPlayback()
@@ -670,6 +744,7 @@ export const useMusicAction = defineStore('musicActionId', () => {
     } catch (e) {
       console.log('getMusicUrlHandler函数错误：', e)
       if (requestId === sourceRequestId) {
+        changingTrack = false
         lyricLoading.value = false
         try {
           await window.$audio?.pause()
@@ -870,6 +945,13 @@ export const useMusicAction = defineStore('musicActionId', () => {
   return {
     state,
     restorePlayback,
+    pendingPosition,
+    mediaDuration,
+    completePositionRestore,
+    replacePositionRestore,
+    savePlaybackPosition,
+    persistPlayback,
+    markPlaybackEnded,
     playLocalTracks,
     enqueueLocalTrack,
     removeLocalFromQueue,

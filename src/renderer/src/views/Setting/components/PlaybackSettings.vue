@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useUserInfo } from '@/store'
 import { useSettings } from '@/store/settings'
 import { useMusicAction } from '@/store/music'
+import { currentAudioOutput, forgetAudioOutput, rememberedAudioOutputs } from '@/utils/deviceVolume'
 import AppSelect from '@/components/AppSelect/index.vue'
 import type { SelectValue } from '@/components/AppSelect/types'
 import {
@@ -12,6 +14,20 @@ import {
 
 const settings = useSettings()
 const music = useMusicAction()
+const user = useUserInfo()
+const outputName = computed(() => {
+  const output = currentAudioOutput.value
+  if (output === undefined) return '正在识别输出设备…'
+  if (output === null) return '暂未识别到独立输出设备'
+  return output.label.trim() || '系统默认输出（名称不可用）'
+})
+const outputVolume = computed(() => Math.round(user.volume * 100))
+
+function changeOutputVolume(event: Event) {
+  const value = (event.currentTarget as HTMLInputElement).valueAsNumber
+  if (Number.isFinite(value)) user.volume = Math.min(100, Math.max(0, value)) / 100
+}
+
 const stats = ref<AudioCacheStats | null>(null)
 const available = Boolean(window.audioCache)
 const busy = ref(false)
@@ -86,6 +102,69 @@ onMounted(() => void refresh())
       GB，自动清理较久未使用的文件；试听片段不作为完整歌曲缓存。清理缓存保留当前播放文件、登录信息和设置。
     </p>
     <p v-if="feedback" role="status">{{ feedback }}</p>
+
+    <section class="output-settings" aria-labelledby="output-settings-title">
+      <h3 id="output-settings-title" class="section-title">音频输出</h3>
+      <div class="output-device">
+        <span>当前设备</span>
+        <div class="output-device-info" aria-live="polite">
+          <strong class="output-device-name">{{ outputName }}</strong>
+          <span class="output-device-hint">跟随系统默认输出</span>
+        </div>
+      </div>
+      <div class="playback-setting-row output-volume-row">
+        <label for="output-device-volume">Tinglan 音量</label>
+        <div class="output-volume-control">
+          <input
+            id="output-device-volume"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            :value="outputVolume"
+            :aria-valuetext="`${outputVolume}%`"
+            aria-describedby="output-volume-hint"
+            @input="changeOutputVolume"
+          />
+          <output class="output-volume-value" for="output-device-volume">{{
+            `${outputVolume}%`
+          }}</output>
+        </div>
+      </div>
+      <p id="output-volume-hint">
+        {{
+          currentAudioOutput
+            ? '当前设备的音量会单独记忆，切回时自动恢复，不影响系统音量。'
+            : '未识别设备时沿用 Tinglan 的音量，不影响系统音量。'
+        }}
+      </p>
+      <details class="remembered-outputs">
+        <summary>已记忆设备（{{ rememberedAudioOutputs.length }}）</summary>
+        <p v-if="!rememberedAudioOutputs.length">暂无设备音量记录。</p>
+        <template v-else>
+          <p>忘记记录不会改变现在的音量；下次接入时按新设备处理。</p>
+          <ul class="remembered-output-list">
+            <li v-for="device in rememberedAudioOutputs" :key="device.id" class="remembered-output">
+              <div class="remembered-output-info">
+                <span class="remembered-output-name">{{ device.label || '未命名设备' }}</span>
+                <span v-if="currentAudioOutput?.id === device.id" class="output-device-hint">
+                  当前设备
+                </span>
+              </div>
+              <span class="remembered-output-volume">{{ Math.round(device.volume * 100) }}%</span>
+              <button
+                type="button"
+                class="forget-output"
+                :aria-label="`忘记 ${device.label || '未命名设备'} 的音量记录`"
+                @click="forgetAudioOutput(device.id)"
+              >
+                忘记
+              </button>
+            </li>
+          </ul>
+        </template>
+      </details>
+    </section>
   </section>
 </template>
 <style scoped lang="less">
@@ -108,6 +187,90 @@ onMounted(() => void refresh())
 .quality-select {
   width: 210px;
   max-width: 100%;
+}
+.output-settings {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--app-border);
+}
+.output-device {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.output-device-info {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+.output-device-name {
+  font-weight: 550;
+}
+.output-device-hint {
+  color: var(--app-muted);
+  font-size: 12px;
+}
+.output-volume-control {
+  display: flex;
+  align-items: center;
+  flex: 0 1 260px;
+  gap: 12px;
+  max-width: 100%;
+  input {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    accent-color: var(--app-accent);
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 3px;
+    }
+  }
+}
+.output-volume-value {
+  min-width: 4ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.remembered-outputs {
+  margin-top: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  font-size: 13px;
+  summary {
+    cursor: pointer;
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 3px;
+    }
+  }
+}
+.remembered-output-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.remembered-output {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4ch auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--app-border);
+}
+.remembered-output-info {
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+.remembered-output-volume {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 button {
   min-height: 34px;

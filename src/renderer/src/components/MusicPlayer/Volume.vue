@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useUserInfo } from '@/store'
 import PlayerGlyph from './PlayerGlyph.vue'
+import { getUnmuteVolume, saveStoredVolume } from '@/utils/deviceVolume'
 
 interface Props {
   audio?: HTMLAudioElement
@@ -9,9 +10,6 @@ interface Props {
 const props = defineProps<Props>()
 const model = ref(0)
 const store = useUserInfo()
-const savedVolume = localStorage.getItem('volume')
-const initialVolume = savedVolume === null ? store.volume : Number(savedVolume)
-if (Number.isFinite(initialVolume)) store.volume = Math.min(1, Math.max(0, initialVolume))
 const lastVolume = ref(store.volume > 0 ? store.volume : 1)
 
 // 详情页和底栏切换时，音量滑块保持与共享状态一致。
@@ -37,12 +35,12 @@ const setVolume = (value: number) => {
   if (next > 0) lastVolume.value = next
   model.value = next * 100
   store.volume = next
-  localStorage.setItem('volume', String(next))
+  saveStoredVolume(next)
   const audio = props.audio || window.$audio?.el
   if (audio) audio.volume = next
 }
 const volumeHandler = (target: boolean) => {
-  setVolume(target ? 0 : lastVolume.value)
+  setVolume(target ? 0 : getUnmuteVolume(lastVolume.value))
 }
 const input = () => {
   setVolume(volume.value)

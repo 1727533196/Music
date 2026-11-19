@@ -9,6 +9,7 @@ import PlayerGlyph from './PlayerGlyph.vue'
 import AudioQuality from './AudioQuality.vue'
 import DetailMoreMenu from './DetailMoreMenu.vue'
 import TrialBadge from './TrialBadge.vue'
+import { getUnmuteVolume, saveStoredVolume } from '@/utils/deviceVolume'
 
 const props = defineProps<{ songs: PlaybackTrack; isPlay: boolean }>()
 const emit = defineEmits<{
@@ -91,11 +92,11 @@ const setVolume = (value: number) => {
   const next = Math.min(1, Math.max(0, value))
   if (next > 0) lastVolume.value = next
   user.volume = next
-  localStorage.setItem('volume', String(next))
+  saveStoredVolume(next)
   if (window.$audio?.el) window.$audio.el.volume = next
 }
 const changeVolume = (event: Event) => setVolume(Number((event.target as HTMLInputElement).value))
-const toggleMute = () => setVolume(volume.value > 0 ? 0 : lastVolume.value)
+const toggleMute = () => setVolume(volume.value > 0 ? 0 : getUnmuteVolume(lastVolume.value))
 const toggleLike = async () => {
   const song = props.songs
   if (isLocalTrack(song) || !song.id || !user.isLogin || liking.value) return

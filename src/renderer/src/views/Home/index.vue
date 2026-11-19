@@ -1,8 +1,9 @@
-<script setup lang="ts" name="Home">
-import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+<script setup lang="ts">
+import { computed, onMounted, onActivated, onDeactivated, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserInfo } from '@/store'
 import { useSettings } from '@/store/settings'
+import { clearBannerAppearance } from '@/utils/bannerAppearance'
 import ArtistBanner from './components/ArtistBanner.vue'
 import SongsSection from './components/SongsSection.vue'
 import RecentSection from './components/RecentSection.vue'
@@ -21,13 +22,25 @@ import {
 import { playListMock as dailyQueue } from '@/views/DailyRecommend/dailyRecommendSongsConfig'
 import { playListMock as recentQueue } from '@/views/LatelyPlay/config'
 
+defineOptions({ name: 'Home' })
+
 const music = useMusicAction()
 const user = useUserInfo()
 const settings = useSettings()
 const router = useRouter()
+const bannerAppearanceKey = computed(() =>
+  homeCacheKey(
+    settings.state.baseUrl,
+    user.isLogin ? String(user.profile.userId || 'guest') : 'guest',
+    'banner'
+  )
+)
 const homeLoading = ref(false)
+const pageActive = ref(true)
 const login = () => window.$login?.show()
 const dailySongs = ref<GetMusicDetailData[]>([])
+const dailyRefreshToken = ref(0)
+const dailyRefreshing = ref(false)
 const recentSongs = ref<GetMusicDetailData[]>([])
 interface HomeAlbum {
   id: number
@@ -75,7 +88,6 @@ let contextVersion = 0
 let active = true
 let server = ''
 let account = ''
-let lastRefreshAt = 0
 let personalInFlight = false
 let lastFailedMixPage = 1
 let needsMixRefresh = true
@@ -130,6 +142,7 @@ const validMixes = (value: unknown): value is CachedMixes =>
 function scheduleRetry() {
   if (
     !active ||
+    !pageActive.value ||
     retryTimer ||
     (!mixError.value && !personalError.value) ||
     retryAttempt >= retryDelays.length
@@ -149,7 +162,7 @@ const updateMixPageSize = (size: number) => {
 }
 
 const loadMixPage = async (page = 1, refresh = false) => {
-  if (mixLoading.value || page < 1 || !active) return
+  if (mixLoading.value || page < 1 || !active || !pageActive.value) return
   const version = contextVersion
   const pageSize = mixPageSize.value
   const layoutVersion = mixLayoutVersion
@@ -259,11 +272,12 @@ const handleShare = () => {
 }
 
 const loadPersonalSections = async () => {
-  if (!active || !account || personalInFlight || !pendingPersonal.size) return
+  if (!active || !pageActive.value || !account || personalInFlight || !pendingPersonal.size) return
   personalInFlight = true
   homeLoading.value = true
   const version = contextVersion
   const isCurrent = () => active && version === contextVersion
+  if (pendingPersonal.has('songs')) dailyRefreshing.value = true
   const save = (section: 'songs' | 'albums' | 'recent', data: unknown) => {
     pendingPersonal.delete(section)
     writeHomeCache(cacheKey(section), data)
@@ -271,11 +285,16 @@ const loadPersonalSections = async () => {
   await Promise.allSettled(
     [...pendingPersonal].map(async (section) => {
       if (section === 'songs') {
-        const { data } = await recommendSong(quietRequest)
-        if (!validSongs(data?.dailySongs)) throw new Error('Invalid daily songs')
-        if (isCurrent()) {
-          dailySongs.value = data.dailySongs
-          save(section, data.dailySongs)
+        try {
+          const { data } = await recommendSong(quietRequest)
+          if (!validSongs(data?.dailySongs)) throw new Error('Invalid daily songs')
+          if (isCurrent()) {
+            dailySongs.value = data.dailySongs
+            dailyRefreshToken.value++
+            save(section, data.dailySongs)
+          }
+        } finally {
+          if (isCurrent()) dailyRefreshing.value = false
         }
       } else if (section === 'albums') {
         const { recommend } = await recommendSongList(quietRequest)
@@ -312,7 +331,7 @@ const loadPersonalSections = async () => {
 }
 
 async function refreshFailed() {
-  if (!active) return
+  if (!active || !pageActive.value) return
   const version = contextVersion
   await Promise.all([
     mixError.value || needsMixRefresh
@@ -334,29 +353,37 @@ function retryHome() {
   void refreshFailed()
 }
 function onReconnect() {
-  if (Date.now() - lastRefreshAt > 5 * 60 * 1000 && !homeLoading.value && !mixLoading.value) {
-    lastRefreshAt = Date.now()
-    needsMixRefresh = true
-    if (account) {
-      pendingPersonal.add('songs')
-      pendingPersonal.add('albums')
-      pendingPersonal.add('recent')
-    }
+  // 返回窗口/标签页时重新拉取，缓存只用于首屏，不当作刷新冷却。
+  // focus、visibilitychange 连续到达时合并到当前请求，避免重复拉取。
+  if (!active || !pageActive.value || document.hidden || homeLoading.value || mixLoading.value)
+    return
+  needsMixRefresh = true
+  if (account) {
+    pendingPersonal.add('songs')
+    pendingPersonal.add('albums')
+    pendingPersonal.add('recent')
   }
   retryHome()
+}
+function onVisibilityChange() {
+  if (!document.hidden) onReconnect()
 }
 watch(
   () => [settings.state.baseUrl, user.isLogin ? user.profile.userId : null] as const,
   ([baseUrl, id]) => {
     const nextAccount = typeof id === 'number' && id > 0 ? String(id) : ''
-    if (account && !nextAccount) clearHomePersonalCache(server, account)
+    if (account && !nextAccount) {
+      clearHomePersonalCache(server, account)
+      clearBannerAppearance(cacheKey('banner'))
+    }
     contextVersion++
     clearTimeout(retryTimer)
     retryTimer = undefined
     retryAttempt = 0
     server = baseUrl
     account = nextAccount
-    lastRefreshAt = Date.now()
+    dailyRefreshToken.value = 0
+    dailyRefreshing.value = false
     personalInFlight = false
     homeLoading.value = false
     personalError.value = false
@@ -402,6 +429,7 @@ let disposeServerStatus: (() => void) | undefined
 onMounted(() => {
   window.addEventListener('online', onReconnect)
   window.addEventListener('focus', onReconnect)
+  document.addEventListener('visibilitychange', onVisibilityChange)
   disposeServerStatus = window.electron?.ipcRenderer.on(
     'server:status',
     (_event, status: { running: boolean }) => {
@@ -417,6 +445,18 @@ onMounted(() => {
     }
   )
 })
+let hasActivated = false
+onActivated(() => {
+  pageActive.value = true
+  // 初次挂载已由账号监听加载；之后返回只更新数据，不重建页面。
+  if (hasActivated) onReconnect()
+  hasActivated = true
+})
+onDeactivated(() => {
+  pageActive.value = false
+  clearTimeout(retryTimer)
+  retryTimer = undefined
+})
 onBeforeUnmount(() => {
   active = false
   contextVersion++
@@ -424,6 +464,7 @@ onBeforeUnmount(() => {
   disposeServerStatus?.()
   window.removeEventListener('online', onReconnect)
   window.removeEventListener('focus', onReconnect)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 </script>
 
@@ -432,7 +473,12 @@ onBeforeUnmount(() => {
     <!-- Song Banner -->
     <ArtistBanner
       v-if="dailySongs.length"
+      :key="bannerAppearanceKey"
       :songs="dailySongs"
+      :appearance-key="bannerAppearanceKey"
+      :active="pageActive"
+      :refresh-token="dailyRefreshToken"
+      :refreshing="dailyRefreshing"
       @play="handlePlay"
       @like="handleLike"
       @share="handleShare"

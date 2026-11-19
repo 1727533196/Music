@@ -17,6 +17,7 @@ import { reloadAudioSource } from '@/utils/musicSource'
 import { message } from '@/utils/message'
 import { useSettings } from '@/store/settings'
 import { connectDesktopLyrics } from '@/utils/desktopLyrics'
+import { playbackSeconds, sameAudioSource } from '@/utils/playbackPosition'
 
 const orderStatus = ['icon-xihuan5', 'icon-xunhuan', 'icon-suijibofang', 'icon-danquxunhuan']
 type userAudio = {
@@ -63,6 +64,7 @@ function click(time: number) {
   }
 }
 function seeked() {
+  applyRestoredPosition()
   if (
     timeState.stop ||
     !isPlay.value ||
@@ -91,10 +93,24 @@ watch(
   () => {
     cancelPendingPlay()
     resumeTime = null
+    timeState.stop = true
   }
 )
 
+watch(
+  () => props.src,
+  () => {
+    music.mediaDuration = 0
+  },
+  { flush: 'sync' }
+)
+
 function setPlaybackTime(time: number) {
+  if (!Number.isFinite(time) || time < 0) return
+  if (music.pendingPosition) {
+    music.replacePositionRestore(time)
+    time = music.pendingPosition?.time ?? time
+  }
   if (
     resumeTime !== null ||
     !audio.value?.readyState ||
@@ -110,7 +126,67 @@ function setPlaybackTime(time: number) {
   }
 }
 
+// 恢复只负责定位，不调用 play；按歌曲和实际资源校验，过期媒体事件不能覆盖新歌。
+function updateMediaDuration() {
+  const element = audio.value
+  if (
+    element &&
+    sameAudioSource(element.currentSrc, music.state.musicUrl) &&
+    Number.isFinite(element.duration) &&
+    element.duration > 0
+  )
+    music.mediaDuration = element.duration
+}
+function applyRestoredPosition() {
+  updateMediaDuration()
+  const pending = music.pendingPosition
+  const element = audio.value
+  if (!pending || !element) return
+  timeState.stop = true
+  if (
+    pending.id !== props.songs.id ||
+    pending.id !== music.state.songs.id ||
+    !sameAudioSource(element.currentSrc, props.src) ||
+    !sameAudioSource(element.currentSrc, music.state.musicUrl) ||
+    element.readyState < 1
+  )
+    return
+  const target = playbackSeconds(pending.time, element.duration)
+  music.state.currentTime = target
+  try {
+    if (Math.abs(element.currentTime - target) > 0.05) element.currentTime = target
+    if (!element.seeking && Math.abs(element.currentTime - target) <= 0.05) {
+      music.completePositionRestore(pending.token)
+      timeState.stop = false
+      music.savePlaybackPosition()
+    }
+  } catch {
+    /* 某些格式要等 loadeddata/canplay 才能 seek，保留目标以便下个事件重试。 */
+  }
+}
+function captureProgress() {
+  const element = audio.value
+  if (
+    !music.pendingPosition &&
+    element &&
+    !timeState.stop &&
+    sameAudioSource(element.currentSrc, music.state.musicUrl) &&
+    element.readyState >= 1
+  ) {
+    music.state.currentTime = element.ended
+      ? 0
+      : playbackSeconds(element.currentTime, element.duration)
+  }
+  music.savePlaybackPosition(!!element?.ended && !music.pendingPosition)
+  music.persistPlayback()
+}
+watch(() => [props.songs.id, props.src, music.pendingPosition?.token], applyRestoredPosition, {
+  flush: 'post'
+})
+
 onMounted(() => {
+  window.addEventListener('beforeunload', captureProgress)
+  applyRestoredPosition()
   stopDesktopLyrics = connectDesktopLyrics(audio.value!)
   player.mount(document.querySelector('.lyric-container') as HTMLDivElement, audio.value!)
   originPlay = audio.value!.play as HTMLMediaElement['play']
@@ -149,6 +225,8 @@ onMounted(() => {
   })
 })
 onUnmounted(() => {
+  captureProgress()
+  window.removeEventListener('beforeunload', captureProgress)
   stopDesktopLyrics?.()
   cancelPendingPlay()
   clearInterval(timer)
@@ -308,6 +386,7 @@ function pause(isNeed: boolean = true, lengthen: boolean = false) {
     player.pause()
     // 暂停时应该等待音量过渡完成在改变，让逐字歌词也有一个暂停过渡效果
     transitionIsPlay.value = false
+    captureProgress()
     return undefined
   })
 }
@@ -327,8 +406,9 @@ function transitionVolume(
     finishTransition = () => resolve(undefined)
     if (target) {
       timer = setInterval(() => {
-        audio.value!.volume = Math.min(audio.value!.volume + volume / playVolume, volume)
-        if (audio.value!.volume >= volume) {
+        const latest = Math.min(1, Math.max(0, Number(store.volume) || 0))
+        audio.value!.volume = Math.min(audio.value!.volume + latest / playVolume, latest)
+        if (audio.value!.volume >= latest) {
           resolve(undefined)
           clearInterval(timer)
         }
@@ -336,11 +416,11 @@ function transitionVolume(
       return
     }
     timer = setInterval(() => {
-      audio.value!.volume = Math.max(audio.value!.volume - volume / pauseVolume, 0)
+      audio.value!.volume = Math.max(audio.value!.volume - Math.max(volume / pauseVolume, 0.01), 0)
       if (audio.value!.volume <= 0) {
         clearInterval(timer)
         originPause.call(audio.value)
-        audio.value!.volume = volume
+        audio.value!.volume = Math.min(1, Math.max(0, Number(store.volume) || 0))
         resolve(undefined)
       }
     }, 50)
@@ -353,12 +433,23 @@ const timeState = reactive({
 })
 
 const timeupdate = () => {
-  if (timeState.stop || isNaN($audio.el.duration)) {
-    return
+  updateMediaDuration()
+  if (music.pendingPosition) {
+    applyRestoredPosition()
+    if (music.pendingPosition) return
   }
-  // 在更新 currentTime 之前，保存旧的值
+  const element = audio.value
+  if (
+    timeState.stop ||
+    !element ||
+    !Number.isFinite(element.duration) ||
+    !sameAudioSource(element.currentSrc, music.state.musicUrl)
+  )
+    return
   timeState.previousTime = music.state.currentTime
-  music.state.currentTime = $audio.time
+  music.state.currentTime = element.ended
+    ? 0
+    : playbackSeconds(element.currentTime, element.duration)
 }
 
 const reset = (val: boolean) => {
@@ -372,6 +463,9 @@ const reset = (val: boolean) => {
   timeState.stop = true // 在每次play方法时都会重置stop值
 }
 const end = () => {
+  timeState.stop = true
+  resumeTime = null
+  music.markPlaybackEnded()
   emit('playEnd')
 }
 const setOrderHandler = () => {
@@ -441,6 +535,10 @@ defineExpose(exposeObj)
   <div class="bottom-container" :class="{ 'detail-player': flags.isOpenDetail }">
     <audio
       @timeupdate="timeupdate"
+      @loadedmetadata="applyRestoredPosition"
+      @loadeddata="applyRestoredPosition"
+      @canplay="applyRestoredPosition"
+      @durationchange="applyRestoredPosition"
       @ended="end"
       @seeked="seeked"
       ref="audio"

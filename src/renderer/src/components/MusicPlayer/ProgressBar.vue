@@ -15,7 +15,11 @@ const seekPreview = ref<number | null>(null)
 const model = computed<number>({
   get() {
     if (seekPreview.value !== null) return seekPreview.value
-    const duration = window.$audio?.el.duration
+    const mediaDuration = music.mediaDuration
+    const duration =
+      Number.isFinite(mediaDuration) && mediaDuration > 0
+        ? mediaDuration
+        : Number(props.songs?.dt) / 1000
     return Number.isFinite(duration) && duration > 0
       ? (music.state.currentTime / duration) * 100
       : 0

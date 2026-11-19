@@ -228,7 +228,6 @@ watch(
   height: var(--app-header-height, 76px);
   color: var(--app-text);
   background: var(--app-background);
-  border-bottom: 1px solid var(--app-border);
 }
 .base-header.detail-open {
   z-index: 2001;
@@ -335,16 +334,7 @@ watch(
   }
   &.active {
     color: var(--app-text);
-  }
-  &.active::after {
-    content: '';
-    position: absolute;
-    bottom: -6px;
-    left: 12px;
-    right: 12px;
-    height: 2px;
-    background: var(--app-accent);
-    border-radius: 2px;
+    background: var(--app-surface-strong);
   }
 }
 .header-search {
@@ -601,10 +591,6 @@ watch(
   .navigation-link {
     padding-inline: 8px;
     font-size: 13px;
-    &.active::after {
-      left: 8px;
-      right: 8px;
-    }
   }
   .header-search {
     width: 135px;

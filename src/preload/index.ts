@@ -5,6 +5,17 @@ import type { ShortcutAPI, ShortcutId } from '../shared/shortcuts'
 import type { AudioCacheAPI } from '../shared/audioCache'
 import type { DesktopLyricsAPI, LyricPublisherAPI } from '../shared/desktopLyrics'
 import type { LocalMusicAPI } from '../shared/localMusic'
+import type { AudioOutputAPI } from '../shared/audioOutput'
+
+const audioOutput: AudioOutputAPI = {
+  getCurrent: () => ipcRenderer.invoke('audio-output:get-current'),
+  onChange: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, device: Parameters<typeof callback>[0]) =>
+      callback(device)
+    ipcRenderer.on('audio-output:change', handler)
+    return () => ipcRenderer.removeListener('audio-output:change', handler)
+  }
+}
 
 const localMusic: LocalMusicAPI = {
   list: () => ipcRenderer.invoke('local-music:list'),
@@ -100,6 +111,7 @@ try {
   contextBridge.exposeInMainWorld('shortcuts', shortcuts)
   contextBridge.exposeInMainWorld('audioCache', audioCache)
   contextBridge.exposeInMainWorld('localMusic', localMusic)
+  contextBridge.exposeInMainWorld('audioOutput', audioOutput)
 } catch (error) {
   console.error(error)
 }
