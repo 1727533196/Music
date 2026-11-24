@@ -28,7 +28,7 @@ mac:
   icon: ../build/icon.icns
   category: public.app-category.music
   entitlementsInherit: ../build/entitlements.mac.plist
-  notarize: false
+  notarize: true
   # 只打包 DMG，不生成 ZIP（ZIP 压缩220MB+内容非常慢）
   target:
     - target: dmg
@@ -44,6 +44,7 @@ mac:
 dmg:
   # 安装器 DMG 名称
   artifactName: Tinglan-${version}-installer.dmg
+  sign: true
   title: Tinglan 安装程序
   # 只放安装器本体，不显示 Applications 文件夹拖拽
   window:
@@ -80,4 +81,3 @@ portable:
 npmRebuild: false
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
-

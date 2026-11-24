@@ -3,13 +3,8 @@ productName: Tinglan
 directories:
   buildResources: build
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!installer/**'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - out/**
+  - resources/**
 asarUnpack:
   - resources/**
 win:
@@ -31,13 +26,14 @@ mac:
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  notarize: false
+  notarize: true
   # 只生成 DMG，跳过 ZIP（避免 7zip 压缩200MB+耗时很长）
   target:
     - target: dmg
       arch: arm64
 dmg:
   artifactName: ${productName}-${version}.${ext}
+  sign: true
 linux:
   target:
     - AppImage

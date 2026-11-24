@@ -7,7 +7,7 @@
   <p>
     <a href="https://vuejs.org/"><img src="https://img.shields.io/badge/Vue-3-42b883?style=flat-square" alt="Vue 3" /></a>
     <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square" alt="TypeScript 5" /></a>
-    <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-31-47848f?style=flat-square" alt="Electron 31" /></a>
+    <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-45-47848f?style=flat-square" alt="Electron 45" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-a3a3a3?style=flat-square" alt="MIT License" /></a>
   </p>
 
@@ -75,7 +75,7 @@
 
 ### 环境准备
 
-- **Node.js**：20 或更高版本，推荐 22 LTS。
+- **Node.js**：22.12 或更高版本。
 - **pnpm**：项目使用 `10.33.2`，与 `package.json` 中的 `packageManager` 保持一致。
 - **API 服务**：使用 [NeteaseCloudMusicApi Enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)，也可连接已部署的兼容服务。
 
@@ -148,7 +148,7 @@ VITE_URL=http://127.0.0.1:3000
 
 ### 带本地 API 服务的安装器
 
-项目提供独立的图形化安装器，支持 **macOS arm64** 与 **Windows x64**。构建前保持以下目录结构：
+项目提供独立的图形化安装器，支持 **macOS 13 及以上（Apple Silicon）** 与 **Windows x64**。构建前保持以下目录结构：
 
 ```text
 workspace/
@@ -167,6 +167,8 @@ pnpm installer:build:win
 ```
 
 脚本依次构建 API 服务可执行文件、音乐主应用与安装器，最终产物位于 `dist/installer/`。
+
+对外分发 macOS DMG 前，在构建机的钥匙串中导入带私钥的 **Developer ID Application** 证书，并设置 `APPLE_KEYCHAIN_PROFILE` 为已通过 `xcrun notarytool store-credentials` 保存的凭据名称。构建完成后，用 `syspolicy_check distribution` 检查主应用和安装器的签名及公证票据。
 
 Windows 在线更新使用 GitHub Releases 托管安装包和 `version.json`，无需另建后端。构建更新包可运行 `pnpm update:build:win`，发布步骤见 [在线更新说明](docs/updates.md)。
 
@@ -225,7 +227,7 @@ node node_modules/electron/install.js
 
 | 层级       | 技术                                    |
 | ---------- | --------------------------------------- |
-| 桌面运行时 | Electron 31                             |
+| 桌面运行时 | Electron 45                             |
 | 页面与状态 | Vue 3 · TypeScript · Vue Router · Pinia |
 | UI 与样式  | Vuetify · Element Plus · Less           |
 | 动画与图形 | GSAP · Three.js                         |

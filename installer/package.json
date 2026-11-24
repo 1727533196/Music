@@ -22,7 +22,7 @@
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@vitejs/plugin-vue":         "^5.0.5",
-    "electron":                   "^31.0.2",
+    "electron":                   "^45.4.1",
     "electron-builder":           "^24.13.3",
     "electron-vite":              "^2.3.0",
     "less":                       "^4.2.0",
